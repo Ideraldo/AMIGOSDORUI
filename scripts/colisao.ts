@@ -36,6 +36,9 @@ const PASSEIOS: [LugarId, string, [number, number][]][] = [
   ['casarao', 'banho', [[0, -1.2], [5.2, -2.2], [9.0, -2.2], [9.0, -9.35], [6.4, -9.35], [6.4, -12]]],
 ];
 
+/** O palheiro do celeiro fica a 2,6 m: sobe pela escada da direita. */
+const PALHEIRO: [number, number][] = [[0, -1.5], [5.1, -2.4], [5.1, -10], [0, -11.5]];
+
 const servidor = await createServer({ server: { port: PORTA, strictPort: true }, logLevel: 'error' });
 await servidor.listen();
 const navegador = await puppeteer.launch({
@@ -102,9 +105,15 @@ try {
     ['beco leste do estabulo', [6, -7.5, 24, -7.5]],
     ['beco leste do casarao', [6, 13.5, 24, 13.5]],
     ['rua de tras leste', [22.6, -45, 22.6, 15]],
+    ['estrada do sitio ate o terreiro', [-25.5, 9.75, -70, 9.75]],
+    ['terreiro ate o milharal', [-64.8, -3, -64.8, -44]],
+    ['trilha ate a clareira', [-64.8, -44, -84, -44]],
+    ['terreiro para o sul', [-63, 22, -63, 44]],
+    ['ate a beira do acude', [-63, 44, -85, 46]],
   ];
   for (const [nome, trecho] of caminhos) conferir((await bloqueados(trecho)) === 0, `caminho livre: ${nome}`);
-  conferir((await bloqueados([-44, 0, -52, 0])) > 0, 'paredao oeste segura o jogador');
+  conferir((await bloqueados([-108, 0, -118, 0])) > 0, 'paredao oeste segura o jogador');
+  conferir((await bloqueados([-88, 46, -97, 46])) > 0, 'ninguem anda sobre o acude');
   conferir((await bloqueados([38, 0, 46, 0])) > 0, 'paredao leste segura o jogador');
   conferir((await bloqueados([50, 58, 62, 58])) > 0, 'fundo da mina segura o jogador');
 
@@ -118,6 +127,13 @@ try {
     const r = await pagina.evaluate((inicio, pontos) => window.__depurar!.caminhar(inicio, pontos), [x0, 0, z0] as [number, number, number], pontos.map(([x, z]) => noMundo(c, x, z)));
     const ok = r.chegou && Math.abs(r.y - PISO_DE_CIMA) < 0.02;
     conferir(ok, `${c.nome}: sobe a escada e chega em ${destino}${ok ? '' : ` (parou no ponto ${r.alcancados} em x ${r.x.toFixed(2)}, y ${r.y.toFixed(2)}, z ${r.z.toFixed(2)})`}`);
+  }
+
+  {
+    const c = lugarPorId('celeiro')!;
+    const [x0, z0] = noMundo(c, 0, 3);
+    const r = await pagina.evaluate((inicio, pontos) => window.__depurar!.caminhar(inicio, pontos), [x0, 0, z0] as [number, number, number], PALHEIRO.map(([x, z]) => noMundo(c, x, z)));
+    conferir(r.chegou && Math.abs(r.y - 2.6) < 0.02, `Celeiro: sobe no palheiro (y ${r.y.toFixed(2)}, ponto ${r.alcancados})`);
   }
 
   await abrir('');

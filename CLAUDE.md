@@ -13,8 +13,8 @@ Jogo de terror e mistério em grupo numa cidade de faroeste sombrio. 3D na web c
 
 ```bash
 npm run dev        # jogo no navegador
-npm run conferir   # tipos + testes da planta (rode antes de todo commit)
-npm run colisao    # confere portas e caminhos num Chrome sem janela
+npm run conferir   # tipos + testes da planta e da colisao (rode antes de todo commit)
+npm run colisao    # confere portas, caminhos, escadas e frestas num Chrome sem janela
 npm run capturas   # capturas de tela em capturas/ (aceita filtros: npm run capturas -- rua dentro-bar)
 npm run planta     # regenera docs/planta.*
 npm run build      # build de produção
@@ -26,7 +26,8 @@ Você não enxerga a cena enquanto escreve. Depois de qualquer mudança visual:
 
 1. Rode `npm run capturas` com um filtro para as vistas afetadas e **abra as imagens**.
 2. Se mexeu em algo que ocupa espaço, rode `npm run colisao`.
-3. Todo lugar de `LUGARES` ganha sozinho as vistas `dentro-<id>-a` (da porta) e `dentro-<id>-b` (do fundo). Para coisas de rua, acrescente uma vista em `scripts/capturas.ts`.
+3. Todo lugar de `LUGARES` ganha sozinho as vistas `dentro-<id>-a` (da porta) e `dentro-<id>-b` (do fundo). Para coisas de rua, acrescente uma vista em `scripts/capturas.ts`. Andares de cima têm as vistas `cima-<id>-<nome>` (lista `SOBRADOS`) e o vale tem as `sitio-NN`.
+4. Rode um `capturas` por vez. Dois ao mesmo tempo estouram o tempo de carregamento.
 
 Use `--dia` (ou `?dia=1`) para conferir geometria e a noite normal para conferir o clima. Sem placa de vídeo, cada captura leva uns 30 segundos, então filtre. Defeitos que só apareceram assim: uma pedra solta dentro da igreja, um amarradouro bloqueando a porta da delegacia, um vagonete fechando a boca da mina e caixões que pareciam mesas.
 
@@ -34,8 +35,9 @@ Não edite arquivos de `src/` enquanto `capturas` ou `colisao` estiverem rodando
 
 ## Convenções do mundo
 
-- Unidade: metro. O chão é plano em y = 0. A colisão é feita só no plano XZ.
+- Unidade: metro. O chão é plano em y = 0. Pisos mais altos (degraus, andar de cima, palheiro) são sólidos em que o jogador sobe.
 - **X cresce para o leste, Z cresce para o sul.** O grupo chega pelo norte (estação, z negativo) e a rua desce até a igreja (z positivo). Não troque isso: no Three.js, quem olha para +Z tem o +X à esquerda, e esta convenção é a que faz o mapa bater com o que o jogador vê.
+- A cidade fica a leste (x acima de -46). O vale do sítio ocupa o oeste, até x = -112, e se liga à cidade pela estrada em z perto de 10.
 - O mapa (`plantaSvg.ts`) é desenhado com o sul para cima, girando o mundo 180 graus: ponto (x, z) vira (-x, -z).
 - Giro do jogador: `PI` olha para +Z (rua abaixo), `PI/2` para o oeste, `-PI/2` para o leste, `0` para o norte.
 - Cada construção é posicionada pela **porta** (x, z) e pela direção da fachada (`frente`). O corpo se estende para trás.
@@ -45,18 +47,22 @@ Não edite arquivos de `src/` enquanto `capturas` ou `colisao` estiverem rodando
 ## Como as peças se encaixam
 
 - `planta.ts` é a fonte da verdade e não importa o Three.js. Mapa, testes, colisão e (no futuro) as regras do jogo leem dali. Posição nova entra primeiro lá.
-- Colisão: qualquer malha criada com `{ solido: true }`, ou uma `barreira(...)` invisível, vira caixa de colisão. As caixas são calculadas uma vez em `construirCidade`. Só bloqueia o que cruza a altura do corpo (0,35 m a 1,7 m), então degraus e toldos não atrapalham.
+- Colisão (`src/jogador/colisao.ts`, sem Three.js, com testes): qualquer malha criada com `{ solido: true }`, ou uma `barreira(...)` invisível, vira um sólido. Os sólidos são calculados uma vez em `construirCidade`. Malha girada só em Y vira caixa girada justa. Malha inclinada vira a caixa alinhada aos eixos, que é maior.
+- Cada sólido tem faixa de altura. É **obstáculo** se cruza o corpo (dos pés até 1,75 m) e o topo passa de um degrau (0,36 m) acima dos pés. É **chão** se o topo fica até um degrau acima dos pés. Então escada é uma fila de caixas sólidas, piso de cima é uma caixa larga, e quem sai da beirada cai.
+- Cuidado com sólido baixo: qualquer coisa sólida com menos de 0,36 m de altura vira degrau e o jogador sobe nela.
 - Formas: use `caixa`, `cilindro`, `esfera`, `anel` e os materiais de `base.ts` (`madeira`, `fosco`, `metal`, `brilho`). Eles compartilham geometria e material. Texto em placa, cartaz ou quadro: `materialTexto`.
 - Antes de modelar um móvel, procure em `objetos.ts`: mesa, cadeira, banco, cama, estante, baú, quadro, tapete, fogão, escada, lustre, caixão, carroça, barril, cerca e outros já existem.
+- Parede interna com porta: `divisoria(...)` em `interiores.ts`. Escada que sobe de verdade: `escada(...)` em `objetos.ts`.
 - Não pendure malhas em malhas criadas por `caixa`: elas têm escala e deformam os filhos. Use `movel` ou um `THREE.Group`.
 - Luz que treme: `luzDeLampiao` ou `lampiao`. Todo prédio fechável tem um `volumeDeSombra` por dentro, senão o luar vaza pelo rodapé.
 - Aberto e fechado: os construtores recebem `aberto`. Aberto tem porta aberta, janelas acesas e luz. Fechado tem tábuas e uma caixa sólida na porta. Lugar novo precisa dos dois estados.
 - Interiores (`interiores.ts`): uma função por lugar, que recebe as medidas da sala (`L`, `R`, `F` são as paredes esquerda, direita e do fundo, pela face de dentro). **O corredor da porta fica livre**: nada sólido com x entre -0,5 e 0,5 até z = -3. O `npm run colisao` reprova se alguém fechar a entrada.
+- Sobrados: `ESTILOS[id].escada` diz onde fica a escada. A casca (`predioBase`) faz a escada, o piso de cima (y = `PISO_DE_CIMA`, 3,52) com o vão, o guarda-corpo e a parede da caixa da escada. O interior recebe `poco` e monta o andar de cima num grupo `movel(g, 0, 0, 0, PISO_DE_CIMA)`. O andar de cima só é mobiliado quando o lugar está aberto.
 - Janelas laterais ficam em z = -D/2 (prédios com menos de 10 m de fundo) ou em -D/3 e -2D/3. Evite pendurar quadro em cima delas.
 
 ## As peças são fundidas
 
-No fim de `construirCidade`, `fundir` troca as milhares de caixas e cilindros de cada prédio por uma malha por material. Sem isso seriam milhares de chamadas de desenho. Com tudo aberto e a cidade inteira na tela são cerca de 550. Consequências:
+No fim de `construirCidade`, `fundir` troca as milhares de caixas e cilindros de cada prédio por uma malha por material. Sem isso seriam milhares de chamadas de desenho. Com tudo aberto e o mapa inteiro na tela são cerca de 600. Consequências:
 
 - Depois de montada, a cidade não tem mais as peças soltas. Não dá para achar "a porta do bar" na cena.
 - A colisão é calculada antes de fundir, então `solido: true` e `barreira` continuam valendo.
@@ -67,12 +73,13 @@ No fim de `construirCidade`, `fundir` troca as milhares de caixas e cilindros de
 
 1. Acrescente o id em `LugarId` e o lugar em `LUGARES` (ou uma casa em `FIGURANTES`) em `planta.ts`. Se precisar de caminho de terra, acrescente em `CAMINHOS`. Rode `npm test`: ele acusa sobreposição, porta bloqueada e saída dos limites.
 2. Dê um estilo em `ESTILOS` (`predios.ts`) e escreva o interior em `interiores.ts`, registrando a função em `INTERIORES`.
-3. Rode `npm run capturas -- dentro-<id>` e `npm run colisao`, e olhe as imagens.
+3. Rode `npm run capturas -- dentro-<id>` e `npm run colisao`, e olhe as imagens. O `colisao` enche o chão a partir da chegada e reprova lugar aberto sem acesso e lugar fechado com fresta. Se o lugar tiver andar de cima, acrescente um passeio em `PASSEIOS`.
 4. Rode `npm run planta` para atualizar o mapa em `docs/`.
 
 ## Orçamento de desempenho
 
-- Com os 16 lugares abertos são 44 luzes pontuais, sem sombra. Uma noite normal abre 8 lugares e fica perto de 26. Só a lua projeta sombra (mapa de 2048, desenhado uma vez). Não acrescente luz com sombra sem medir.
+- Com os 18 lugares abertos são 54 luzes pontuais, sem sombra, e cerca de 600 chamadas de desenho. Uma noite normal abre 9 lugares e fica perto de 32 luzes. Só a lua projeta sombra (mapa de 2048, desenhado uma vez, cobrindo cidade e vale: cerca de 13 cm por ponto). Não acrescente luz com sombra sem medir.
+- O milharal é uma malha instanciada só (cerca de 1.700 pés, 15 triângulos cada). O capim também.
 - O custo das luzes cresce com o número delas em todo pixel da tela. Se a noite normal pesar na máquina do Ideraldo, o próximo passo é desligar as luzes de interiores distantes do jogador.
 - Nada disso foi medido numa placa de vídeo de verdade. As capturas rodam em renderização por software. Antes de otimizar mais, peça ao Ideraldo o FPS que ele vê.
 
@@ -82,7 +89,8 @@ No fim de `construirCidade`, `fundir` troca as milhares de caixas e cilindros de
 - Regras e história devem ficar num núcleo sem Three.js (`src/nucleo/`), determinístico e com semente (`rng.ts`), para rodar igual no servidor e em testes.
 - Nenhum modelo de IA gera texto durante a partida. A história vem de uma biblioteca pronta, feita antes.
 - Não troque de motor, não acrescente framework de interface e não traga modelos 3D prontos sem combinar com o Ideraldo.
-- Os sobrados (bar, pensão, casarão) têm escada só de enfeite. A colisão é plana, em XZ. Andar de cima de verdade exige colisão com altura, e isso é uma decisão a combinar.
+- Não existe pulo nem agachar, de propósito. Se a jogabilidade pedir, combine antes.
+- Quartos trancados dos sobrados (2, 4 e 6 do bar, 2 da pensão, dois do casarão) estão vazios por dentro. São reserva para a história abrir depois.
 - Os textos de cartazes e placas (avisos, quadro da escola, linhas do telégrafo) são ambientação inventada no cenário, não história oficial. Quando o roteiro existir, eles devem passar a vir dele.
 
 ## Qual modelo usar

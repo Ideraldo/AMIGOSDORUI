@@ -24,7 +24,9 @@ export type LugarId =
   | 'estabulo'
   | 'botica'
   | 'escola'
-  | 'telegrafo';
+  | 'telegrafo'
+  | 'sitio'
+  | 'celeiro';
 
 export interface Construcao {
   id: string;
@@ -54,8 +56,18 @@ export interface Retangulo {
   maxZ: number;
 }
 
-/** Area onde o jogador pode andar. A mina fura o paredao leste de proposito. */
-export const LIMITES: Retangulo = { minX: -46, maxX: 40, minZ: -76, maxZ: 84 };
+/**
+ * Area onde o jogador pode andar. A mina fura o paredao leste de proposito.
+ * A cidade ocupa o lado leste (x acima de -46). O vale do sitio fica a oeste dela.
+ */
+export const LIMITES: Retangulo = { minX: -112, maxX: 40, minZ: -76, maxZ: 84 };
+
+/** Plantacao de milho seco do sitio. As trilhas que a cortam estao em CAMINHOS. */
+export const MILHARAL: Retangulo = { minX: -106, maxX: -56, minZ: -60, maxZ: -28 };
+/** Clareira no meio do milharal. */
+export const CLAREIRA = { x: -86, z: -44, raio: 4.5 };
+export const ACUDE = { x: -97, z: 46, raio: 9 };
+export const CURRAL: Retangulo = { minX: -82, maxX: -66, minZ: 24, maxZ: 36 };
 
 export const RUA = { largura: 13, minZ: -72, maxZ: 46 };
 export const PRACA = { x: 0, z: 42, raio: 11 };
@@ -64,7 +76,7 @@ export const ALPENDRE = 2.6;
 /** Espessura das paredes dos predios. */
 export const PAREDE = 0.25;
 export const NASCIMENTO = { x: 0, z: -53 };
-export const LUGARES_ABERTOS_POR_NOITE = 8;
+export const LUGARES_ABERTOS_POR_NOITE = 9;
 
 /** Os lugares que a historia pode abrir ou fechar a cada noite. */
 export const LUGARES: Lugar[] = [
@@ -278,6 +290,33 @@ export const LUGARES: Lugar[] = [
     altura: 4.2,
     andares: 1,
   },
+  // Vale do sitio, a oeste, no fim da estrada que sai da rua de tras.
+  {
+    id: 'sitio',
+    nome: 'Sítio',
+    placa: 'SÍTIO',
+    descricao: 'A casa do vale. A mesa está posta para quatro e o fogão ainda está morno.',
+    x: -84,
+    z: 10,
+    frente: 'L',
+    largura: 14,
+    profundidade: 10,
+    altura: 4.4,
+    andares: 1,
+  },
+  {
+    id: 'celeiro',
+    nome: 'Celeiro',
+    placa: 'CELEIRO',
+    descricao: 'Feno até o teto, ferramentas na parede e um alçapão que ninguém abriu.',
+    x: -74,
+    z: -6,
+    frente: 'S',
+    largura: 12,
+    profundidade: 14,
+    altura: 6,
+    andares: 1,
+  },
 ];
 
 /** Casas que so compoem a cidade. Ficam sempre fechadas e nao tem placa. */
@@ -308,6 +347,11 @@ export const CAMINHOS: Retangulo[] = [
   { minX: 6.5, maxX: 25, minZ: -9.25, maxZ: -5.75 },
   { minX: 6.5, maxX: 25, minZ: 11.75, maxZ: 15.25 },
   { minX: 21.75, maxX: 25, minZ: -46, maxZ: 15.25 },
+  // Estrada do sitio, terreiro e a trilha que entra no milharal ate a clareira.
+  { minX: -64, maxX: -27.5, minZ: 8, maxZ: 11.5 },
+  { minX: -84, maxX: -64, minZ: -6, maxZ: 20 },
+  { minX: -66, maxX: -63.6, minZ: -45.2, maxZ: -6 },
+  { minX: -86, maxX: -63.6, minZ: -45.2, maxZ: -42.8 },
 ];
 
 /** braco: para que lado (em X) o braco do poste aponta. Padrao: para a rua principal. */
@@ -321,6 +365,9 @@ export const POSTES_DE_LUZ: { x: number; z: number; braco?: 1 | -1 }[] = [
   // Um em cada rua de tras.
   { x: -23.6, z: -9, braco: -1 },
   { x: 21.9, z: -16, braco: 1 },
+  // Estrada e terreiro do sitio.
+  { x: -46, z: 7.4, braco: -1 },
+  { x: -65, z: 20.6, braco: -1 },
 ];
 
 /** Vetor unitario para onde a fachada olha. */

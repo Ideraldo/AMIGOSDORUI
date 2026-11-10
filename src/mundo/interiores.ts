@@ -36,6 +36,7 @@ import {
   cavalete,
   cavalinho,
   copo,
+  escada,
   estante,
   fardoDeFeno,
   fogaoALenha,
@@ -1075,7 +1076,119 @@ function telegrafo({ g, L, R, F, aberto }: Sala): void {
   caixa(g, 0.3, 0.03, 0.02, fosco(0x111111), -1.4, 0.48, -0.64, { sombra: false });
 }
 
+// ---------- Vale do sitio ----------
+
+function sitio({ g, L, R, F, teto, aberto, corParede }: Sala): void {
+  const escura = madeira(COR.madeiraEscura);
+  // Cozinha: fogao a lenha, mesa posta para quatro e a prateleira de mantimentos.
+  fogaoALenha(g, L + 1.0, F + 0.7, teto);
+  mesa(g, -3.4, -5.0, 1.2, 2.2, 0, 0.78);
+  for (const [dz, lado] of [[-0.55, -1], [0.55, -1], [-0.55, 1], [0.55, 1]] as const) {
+    cadeira(g, -3.4 + lado * 0.95, -5.0 + dz, lado * -PI / 2);
+    cilindro(g, 0.13, 0.13, 0.02, fosco(COR.osso), -3.4 + lado * 0.35, 0.8, -5.0 + dz, { sombra: false, lados: 10 });
+  }
+  cilindro(g, 0.07, 0.1, 0.26, fosco(0x7a8a9a), -3.4, 0.92, -5.0, { sombra: false, lados: 8 });
+  lampiaoDeMesa(g, -3.4, 0.79, -5.7, aberto);
+  const tombada = cadeira(g, -1.6, -6.4, 0.5, PI / 2);
+  tombada.position.y = 0.2;
+  estante(g, L + 0.2, -1.6, 2.0, 2.3, PI / 2, 'latas');
+  barril(g, L + 0.6, -7.6);
+  saco(g, L + 0.7, -6.6);
+  saco(g, L + 1.3, -7.0, 0, 0x7a6a4a);
+
+  // Sala: cadeira de balanco, tapete, relogio parado e os retratos.
+  tapete(g, 3.6, -2.2, 2.6, 2.2, 0x4a3a2a);
+  cadeiraDeBalanco(g, 4.9, -2.3, -PI / 2 - 0.5);
+  bau(g, 2.2, -0.75, PI);
+  relogioDeParede(g, R - 0.03, 2.4, -1.6, -PI / 2);
+  quadro(g, -1.2, 2.0, F + 0.03, 1.1, 0.8);
+  quadro(g, 0.4, 2.1, F + 0.03, 0.5, 0.6, 0, fosco(0x2a2622), -0.16);
+  // Espingarda nos ganchos, por cima da porta do quarto.
+  caixa(g, 1.2, 0.05, 0.05, metal(COR.ferro), 0.9, 2.55, -4.05, { sombra: false });
+  caixa(g, 0.4, 0.1, 0.05, escura, 0.25, 2.52, -4.05, { rz: 0.15, sombra: false });
+
+  // Quarto no canto do fundo, a direita.
+  divisoria(g, 2.6 - 3.2, -4.2, R, -4.2, teto, corParede, [{ em: 4.2 }], 1);
+  divisoria(g, -0.6, -4.2, -0.6, F, teto, corParede);
+  cama(g, 5.9, F + 1.1, 0, 0x4a2a2a);
+  cama(g, 4.9, F + 1.1, 0, 0x4a2a2a);
+  criadoMudo(g, 3.9, F + 0.4, aberto);
+  const berco = cama(g, 0.3, F + 0.9, 0, 0x3a4a5a);
+  berco.scale.set(0.7, 0.9, 0.55);
+  for (const lado of [-1, 1]) caixa(berco, 0.04, 0.5, 1.95, escura, lado * 0.47, 0.75, 0, { sombra: false });
+  bau(g, 1.6, F + 0.5, 0);
+  tapete(g, 3.4, -6.6, 2.4, 1.6, 0x3a2a3a);
+  lavatorio(g, R - 0.35, -5.0, -PI / 2);
+}
+
+function celeiro({ g, L, R, F, aberto, luzes }: Sala): void {
+  const m = madeira(COR.madeira, 2);
+  const escura = madeira(COR.madeiraEscura);
+  const ferro = metal(COR.ferro);
+  // Palheiro de verdade: da para subir pela escada da direita.
+  const ALTO = 2.6;
+  const borda = -9.2;
+  escada(g, R - 0.65, borda + 6, ALTO - 0.14, 1.2, -1);
+  caixa(g, R - L, 0.14, borda - F, m, 0, ALTO - 0.07, (borda + F) / 2, { solido: true });
+  for (const x of [L + 0.1, -1.9, 1.9]) caixa(g, 0.2, ALTO - 0.14, 0.2, escura, x, (ALTO - 0.14) / 2, borda - 0.1, { solido: true });
+  caixa(g, R - 1.35 - L, 0.08, 0.08, escura, (L + R - 1.35) / 2, ALTO + 0.95, borda - 0.05, { sombra: false });
+  for (let x = L + 0.1; x < R - 1.4; x += 1.5) caixa(g, 0.08, 0.95, 0.08, escura, x, ALTO + 0.47, borda - 0.05, { sombra: false });
+  barreira(g, R - 1.35 - L, 1.0, 0.1, (L + R - 1.35) / 2, ALTO + 0.5, borda - 0.05);
+  const cima = movel(g, 0, 0, 0, ALTO);
+  for (let i = 0; i < 7; i++) fardoDeFeno(cima, L + 0.8 + (i % 4) * 1.05, F + 0.6 + Math.floor(i / 4) * 0.7, i * 0.2);
+  for (let i = 0; i < 3; i++) fardoDeFeno(cima, L + 1.3 + i * 1.05, F + 0.7, 0.1 * i, 0.5);
+  esfera(cima, 1.2, fosco(COR_FENO), 0.8, 0.1, F + 1.3, { sy: 0.45, sz: 0.9 });
+  caixote(cima, 3.0, F + 0.8, 0.7);
+  lampiaoDeMesa(cima, 3.0, 0.7, F + 0.8, aberto);
+  if (aberto) luzDeLampiao(cima, luzes, 2.4, 1.6, F + 2.2, 10, 10);
+  // Uma cama de palha: alguem andou dormindo aqui em cima.
+  caixa(cima, 0.9, 0.12, 1.9, fosco(0x6a5628), -1.2, 0.06, borda - 1.6, { ry: 0.3, sombra: false });
+  caixa(cima, 0.85, 0.05, 1.2, fosco(0x3a2f2a), -1.15, 0.14, borda - 1.4, { ry: 0.3, sombra: false });
+
+  // Embaixo do palheiro: fardos, barris e o alcapao.
+  for (let i = 0; i < 5; i++) fardoDeFeno(g, L + 0.9 + (i % 3) * 1.05, F + 0.7 + Math.floor(i / 3) * 0.7, i * 0.15);
+  fardoDeFeno(g, L + 1.4, F + 0.8, 0.2, 0.5);
+  barril(g, -0.6, F + 0.7);
+  barril(g, 0.3, F + 0.8);
+  caixa(g, 1.3, 0.05, 1.3, escura, 0.4, 0.045, borda - 1.2, { sombra: false });
+  caixa(g, 1.1, 0.02, 0.06, ferro, 0.4, 0.08, borda - 1.2, { sombra: false });
+  anel(g, 0.09, 0.02, ferro, 0.4, 0.09, borda - 0.75, { rx: PI / 2, sombra: false });
+  caixa(g, 0.34, 0.4, 0.05, ferro, 0.4, 0.2, borda - 0.52, { sombra: false });
+
+  // Parede das ferramentas, a esquerda: forcado, foice, enxada, serrote e arreios.
+  for (let i = 0; i < 4; i++) {
+    const z = -2.2 - i * 0.7;
+    cilindro(g, 0.02, 0.02, 1.7, m, L + 0.1, 1.25, z, { rz: 0.06, sombra: false, lados: 5 });
+    if (i === 0) for (let d = -1; d <= 1; d++) caixa(g, 0.02, 0.3, 0.02, ferro, L + 0.1, 2.2, z + d * 0.07, { sombra: false });
+    if (i === 1) caixa(g, 0.02, 0.06, 0.6, ferro, L + 0.1, 2.1, z - 0.26, { rx: 0.5, sombra: false });
+    if (i === 2) caixa(g, 0.02, 0.2, 0.24, ferro, L + 0.1, 2.05, z, { sombra: false });
+    if (i === 3) caixa(g, 0.02, 0.26, 0.2, ferro, L + 0.1, 2.05, z, { sombra: false });
+  }
+  caixa(g, 0.04, 0.1, 3.0, escura, L + 0.04, 2.4, -3.2, { sombra: false });
+  anel(g, 0.3, 0.05, fosco(0x3a2a1c), L + 0.12, 1.7, -5.6, { ry: PI / 2, sombra: false });
+  // Bancada, com a roda que nunca foi consertada.
+  mesa(g, L + 0.6, -7.2, 2.2, 0.8, PI / 2, 0.9, COR.madeiraEscura);
+  caixa(g, 0.3, 0.12, 0.2, ferro, L + 0.6, 0.96, -6.6, { sombra: false });
+  roda(g, L + 1.5, 0.08, -8.3, true);
+  saco(g, R - 3.0, -1.2);
+  saco(g, R - 2.4, -1.0, 0, 0x7a6a4a);
+  saco(g, R - 2.7, -1.1, 0.42);
+  // Arado encostado e baldes.
+  const arado = movel(g, R - 2.6, -3.4, 0.5);
+  caixa(arado, 0.08, 0.08, 1.8, m, 0, 0.55, 0, { rx: -0.3, sombra: false });
+  caixa(arado, 0.05, 0.5, 0.5, ferro, 0, 0.25, -0.7, { rx: 0.4 });
+  for (const lado of [-1, 1]) caixa(arado, 0.05, 0.05, 0.9, m, lado * 0.25, 0.95, 0.75, { rx: -0.5, sombra: false });
+  barreira(arado, 0.7, 1, 1.9, 0, 0.5, 0);
+  for (const [x, z] of [[-3.2, -1.3], [2.2, -8.6]] as const) cilindro(g, 0.17, 0.13, 0.28, metal(0x4a4a4a), x, 0.14, z, { lados: 8 });
+  // Corrente pendurada da viga, no meio.
+  for (let i = 0; i < 9; i++) anel(g, 0.045, 0.012, ferro, 0, 5.7 - i * 0.11, -5.2, { ry: (i % 2) * (PI / 2), sombra: false });
+  caixa(g, 0.04, 0.22, 0.04, ferro, 0, 4.62, -5.2, { sombra: false });
+  lampiaoDeMesa(g, L + 0.6, 0.94, -7.9, aberto);
+}
+
 const INTERIORES: Record<string, (s: Sala) => void> = {
+  sitio,
+  celeiro,
   bar,
   armazem,
   delegacia,

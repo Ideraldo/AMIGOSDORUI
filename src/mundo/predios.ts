@@ -265,6 +265,8 @@ export const ESTILOS: Record<string, Estilo> = {
   botica: { parede: 0x4d5a52, fachada: 0x56645b, fachadaFalsa: true, alpendre: true },
   escola: { parede: 0x7a7466, fachada: 0x858070, fachadaFalsa: false, alpendre: true, telhado: 2.4, chamine: -0.8 },
   telegrafo: { parede: 0x5b5340, fachada: 0x665d47, fachadaFalsa: true, alpendre: true },
+  sitio: { parede: 0x6a6252, fachada: 0x746b5a, fachadaFalsa: false, alpendre: true, telhado: 2.6, chamine: -0.7, semPlaca: true },
+  celeiro: { parede: 0x5a2c24, fachada: 0x642f26, fachadaFalsa: false, alpendre: false, portaLargura: 3.2, portaAltura: 3.2, telhado: 3.4, semPlaca: true },
 };
 
 const CORES_DE_CASA = [0x5a5248, 0x4f4a44, 0x5e4c3c, 0x4a4640];

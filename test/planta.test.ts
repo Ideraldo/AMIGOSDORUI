@@ -64,7 +64,7 @@ test('o ponto de chegada e os postes nao ficam dentro de predios', () => {
 test('ids e nomes dos lugares sao unicos', () => {
   const ids = todasAsConstrucoes().map((c) => c.id);
   assert.equal(new Set(ids).size, ids.length);
-  assert.equal(LUGARES.length, 16);
+  assert.equal(LUGARES.length, 18);
 });
 
 test('o sorteio da noite e reproduzivel e abre a quantidade certa', () => {

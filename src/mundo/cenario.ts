@@ -1,7 +1,7 @@
 // Tudo o que nao e predio: chao, rua, paredao do canion, ceu, lua e aderecos da rua.
 
 import * as THREE from 'three';
-import { CAMINHOS, LIMITES, POSTES_DE_LUZ, PRACA, RUA, contem, pegada, todasAsConstrucoes, type Retangulo } from './planta.ts';
+import { ACUDE, CAMINHOS, CLAREIRA, CURRAL, LIMITES, MILHARAL, POSTES_DE_LUZ, PRACA, RUA, contem, pegada, todasAsConstrucoes, type Retangulo } from './planta.ts';
 import {
   COR,
   anel,
@@ -58,13 +58,13 @@ function pedra(g: THREE.Object3D, x: number, z: number, raio: number, alto: numb
 /** Chao, rua, praca, caminhos e o paredao de pedra em volta da cidade. */
 export function terreno(g: THREE.Object3D): void {
   // Chao com manchas, pintado nos vertices.
-  const geo = new THREE.PlaneGeometry(320, 340, 90, 90);
+  const geo = new THREE.PlaneGeometry(420, 340, 118, 90);
   geo.rotateX(-Math.PI / 2);
   const pos = geo.attributes.position!;
   const cores = new Float32Array(pos.count * 3);
   const base = new THREE.Color(COR.terra);
   for (let i = 0; i < pos.count; i++) {
-    const x = pos.getX(i);
+    const x = pos.getX(i) + (LIMITES.minX + LIMITES.maxX) / 2;
     const z = pos.getZ(i);
     const n = Math.sin(x * 0.21 + z * 0.13) * 0.5 + Math.sin(x * 0.07 - z * 0.19) * 0.5;
     const f = 0.82 + n * 0.16;
@@ -74,7 +74,7 @@ export function terreno(g: THREE.Object3D): void {
   }
   geo.setAttribute('color', new THREE.BufferAttribute(cores, 3));
   const chao = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 }));
-  chao.position.set(0, 0, 4);
+  chao.position.set((LIMITES.minX + LIMITES.maxX) / 2, 0, 4);
   chao.receiveShadow = true;
   g.add(chao);
 
@@ -144,7 +144,9 @@ export function terreno(g: THREE.Object3D): void {
 
   // Pedras soltas pelo chao.
   const ocupados = areasOcupadas(2);
-  for (let i = 0; i < 46; i++) {
+  const lago: Retangulo = { minX: ACUDE.x - ACUDE.raio - 1, maxX: ACUDE.x + ACUDE.raio + 1, minZ: ACUDE.z - ACUDE.raio - 1, maxZ: ACUDE.z + ACUDE.raio + 1 };
+  ocupados.push(lago, ...CAMINHOS);
+  for (let i = 0; i < 80; i++) {
     const x = minX + 3 + r() * (lx - 6);
     const z = minZ + 3 + r() * (lz - 6);
     const raio = 0.3 + r() * 0.7;
@@ -155,10 +157,10 @@ export function terreno(g: THREE.Object3D): void {
   }
 
   // Tufos de capim seco fora das ruas, numa malha instanciada so.
-  const semCapim = [...areasOcupadas(0.4), ...CAMINHOS, { minX: -RUA.largura / 2 - 0.5, maxX: RUA.largura / 2 + 0.5, minZ: RUA.minZ, maxZ: RUA.maxZ }];
+  const semCapim = [...areasOcupadas(0.4), ...CAMINHOS, lago, { minX: -RUA.largura / 2 - 0.5, maxX: RUA.largura / 2 + 0.5, minZ: RUA.minZ, maxZ: RUA.maxZ }];
   const tufos: THREE.Matrix4[] = [];
   const auxiliar = new THREE.Object3D();
-  for (let i = 0; i < 1500; i++) {
+  for (let i = 0; i < 2600; i++) {
     const x = minX + 1 + r() * (lx - 2);
     const z = minZ + 1 + r() * (lz - 2);
     const escala = 0.6 + r() * 1.1;
@@ -188,11 +190,13 @@ export function ambiente(cena: THREE.Scene, dia = false): void {
     cena.background = new THREE.Color(0x8fa3b8);
     cena.add(new THREE.HemisphereLight(0xdfe8f5, 0x6a5a48, 2.6));
     const sol = new THREE.DirectionalLight(0xfff2dd, 2.4);
-    sol.position.set(-90, 160, -120);
+    sol.position.set(-126, 160, -120);
+    sol.target.position.set(-36, 0, 0);
+    cena.add(sol.target);
     sol.castShadow = true;
     sol.shadow.mapSize.set(2048, 2048);
-    sol.shadow.camera.left = -110;
-    sol.shadow.camera.right = 110;
+    sol.shadow.camera.left = -135;
+    sol.shadow.camera.right = 135;
     sol.shadow.camera.top = 120;
     sol.shadow.camera.bottom = -120;
     sol.shadow.camera.near = 40;
@@ -238,14 +242,15 @@ export function ambiente(cena: THREE.Scene, dia = false): void {
   cena.add(new THREE.HemisphereLight(0x4c5f8c, 0x1c1611, 1.9));
 
   const luar = new THREE.DirectionalLight(0x93abdf, 1.9);
-  luar.position.copy(direcaoDaLua).multiplyScalar(220);
-  luar.target.position.set(0, 0, 4);
+  // O alvo fica no meio do mapa (cidade mais o vale do sitio), para a sombra cobrir tudo.
+  luar.target.position.set((LIMITES.minX + LIMITES.maxX) / 2, 0, 4);
+  luar.position.copy(direcaoDaLua).multiplyScalar(220).add(luar.target.position);
   luar.castShadow = true;
   luar.shadow.mapSize.set(2048, 2048);
-  luar.shadow.camera.left = -95;
-  luar.shadow.camera.right = 95;
-  luar.shadow.camera.top = 110;
-  luar.shadow.camera.bottom = -110;
+  luar.shadow.camera.left = -130;
+  luar.shadow.camera.right = 130;
+  luar.shadow.camera.top = 125;
+  luar.shadow.camera.bottom = -125;
   luar.shadow.camera.near = 60;
   luar.shadow.camera.far = 420;
   luar.shadow.bias = -0.0003;
@@ -358,9 +363,10 @@ function forca(g: THREE.Object3D, x: number, z: number): void {
 function trilhos(g: THREE.Object3D): void {
   const ferro = metal(0x3a3632);
   const z = -71.5;
-  const comprimento = 104;
-  for (const dz of [-0.75, 0.75]) caixa(g, comprimento, 0.12, 0.1, ferro, -3, 0.12, z + dz, { sombra: false });
-  for (let x = -54; x <= 48; x += 1.3) caixa(g, 0.26, 0.08, 2.3, madeira(COR.madeiraEscura), x, 0.05, z, { sombra: false });
+  const inicio = LIMITES.minX - 8;
+  const comprimento = LIMITES.maxX + 9 - inicio;
+  for (const dz of [-0.75, 0.75]) caixa(g, comprimento, 0.12, 0.1, ferro, inicio + comprimento / 2, 0.12, z + dz, { sombra: false });
+  for (let x = inicio; x <= LIMITES.maxX + 8; x += 1.3) caixa(g, 0.26, 0.08, 2.3, madeira(COR.madeiraEscura), x, 0.05, z, { sombra: false });
   caixa(g, 24, 0.18, 3.0, madeira(COR.tabuaVelha, 8), -14, 0.09, -68.1, { sombra: false });
 }
 
@@ -535,7 +541,173 @@ function placaDeSaida(g: THREE.Object3D, x: number, z: number, ry: number): void
 }
 
 /** Aderecos fixos da cidade. */
+/** Pe de milho seco: haste e tres folhas caidas. Uma geometria so, repetida no milharal inteiro. */
+function geometriaDoMilho(): THREE.BufferGeometry {
+  const pos: number[] = [];
+  const tri = (a: number[], b: number[], c: number[]) => pos.push(...a, ...b, ...c);
+  // Haste: tres faces finas.
+  for (let i = 0; i < 3; i++) {
+    const a0 = (i / 3) * Math.PI * 2;
+    const a1 = ((i + 1) / 3) * Math.PI * 2;
+    const p = (a: number, y: number, raio: number) => [Math.cos(a) * raio, y, Math.sin(a) * raio];
+    tri(p(a0, 0, 0.03), p(a1, 0, 0.03), p(a0, 2.1, 0.012));
+    tri(p(a1, 0, 0.03), p(a1, 2.1, 0.012), p(a0, 2.1, 0.012));
+  }
+  // Folhas: sobem um pouco e caem.
+  for (const [y, a] of [[0.7, 0.4], [1.2, 2.6], [1.65, 4.6]] as const) {
+    const dx = Math.cos(a);
+    const dz = Math.sin(a);
+    const lado = [-dz * 0.045, 0, dx * 0.045];
+    const raiz = [0, y, 0];
+    const meio = [dx * 0.3, y + 0.16, dz * 0.3];
+    const ponta = [dx * 0.62, y - 0.22, dz * 0.62];
+    const mais = (p: number[], s: number) => [p[0]! + lado[0]! * s, p[1]!, p[2]! + lado[2]! * s];
+    tri(mais(raiz, 1), mais(meio, 1), mais(meio, -1));
+    tri(mais(raiz, 1), mais(meio, -1), mais(raiz, -1));
+    tri(mais(meio, 1), ponta, mais(meio, -1));
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.computeVertexNormals();
+  return geo;
+}
+
+function milharal(g: THREE.Object3D): void {
+  const r = sorteador(19);
+  const trilhas = CAMINHOS.map((c) => ({ minX: c.minX - 0.3, maxX: c.maxX + 0.3, minZ: c.minZ - 0.3, maxZ: c.maxZ + 0.3 }));
+  const pes: THREE.Matrix4[] = [];
+  const auxiliar = new THREE.Object3D();
+  for (let z = MILHARAL.minZ + 0.5; z < MILHARAL.maxZ; z += 1.1) {
+    for (let x = MILHARAL.minX + 0.4; x < MILHARAL.maxX; x += 0.8) {
+      const px = x + (r() - 0.5) * 0.3;
+      const pz = z + (r() - 0.5) * 0.25;
+      const altura = 0.85 + r() * 0.4;
+      const giro = r() * 6.28;
+      const tombo = r() < 0.06 ? 0.5 + r() * 0.6 : (r() - 0.5) * 0.16;
+      if (Math.hypot(px - CLAREIRA.x, pz - CLAREIRA.z) < CLAREIRA.raio) continue;
+      if (trilhas.some((t) => contem(t, px, pz))) continue;
+      auxiliar.position.set(px, 0, pz);
+      auxiliar.rotation.set(tombo, giro, 0);
+      auxiliar.scale.set(1, altura, 1);
+      auxiliar.updateMatrix();
+      pes.push(auxiliar.matrix.clone());
+    }
+  }
+  const material = new THREE.MeshStandardMaterial({ color: 0x5a4c28, roughness: 1, side: THREE.DoubleSide });
+  const milho = new THREE.InstancedMesh(geometriaDoMilho(), material, pes.length);
+  pes.forEach((m, i) => milho.setMatrixAt(i, m));
+  milho.receiveShadow = true;
+  g.add(milho);
+  // Chao batido da clareira.
+  cilindro(g, CLAREIRA.raio, CLAREIRA.raio, 0.04, fosco(COR.rua), CLAREIRA.x, 0.022, CLAREIRA.z, { lados: 16, sombra: false });
+}
+
+/** Cruz de madeira com um monte de terra na frente. */
+function cova(g: THREE.Object3D, x: number, z: number, ry: number, altura = 1.1): void {
+  const c = movel(g, x, z, ry);
+  const m = madeira(COR.madeiraCinza);
+  caixa(c, 0.1, altura, 0.08, m, 0, altura / 2, 0, { rz: 0.05 });
+  caixa(c, 0.55, 0.1, 0.08, m, 0, altura * 0.72, 0, { rz: 0.05, sombra: false });
+  esfera(c, 0.5, fosco(0x2e2219, true), 0, 0, 0.95, { sy: 0.3, sz: 1.8, sombra: false });
+}
+
+/** O vale a oeste da cidade: estrada, terreiro, curral, milharal, acude e as covas da familia. */
+function valeDoSitio(g: THREE.Object3D): void {
+  // Estrada: cerca dos dois lados e a porteira aberta na chegada ao terreiro.
+  cerca(g, -62, -48, 7.4);
+  cerca(g, -62, -48, 12.1);
+  for (const z of [7.4, 12.1]) caixa(g, 0.3, 2.6, 0.3, madeira(COR.madeiraEscura), -63, 1.3, z, { solido: true });
+  caixa(g, 0.2, 0.2, 5.2, madeira(COR.madeiraEscura), -63, 2.6, 9.75, { sombra: false });
+  const tabuleta = materialTexto(['SÍTIO', 'BOA ESPERANÇA'], { fundo: '#4a3a28', tinta: '#d8c9a0', altura: 256 });
+  caixa(g, 0.06, 0.6, 2.2, tabuleta, -62.9, 2.2, 9.75, { sombra: false });
+  const porteira = movel(g, -63.2, 12.1, -2.2);
+  for (const y of [0.4, 0.8, 1.2]) caixa(porteira, 3.6, 0.1, 0.06, madeira(COR.madeiraCinza), 1.8, y, 0, { sombra: false });
+  caixa(porteira, 3.9, 0.08, 0.05, madeira(COR.madeiraCinza), 1.8, 0.8, 0, { rz: 0.22, sombra: false });
+  barreira(porteira, 3.6, 1.3, 0.15, 1.8, 0.65, 0);
+  capimRolante(g, -40, 9.2, 0.4);
+
+  // Terreiro: poco, carroca, cocho, lenha e a casinha atras da casa.
+  poco(g, -69.5, 15.5);
+  carroca(g, -79.6, -1.6, 0.3, 'feno');
+  pilhaDeLenha(g, -84.6, 18.6, 0);
+  bancoComprido(g, -83.4, 14.2, 2.0, Math.PI / 2);
+  cadeiraDeBalanco(g, -83.2, 6.2, Math.PI / 2);
+  barril(g, -80.6, -6.8);
+  barril(g, -67.2, -7.0, true);
+  fardoDeFeno(g, -70.2, -4.6, 0.3);
+  fardoDeFeno(g, -70.0, -3.8, -0.2);
+  casinha(g, -97.5, 20, -Math.PI / 2);
+  cataVento(g, -90, 25);
+  // Varal entre dois mouroes, com a roupa que ninguem recolheu.
+  for (const z of [-2, 2.2]) caixa(g, 0.1, 2.0, 0.1, madeira(COR.madeiraCinza), -88.5, 1.0, z, { solido: true });
+  caixa(g, 0.015, 0.015, 4.2, fosco(0x9a8f7a), -88.5, 1.9, 0.1, { sombra: false });
+  for (const [z, cor, alto] of [[-1.3, 0xb9b3a0, 0.9], [-0.3, 0x5a3a3a, 0.6], [0.7, 0xb9b3a0, 1.1], [1.6, 0x3a4a5a, 0.5]] as const) {
+    caixa(g, 0.02, alto, 0.6, fosco(cor), -88.5, 1.9 - alto / 2, z, { rx: 0.05, sombra: false });
+  }
+
+  // Curral vazio, com a porteira escancarada.
+  cerca(g, CURRAL.minX, CURRAL.maxX, CURRAL.minZ);
+  cerca(g, CURRAL.minX, CURRAL.maxX, CURRAL.maxZ);
+  cercaLateral(g, CURRAL.minX, CURRAL.minZ, CURRAL.maxZ);
+  cercaLateral(g, CURRAL.maxX, CURRAL.minZ, 28.5);
+  cercaLateral(g, CURRAL.maxX, 31.5, CURRAL.maxZ);
+  cocho(g, -80.6, 30);
+  fardoDeFeno(g, -78, 34.6, 0.2);
+  fardoDeFeno(g, -76.9, 34.8, -0.1);
+  // Caveira de boi no mourao da porteira.
+  caixa(g, 0.18, 1.9, 0.18, madeira(COR.madeiraEscura), CURRAL.maxX, 0.95, 28.4, { solido: true });
+  const boi = movel(g, CURRAL.maxX + 0.12, 28.4, Math.PI / 2, 1.6);
+  caixa(boi, 0.24, 0.3, 0.14, fosco(COR.osso), 0, 0, 0, { sombra: false });
+  caixa(boi, 0.14, 0.22, 0.12, fosco(COR.osso), 0, -0.24, 0.02, { sombra: false });
+  for (const lado of [-1, 1]) cilindro(boi, 0.01, 0.045, 0.55, fosco(0xd8d2c4), lado * 0.36, 0.14, 0, { rz: lado * -1.05, sombra: false, lados: 5 });
+
+  // Milharal, com o espantalho na clareira virado para quem chega pela trilha.
+  milharal(g);
+  espantalho(g, CLAREIRA.x - 1.2, CLAREIRA.z, Math.PI / 2);
+  corvo(g, CLAREIRA.x - 1.25, 2.4, CLAREIRA.z, 1.2);
+  corvo(g, -63.2, 1.42, -27.6, -0.6);
+  caixa(g, 0.12, 1.4, 0.12, madeira(COR.madeiraCinza), -63.2, 0.7, -27.6, { solido: true });
+  // Um chapeu e uma lanterna largados no chao da clareira.
+  cilindro(g, 0.2, 0.22, 0.03, fosco(0x1c1917), CLAREIRA.x + 1.6, 0.06, CLAREIRA.z + 1.1, { sombra: false, lados: 10 });
+  cilindro(g, 0.11, 0.12, 0.12, fosco(0x1c1917), CLAREIRA.x + 1.6, 0.12, CLAREIRA.z + 1.1, { sombra: false, lados: 10 });
+
+  // Acude: agua parada, pedras na margem, um bote meio afundado e a arvore.
+  const { x: ax, z: az, raio } = ACUDE;
+  cilindro(g, raio, raio, 0.05, metal(0x0b161c), ax, 0.03, az, { lados: 28, sombra: false });
+  barreira(g, raio * 1.85, 1.2, raio * 1.0, ax, 0.6, az);
+  barreira(g, raio * 1.0, 1.2, raio * 1.85, ax, 0.6, az);
+  barreira(g, raio * 1.45, 1.2, raio * 1.45, ax, 0.6, az);
+  for (let i = 0; i < 16; i++) {
+    const a = (i / 16) * Math.PI * 2 + 0.2;
+    if (i % 5 === 2) continue;
+    pedra(g, ax + Math.cos(a) * (raio + 0.2), az + Math.sin(a) * (raio + 0.2), 0.5 + (i % 3) * 0.25, 0.7, i * 1.7, -0.1, 0x3d3632);
+  }
+  const bote = movel(g, ax + 3.2, az - 2.4, 0.8);
+  bote.rotation.z = 0.22;
+  caixa(bote, 1.1, 0.34, 3.0, madeira(COR.madeiraCinza), 0, 0.12, 0, { sombra: false });
+  caixa(bote, 0.9, 0.05, 2.7, fosco(0x0b161c), 0, 0.3, 0, { sombra: false });
+  caixa(bote, 1.0, 0.05, 0.25, madeira(COR.madeiraEscura), 0, 0.3, 0.3, { sombra: false });
+  // Trapiche curto na margem leste.
+  caixa(g, 3.6, 0.1, 1.2, madeira(COR.tabuaVelha, 3), ax + raio - 0.6, 0.3, az + 2.5, { sombra: false });
+  for (const dx of [-1.5, 1.5]) for (const dz of [-0.5, 0.5]) caixa(g, 0.12, 0.7, 0.12, madeira(COR.madeiraEscura), ax + raio - 0.6 + dx, 0.2, az + 2.5 + dz, { sombra: false });
+  arvoreSeca(g, ax - raio - 2.5, az - 3, 91, 1.7);
+  corvo(g, ax + raio + 1.1, 0.42, az + 2.9, 2.2);
+
+  // As covas da familia, debaixo da arvore, longe da casa.
+  arvoreSeca(g, -102, -9, 93, 1.8);
+  cova(g, -99.6, -10.4, 0.1);
+  cova(g, -98.3, -10.1, -0.05);
+  cova(g, -97.0, -10.5, 0.12);
+  cova(g, -95.9, -10.2, 0, 0.7);
+  // A quinta esta aberta e vazia, com a pa fincada ao lado.
+  caixa(g, 0.9, 0.02, 1.9, fosco(0x050404), -94.3, 0.03, -9.5, { sombra: false });
+  esfera(g, 0.7, fosco(0x2e2219, true), -93.2, 0, -9.4, { sy: 0.5, sombra: false });
+  cilindro(g, 0.02, 0.02, 1.2, madeira(COR.madeira), -93.4, 0.75, -9.9, { rz: 0.15, sombra: false, lados: 5 });
+  caixa(g, 0.2, 0.26, 0.02, metal(COR.ferro), -93.3, 0.2, -9.9, { rz: 0.15, sombra: false });
+}
+
 export function aderecos(g: THREE.Object3D, luzes: LuzTremulante[]): void {
+  valeDoSitio(g);
   for (const p of POSTES_DE_LUZ) posteDeLuz(g, luzes, p.x, p.z, p.braco);
 
   // Chegada: diligencia quebrada, trilhos, vagao esquecido, torre d'agua e a forca.
@@ -646,7 +818,7 @@ export function aderecos(g: THREE.Object3D, luzes: LuzTremulante[]): void {
   const ocupados = areasOcupadas(2.5);
   const arvores: [number, number, number][] = [
     [-41, -22, 1.5],
-    [-36, 9.5, 1.3],
+    [-44, 16, 1.3],
     [30, -56, 1.2],
     [36, -17.5, 1.3],
     [-30, -58, 1.3],
@@ -657,11 +829,18 @@ export function aderecos(g: THREE.Object3D, luzes: LuzTremulante[]): void {
     [36, 14, 1.2],
     [-20, -52, 1.2],
     [18, 44, 1.1],
+    [-58, 30, 1.3],
+    [-104, 18, 1.5],
+    [-52, -16, 1.2],
+    [-94, 66, 1.3],
+    [-58, 62, 1.4],
+    [-108, -68, 1.2],
+    [-50, -66, 1.1],
   ];
   arvores.forEach(([x, z, escala], i) => {
     if (!ocupados.some((o) => contem(o, x, z))) arvoreSeca(g, x, z, 40 + i, escala);
   });
-  const mandacarus: [number, number][] = [[-43, -40], [37.5, -60], [-43.5, 24], [37, 46.5], [-42, -8], [20, -66]];
+  const mandacarus: [number, number][] = [[-43, -40], [37.5, -60], [-43.5, 24], [37, 46.5], [-42, -8], [20, -66], [-50, 40], [-108, 2], [-88, 72], [-52, 76], [-109, -20]];
   mandacarus.forEach(([x, z], i) => {
     if (!ocupados.some((o) => contem(o, x, z))) mandacaru(g, x, z, 70 + i);
   });

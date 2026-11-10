@@ -6,7 +6,11 @@
 // ponto do mundo (x, z) vira (-x, -z) no SVG. E uma rotacao de 180 graus, nao um espelho.
 
 import {
+  ACUDE,
   CAMINHOS,
+  CLAREIRA,
+  CURRAL,
+  MILHARAL,
   FIGURANTES,
   LIMITES,
   LUGARES,
@@ -50,7 +54,15 @@ export function plantaSvg(abertos: readonly string[], comJogador = false): strin
     `<rect ${ret(LIMITES)} fill="#2a2420" stroke="#4a4038" stroke-width="0.6"/>`,
     `<rect ${ret({ minX: -RUA.largura / 2, maxX: RUA.largura / 2, minZ: RUA.minZ, maxZ: RUA.maxZ })} fill="${chao}"/>`,
     `<circle cx="${-PRACA.x}" cy="${-PRACA.z}" r="${PRACA.raio}" fill="${chao}"/>`,
+    // Milharal, acude e curral do sitio.
+    `<rect ${ret(MILHARAL)} fill="#3a3620" fill-opacity="0.7"/>`,
+    `<text x="${-(MILHARAL.minX + MILHARAL.maxX) / 2}" y="${-MILHARAL.minZ - 3}" font-size="2.6" text-anchor="middle" fill="#9a8f84">milharal</text>`,
+    `<circle cx="${-ACUDE.x}" cy="${-ACUDE.z}" r="${ACUDE.raio}" fill="#1b2a33"/>`,
+    `<text x="${-ACUDE.x}" y="${-ACUDE.z + 1}" font-size="2.6" text-anchor="middle" fill="#9a8f84">açude</text>`,
+    `<rect ${ret(CURRAL)} fill="none" stroke="#6a5a48" stroke-width="0.4" stroke-dasharray="1.5 1"/>`,
+    `<text x="${-(CURRAL.minX + CURRAL.maxX) / 2}" y="${-(CURRAL.minZ + CURRAL.maxZ) / 2 + 1}" font-size="2.2" text-anchor="middle" fill="#9a8f84">curral</text>`,
     ...CAMINHOS.map((c) => `<rect ${ret(c)} fill="${chao}"/>`),
+    `<circle cx="${-CLAREIRA.x}" cy="${-CLAREIRA.z}" r="${CLAREIRA.raio}" fill="${chao}"/>`,
     // Trilhos do trem.
     `<rect ${ret({ minX: LIMITES.minX, maxX: LIMITES.maxX, minZ: -72.1, maxZ: -70.9 })} fill="#5a5048"/>`,
   );
