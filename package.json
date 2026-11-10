@@ -1,0 +1,30 @@
+{
+  "name": "amigos-do-rui",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Jogo de terror e misterio em grupo numa cidade de faroeste sombrio (nome provisorio)",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test test/*.test.ts",
+    "planta": "tsx scripts/planta.ts",
+    "capturas": "tsx scripts/capturas.ts",
+    "conferir": "npm run typecheck && npm test",
+    "colisao": "tsx scripts/colisao.ts"
+  },
+  "dependencies": {
+    "three": "^0.187.0"
+  },
+  "devDependencies": {
+    "@resvg/resvg-js": "^2.6.2",
+    "@types/node": "^26.6.6",
+    "@types/three": "^0.187.0",
+    "puppeteer-core": "^25.16.0",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.7"
+  }
+}
