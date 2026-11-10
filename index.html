@@ -160,6 +160,172 @@
       #entrada dd {
         margin: 0;
       }
+      #noite li.visto {
+        opacity: 0.45;
+      }
+      #noite li.aqui {
+        opacity: 1;
+        color: var(--brasa);
+      }
+      #noite h2 + ul,
+      #noite .medidor + h2 {
+        margin-top: 10px;
+      }
+      .medidor {
+        display: flex;
+        justify-content: space-between;
+        gap: 14px;
+        max-width: 230px;
+      }
+      .medidor span {
+        letter-spacing: 0.12em;
+      }
+      .ruim {
+        color: #e2553f;
+      }
+      .bom {
+        color: #9fc98a;
+      }
+      kbd {
+        display: inline-block;
+        min-width: 1.6em;
+        margin-right: 10px;
+        padding: 1px 6px;
+        border: 1px solid var(--brasa);
+        border-radius: 4px;
+        color: var(--brasa);
+        font: inherit;
+        font-size: 0.85em;
+        text-align: center;
+      }
+      .painel {
+        position: fixed;
+        left: 50%;
+        transform: translateX(-50%);
+        width: min(640px, 92vw);
+        display: none;
+        padding: 20px 26px 18px;
+        background: var(--fumaca);
+        border: 1px solid #5a4a36;
+        box-shadow: 0 10px 60px #000;
+        font-size: 17px;
+        line-height: 1.5;
+      }
+      .painel.cena {
+        bottom: 7vh;
+      }
+      .painel.virada,
+      .painel.fim {
+        top: 50%;
+        transform: translate(-50%, -50%);
+        max-height: 86vh;
+        overflow-y: auto;
+        background: rgba(8, 6, 5, 0.9);
+      }
+      .painel h3 {
+        margin: 0 0 6px;
+        font-size: 13px;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--brasa);
+        font-weight: normal;
+      }
+      .painel.fim h3 {
+        font-size: 30px;
+        letter-spacing: 0.06em;
+        text-transform: none;
+        color: var(--papel);
+      }
+      .painel h2 {
+        margin: 0 0 8px;
+        font-size: 24px;
+        font-weight: normal;
+      }
+      .painel h4 {
+        margin: 16px 0 4px;
+        font-size: 13px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--brasa);
+        font-weight: normal;
+      }
+      .painel p {
+        margin: 0 0 10px;
+      }
+      .painel ol {
+        margin: 14px 0 0;
+        padding: 0;
+        list-style: none;
+      }
+      .painel ol li {
+        margin-top: 8px;
+      }
+      .painel .escolhida {
+        font-style: italic;
+        opacity: 0.7;
+      }
+      .painel .efeitos span {
+        display: block;
+        font-size: 15px;
+      }
+      .painel .efeitos .pista,
+      .painel p.lugar {
+        color: var(--brasa);
+      }
+      .painel p.ataque {
+        color: #e2553f;
+      }
+      .painel p.pressagio,
+      .painel p.ameaca {
+        font-style: italic;
+      }
+      .painel .seguir {
+        margin-top: 14px;
+        font-size: 13px;
+        opacity: 0.8;
+      }
+      #diario {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: min(680px, 92vw);
+        max-height: 80vh;
+        overflow-y: auto;
+        display: none;
+        padding: 22px 28px;
+        background: rgba(8, 6, 5, 0.93);
+        border: 1px solid #5a4a36;
+        box-shadow: 0 10px 60px #000;
+        font-size: 15px;
+        line-height: 1.5;
+      }
+      #diario h2 {
+        margin: 0;
+        font-weight: normal;
+      }
+      #diario h4 {
+        margin: 14px 0 4px;
+        font-size: 12px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--brasa);
+        font-weight: normal;
+      }
+      #diario ol,
+      #diario ul {
+        margin: 0;
+        padding-left: 20px;
+      }
+      #diario ol {
+        list-style: none;
+        padding: 0;
+      }
+      #diario li {
+        margin-bottom: 4px;
+      }
+      .sem-hud .painel,
+      .sem-hud #diario,
       .sem-hud .hud,
       .sem-hud #entrada {
         display: none !important;
@@ -171,12 +337,14 @@
     <div class="hud" id="noite"></div>
     <div class="hud" id="mira"></div>
     <div class="hud" id="lugar"></div>
-    <div class="hud" id="teclas">WASD anda · Shift corre · F lampião · M mapa · R outra noite · Esc solta o mouse</div>
+    <div class="hud" id="teclas">WASD anda · Shift corre · F lampião · M mapa · J diário · N passar a hora · R outra noite · Esc solta o mouse</div>
     <div id="mapa"></div>
+    <div id="cena" class="painel"></div>
+    <div id="diario"></div>
     <div id="entrada">
       <div>
         <h1>Amigos do Rui</h1>
-        <p>A diligência quebrou. Faltam oito horas para amanhecer.</p>
+        <p id="gancho" style="max-width: 560px; margin-left: auto; margin-right: auto"></p>
         <dl>
           <dt>WASD</dt>
           <dd>andar</dd>
@@ -188,8 +356,14 @@
           <dd>acender ou apagar o lampião</dd>
           <dt>M</dt>
           <dd>abrir o mapa</dd>
+          <dt>1, 2, 3</dt>
+          <dd>escolher numa cena</dd>
+          <dt>J</dt>
+          <dd>diário e pistas</dd>
+          <dt>N</dt>
+          <dd>passar a hora sem esperar</dd>
           <dt>R</dt>
-          <dd>sortear outra noite</dd>
+          <dd>começar outra noite</dd>
         </dl>
         <div class="entrar">Clique para entrar na cidade</div>
       </div>

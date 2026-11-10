@@ -12,9 +12,11 @@ import { alcance, caminhar, livre, type Alcance, type Caminhada } from './jogado
 import { Jogador } from './jogador/jogador.ts';
 import { ambiente } from './mundo/cenario.ts';
 import { construirCidade, descartarCidade, type Cidade } from './mundo/cidade.ts';
-import { sortearNoite, type Noite } from './mundo/noite.ts';
+import { PartidaNaTela } from './interface/partidaNaTela.ts';
 import { LUGARES, lugarPorId, type LugarId } from './mundo/planta.ts';
 import { plantaSvg } from './mundo/plantaSvg.ts';
+import { EXEMPLO } from './nucleo/historias/exemplo.ts';
+import type { Estado } from './nucleo/tipos.ts';
 
 declare global {
   interface Window {
@@ -31,13 +33,16 @@ declare global {
       luzes: () => number;
       /** Chamadas de desenho e triangulos do ultimo quadro. */
       desenho: () => { chamadas: number; triangulos: number };
+      /** Poe o jogador num ponto, com os pes em y. */
+      teleportar: (x: number, y: number, z: number) => void;
+      /** Estado da partida e em que tela ela esta. */
+      partida: () => { estado: Estado; modo: string; restante: number };
     };
   }
 }
 
 const parametros = new URLSearchParams(location.search);
 const canvas = document.querySelector<HTMLCanvasElement>('#jogo')!;
-const elNoite = document.querySelector<HTMLElement>('#noite')!;
 const elLugar = document.querySelector<HTMLElement>('#lugar')!;
 const elMapa = document.querySelector<HTMLElement>('#mapa')!;
 const elEntrada = document.querySelector<HTMLElement>('#entrada')!;
@@ -58,36 +63,33 @@ ambiente(cena, parametros.get('dia') === '1');
 
 const jogador = new Jogador(camera, canvas);
 
-function noiteInicial(): Noite {
-  const seed = Number(parametros.get('seed')) || Math.floor(Math.random() * 99999) + 1;
-  const forcados = parametros.get('abertos');
-  if (forcados !== null) {
-    const ids = forcados.split(',').filter((id): id is LugarId => lugarPorId(id) !== undefined);
-    return { seed, abertos: ids };
-  }
-  return sortearNoite(seed);
-}
+let semente = Number(parametros.get('seed')) || Math.floor(Math.random() * 99999) + 1;
+const forcados = parametros.get('abertos');
+const abertosForcados = forcados === null ? undefined : forcados.split(',').filter((id): id is LugarId => lugarPorId(id) !== undefined);
 
-let noite = noiteInicial();
-let cidade: Cidade = construirCidade(noite.abertos);
-cena.add(cidade.grupo);
-renderizador.shadowMap.needsUpdate = true;
+let cidade: Cidade | null = null;
 
-function mostrarNoite(): void {
-  const nomes = LUGARES.filter((l) => noite.abertos.includes(l.id)).map((l) => `<li>${l.nome}</li>`);
-  elNoite.innerHTML = `<h2>Noite ${noite.seed} · abertos</h2><ul>${nomes.join('')}</ul>`;
-  elMapa.innerHTML = plantaSvg(noite.abertos, true);
-}
-mostrarNoite();
-
-function novaNoite(): void {
-  descartarCidade(cidade);
-  noite = sortearNoite(noite.seed + 1);
-  cidade = construirCidade(noite.abertos);
+/** Monta a cidade com estes lugares abertos, descartando a anterior. */
+function montarCidade(abertos: LugarId[]): void {
+  if (cidade) descartarCidade(cidade);
+  cidade = construirCidade(abertos);
   cena.add(cidade.grupo);
   renderizador.shadowMap.needsUpdate = true;
+  elMapa.innerHTML = plantaSvg(abertos, true);
+}
+
+// A historia decide o que abre: quem sorteia a noite e a partida.
+const partida = new PartidaNaTela(EXEMPLO, semente, { abertos: abertosForcados, regra: parametros.get('regra') ?? undefined }, {
+  reconstruir: montarCidade,
+  congelar: (sim) => (jogador.congelado = sim),
+  levarPara: (x, z) => jogador.teleportar(x, 0, z),
+});
+montarCidade(partida.estado.abertos);
+
+function novaNoite(): void {
+  semente += 1;
   jogador.reiniciar();
-  mostrarNoite();
+  partida.nova(semente);
 }
 
 function ajustarTamanho(): void {
@@ -101,7 +103,9 @@ window.addEventListener('resize', ajustarTamanho);
 ajustarTamanho();
 
 document.addEventListener('keydown', (e) => {
+  if (cam) return;
   if (e.code === 'KeyR') novaNoite();
+  else if (partida.tecla(e.code)) e.preventDefault();
   if (e.code === 'KeyM') elMapa.style.display = elMapa.style.display === 'block' ? 'none' : 'block';
 });
 document.addEventListener('pointerlockchange', () => {
@@ -119,6 +123,7 @@ if (cam || parametros.get('hud') === '0') document.body.classList.add('sem-hud')
 if (parametros.get('lampiao') === '0') jogador.lampiao.visible = false;
 
 function atualizarInterface(): void {
+  if (!cidade) return;
   let perto: Cidade['portas'][number] | null = null;
   let menor = 7 * 7;
   for (const p of cidade.portas) {
@@ -128,7 +133,7 @@ function atualizarInterface(): void {
       perto = p;
     }
   }
-  if (perto) {
+  if (perto && partida.modo === 'andando') {
     const estado = perto.figurante ? 'abandonado há anos' : perto.aberto ? 'aberto esta noite' : 'fechado esta noite';
     elLugar.innerHTML = `${perto.nome}<small>${estado}</small>`;
     elLugar.className = `hud ${perto.aberto ? '' : 'fechado'}`;
@@ -147,11 +152,13 @@ function atualizarInterface(): void {
 }
 
 window.__depurar = {
-  livre: (x, z, y = 0) => livre(x, z, y, cidade.solidos),
-  caminhar: ([x, y, z], pontos) => caminhar({ x, y, z, vy: 0, noChao: true }, pontos, cidade.solidos),
-  alcance: (inicio, pontos, area) => alcance(inicio, pontos, area, cidade.solidos),
-  solidos: () => cidade.solidos.length,
-  luzes: () => cidade.luzes.length,
+  livre: (x, z, y = 0) => livre(x, z, y, cidade!.solidos),
+  caminhar: ([x, y, z], pontos) => caminhar({ x, y, z, vy: 0, noChao: true }, pontos, cidade!.solidos),
+  alcance: (inicio, pontos, area) => alcance(inicio, pontos, area, cidade!.solidos),
+  solidos: () => cidade!.solidos.length,
+  luzes: () => cidade!.luzes.length,
+  teleportar: (x, y, z) => jogador.teleportar(x, y, z),
+  partida: () => ({ estado: partida.estado, modo: partida.modo, restante: partida.restante }),
   desenho: () => ({ chamadas: renderizador.info.render.calls, triangulos: renderizador.info.render.triangles }),
 };
 
@@ -161,7 +168,10 @@ let quadros = 0;
 function quadro(): void {
   const dt = Math.min(relogio.getDelta(), 0.05);
   const t = relogio.elapsedTime;
+  if (!cidade) return;
   jogador.atualizar(dt, cidade.solidos);
+  // O relogio da noite so anda com o jogo em foco. Camera presa (capturas) nao joga.
+  if (!cam) partida.atualizar(dt, jogador.posicao.x, jogador.posicao.z, jogador.travado);
   for (const l of cidade.luzes) {
     const tremor = Math.sin(t * 11 + l.fase) * 0.06 + Math.sin(t * 23.7 + l.fase * 2.3) * 0.04 + Math.sin(t * 3.1 + l.fase) * 0.05;
     l.luz.intensity = l.base * (0.9 + tremor);

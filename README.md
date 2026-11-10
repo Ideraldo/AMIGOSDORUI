@@ -2,9 +2,11 @@
 
 Jogo de terror e mistério para 3 a 6 amigos. Cada partida sorteia uma história nova dentro da mesma cidade de faroeste sombrio, e a história decide quais lugares estão abertos naquela noite.
 
-**Estado atual: só o cenário.** Dá para andar pela cidade e pelo vale do sítio em primeira pessoa, entrar nos lugares abertos, subir aos quartos dos sobrados e sortear outras noites. Ainda não existe jogabilidade, história nem multiplayer.
+**Estado atual: cenário pronto e a primeira noite jogável sozinho.** Dá para andar pela cidade e pelo vale do sítio em primeira pessoa. Entrar num lugar aberto dispara uma cena com 2 ou 3 escolhas, o relógio da noite anda em 8 horas, uma ameaça age seguindo uma regra secreta e a noite termina com um epílogo. A história usada é uma **biblioteca de exemplo**, escrita só para o molde funcionar. Ainda não existe multiplayer.
 
 ![Chegada pela rua principal](docs/01-chegada.png)
+
+![Cena ao entrar no bar](docs/09-cena.png)
 
 | | |
 | --- | --- |
@@ -30,8 +32,12 @@ Abra o endereço que aparecer no terminal (normalmente http://localhost:5173) e 
 | Mouse | olhar |
 | Shift | correr |
 | F | acender ou apagar o lampião |
+| 1, 2, 3 | escolher numa cena |
+| Espaço | continuar depois de uma cena ou da virada da hora |
+| J | diário e pistas |
+| N | passar a hora sem esperar o relógio |
 | M | abrir o mapa |
-| R | sortear outra noite |
+| R | começar outra noite |
 | Esc | soltar o mouse |
 
 ### Parâmetros de URL
@@ -40,6 +46,7 @@ Abra o endereço que aparecer no terminal (normalmente http://localhost:5173) e 
 | --- | --- | --- |
 | `seed` | `?seed=7` | repete sempre a mesma noite |
 | `abertos` | `?abertos=bar,mina` | força quais lugares estão abertos (vazio fecha todos) |
+| `regra` | `?regra=fareja-o-medo` | força a regra secreta da noite |
 | `dia` | `?dia=1` | luz de dia e sem neblina, para inspecionar a geometria |
 | `hud` | `?hud=0` | esconde a interface |
 | `exposicao` | `?exposicao=1.6` | clareia ou escurece a imagem (padrão 1.3) |
@@ -68,10 +75,22 @@ O bar, a pensão e o casarão são sobrados: a escada sobe de verdade e em cima 
 
 A planta inteira está em dados em `src/mundo/planta.ts`. O mapa do jogo, a colisão e os testes saem todos dali.
 
+## Como a noite funciona
+
+- A noite tem 8 horas (rodadas) de 2 minutos e meio, em 3 atos. O relógio só anda com o jogo em foco e para durante as cenas.
+- Cada hora, cada lugar aberto rende no máximo uma cena. Toda escolha mexe em medo, ferimento, pistas, relações ou lugares.
+- Na virada de cada hora a ameaça age conforme a **regra secreta** da noite. No ato 1 só há presságios. Depois ela ataca cada vez mais.
+- A regra vale pelo lugar em que você está quando a hora vira. Com 3 de ferimento o personagem morre.
+- Quem junta 2 pistas da regra entende a ameaça. O fim mostra a regra, o epílogo e as pistas achadas.
+
+As regras ficam em `src/nucleo/`, sem tela e sem Three.js, e a história é um arquivo de dados (`src/nucleo/historias/exemplo.ts`). O formato está em `src/nucleo/tipos.ts` e é o que o pipeline do Roteirista e do Crítico precisa produzir.
+
 ## Conferência automática
 
 ```bash
-npm run conferir   # tipos + testes da planta e da colisão
+npm run conferir   # tipos + testes da planta, da colisão e da partida
+npm run simular    # bots jogam centenas de noites e mostram sobrevivência, descoberta e falta de cenas
+npm run partida    # joga uma noite inteira pelo teclado num Chrome sem janela
 npm run colisao    # anda pela cidade num Chrome sem janela: portas, becos, caminhos, escadas e frestas
 npm run capturas   # tira capturas de tela da cidade, na pasta capturas/
 npm run planta     # regenera docs/planta.svg e docs/planta.png
@@ -97,6 +116,11 @@ $env:CHROME = "C:\Program Files\Google\Chrome\Application\chrome.exe"; npm run c
 ```
 index.html                página e interface (HUD, mapa, tela de entrada)
 src/main.ts               cria a cena, monta a noite, laço principal
+src/nucleo/tipos.ts       formato da história (fragmentos, regras, pistas) e do estado da partida
+src/nucleo/partida.ts     regras: entrar, escolher, virar a hora, ameaça, fim e validação da biblioteca
+src/nucleo/bot.ts         jogadores automáticos para teste e equilíbrio
+src/nucleo/historias/     bibliotecas de história (por enquanto só a de exemplo)
+src/interface/            cena, escolhas, relógio, diário e fim na tela (DOM puro)
 src/jogador/jogador.ts    câmera em primeira pessoa e teclado
 src/jogador/colisao.ts    colisão pura (paredes giradas, degraus, queda), sem Three.js
 src/mundo/planta.ts       planta da cidade em dados puros
@@ -109,14 +133,15 @@ src/mundo/cenario.ts      chão, paredão, céu, lua e o que fica na rua
 src/mundo/cidade.ts       junta tudo, calcula a colisão e funde as peças
 src/mundo/plantaSvg.ts    desenha o mapa
 src/nucleo/rng.ts         gerador de números com semente
-scripts/                  capturas, colisão e planta
-test/                     testes da planta, do sorteio e da colisão
+scripts/                  capturas, colisão, planta, simulação e partida no navegador
+test/                     testes da planta, do sorteio, da colisão e da partida
 ```
 
 ## Próximos passos
 
 1. Você andar pela cidade e dizer o que mudar: escala, distâncias, clima, lugares, e o FPS que a sua máquina faz.
-2. Jogabilidade solo: regras, fragmentos de história e cenas disparadas ao entrar nos lugares.
-3. Multiplayer: servidor, salas, votos e os outros jogadores visíveis na cidade.
+2. Ligar o pipeline do Roteirista e do Crítico ao formato de `tipos.ts` e trocar a biblioteca de exemplo por uma de verdade (a simulação mostra onde falta cena).
+3. Enfrentamento final, NPCs visíveis na cidade e som.
+4. Multiplayer: servidor, salas, votos e os outros jogadores visíveis na cidade.
 
 O documento de conceito do jogo tem o desenho completo. As convenções para quem for mexer no código estão em `CLAUDE.md`.

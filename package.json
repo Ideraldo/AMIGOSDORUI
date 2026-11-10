@@ -13,7 +13,9 @@
     "planta": "tsx scripts/planta.ts",
     "capturas": "tsx scripts/capturas.ts",
     "conferir": "npm run typecheck && npm test",
-    "colisao": "tsx scripts/colisao.ts"
+    "colisao": "tsx scripts/colisao.ts",
+    "simular": "tsx scripts/simular.ts",
+    "partida": "tsx scripts/partida.ts"
   },
   "dependencies": {
     "three": "^0.187.0"

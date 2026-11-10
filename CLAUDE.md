@@ -1,6 +1,6 @@
 # Guia para quem for mexer neste repositório
 
-Jogo de terror e mistério em grupo numa cidade de faroeste sombrio. 3D na web com Three.js e TypeScript, em primeira pessoa. Por enquanto existe só o cenário. Leia o README antes.
+Jogo de terror e mistério em grupo numa cidade de faroeste sombrio. 3D na web com Three.js e TypeScript, em primeira pessoa. Existe o cenário e uma noite jogável sozinho, com uma biblioteca de história de exemplo. Leia o README antes.
 
 ## Com quem você está trabalhando
 
@@ -16,6 +16,8 @@ npm run dev        # jogo no navegador
 npm run conferir   # tipos + testes da planta e da colisao (rode antes de todo commit)
 npm run colisao    # confere portas, caminhos, escadas e frestas num Chrome sem janela
 npm run capturas   # capturas de tela em capturas/ (aceita filtros: npm run capturas -- rua dentro-bar)
+npm run simular    # bots jogam centenas de noites: sobrevivencia, descoberta e falta de cenas
+npm run partida    # joga uma noite inteira pelo teclado num Chrome sem janela (leva minutos)
 npm run planta     # regenera docs/planta.*
 npm run build      # build de produção
 ```
@@ -76,6 +78,20 @@ No fim de `construirCidade`, `fundir` troca as milhares de caixas e cilindros de
 3. Rode `npm run capturas -- dentro-<id>` e `npm run colisao`, e olhe as imagens. O `colisao` enche o chão a partir da chegada e reprova lugar aberto sem acesso e lugar fechado com fresta. Se o lugar tiver andar de cima, acrescente um passeio em `PASSEIOS`.
 4. Rode `npm run planta` para atualizar o mapa em `docs/`.
 
+## A partida (`src/nucleo/`)
+
+- Nada em `src/nucleo/` importa Three.js nem DOM. Só `planta.ts` (ids dos lugares) e `rng.ts`.
+- `tipos.ts` define o formato. Biblioteca e estado são dado puro, viram JSON sem perda. Não ponha função dentro de fragmento, regra ou estado.
+- `partida.ts` tem as regras como funções que recebem um estado e devolvem outro, sem alterar o recebido: `novaPartida`, `entrar`, `sair`, `escolher`, `passarRodada`. O sorteio usa `estado.rng`, então mesma semente e mesmas ações dão a mesma noite. Nunca use `Math.random` ali.
+- Em grupo, quem chama `escolher` já resolveu o voto. O núcleo aceita vários personagens e várias cenas ao mesmo tempo. A tela, por enquanto, só tem um jogador (`voce`).
+- A regra secreta é dado: `alvo` diz quem a ameaça alcança na virada (`sozinho`, `fora-de-abrigo`, `mais-medo`). Tipo novo de regra entra em `AlvoDaAmeaca` e em `naMira`.
+- Lugares abrem e fecham só na virada da rodada (`aAbrir`, `aFechar`). A tela refaz a cidade e tira o jogador de dentro de um lugar que fechou.
+- Toda biblioteca tem de passar em `validarBiblioteca`: escolha sem efeito, pista sem cena que a entregue em qualquer noite, id solto e travessão no texto são reprovados.
+- Texto de fragmento não fala com "você" nem "vocês", para servir a um jogador ou a um grupo. Escolhas no infinitivo.
+- Depois de mexer em regra ou biblioteca, rode `npm run simular` e olhe as colunas. "Sem cena" alto quer dizer biblioteca pequena para aquele jeito de jogar.
+- `src/interface/partidaNaTela.ts` liga o núcleo à cidade em DOM puro. O relógio só anda com o mouse preso e fora de painel. Com `?cam=` a partida não roda.
+- `historias/exemplo.ts` é conteúdo de teste escrito à mão, não história oficial. A de verdade vem do pipeline do Ideraldo.
+
 ## Orçamento de desempenho
 
 - Com os 18 lugares abertos são 54 luzes pontuais, sem sombra, e cerca de 600 chamadas de desenho. Uma noite normal abre 9 lugares e fica perto de 32 luzes. Só a lua projeta sombra (mapa de 2048, desenhado uma vez, cobrindo cidade e vale: cerca de 13 cm por ponto). Não acrescente luz com sombra sem medir.
@@ -85,8 +101,8 @@ No fim de `construirCidade`, `fundir` troca as milhares de caixas e cilindros de
 
 ## O que vem depois e o que não fazer agora
 
-- Próxima etapa: jogabilidade solo (regras, fragmentos de história, cenas ao entrar nos lugares). Depois multiplayer.
-- Regras e história devem ficar num núcleo sem Three.js (`src/nucleo/`), determinístico e com semente (`rng.ts`), para rodar igual no servidor e em testes.
+- Próximas etapas: biblioteca de verdade vinda do pipeline, enfrentamento final, NPCs visíveis e som. Depois multiplayer.
+- Decisões de jogo ainda em aberto com o Ideraldo: se o jogador anda livre (como está) ou escolhe o destino no mapa, duração da hora, quão letal a ameaça deve ser e o que acontece no enfrentamento do amanhecer. Não feche nenhuma sozinho.
 - Nenhum modelo de IA gera texto durante a partida. A história vem de uma biblioteca pronta, feita antes.
 - Não troque de motor, não acrescente framework de interface e não traga modelos 3D prontos sem combinar com o Ideraldo.
 - Não existe pulo nem agachar, de propósito. Se a jogabilidade pedir, combine antes.

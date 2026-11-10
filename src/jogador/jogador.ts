@@ -15,6 +15,8 @@ export class Jogador {
   giro = Math.PI;
   inclinacao = 0;
   travado = false;
+  /** Parado no lugar (durante uma cena), mas ainda olhando em volta. */
+  congelado = false;
   readonly lampiao: THREE.PointLight;
   private readonly teclas = new Set<string>();
   private passo = 0;
@@ -95,6 +97,7 @@ export class Jogador {
     let dx = 0;
     let dz = 0;
     const correndo = this.teclas.has('ShiftLeft') || this.teclas.has('ShiftRight');
+    if (this.congelado) andar = lado = 0;
     if (andar !== 0 || lado !== 0) {
       const v = ((correndo ? VELOCIDADE_CORRENDO : VELOCIDADE) * dt) / Math.hypot(andar, lado);
       const f = this.frente();
