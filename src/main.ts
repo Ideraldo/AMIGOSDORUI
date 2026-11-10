@@ -19,7 +19,13 @@ declare global {
   interface Window {
     __pronto?: boolean;
     /** Ganchos para os scripts de conferencia (capturas e colisao). */
-    __depurar?: { livre: (x: number, z: number) => boolean; solidos: () => number; luzes: () => number };
+    __depurar?: {
+      livre: (x: number, z: number) => boolean;
+      solidos: () => number;
+      luzes: () => number;
+      /** Chamadas de desenho e triangulos do ultimo quadro. */
+      desenho: () => { chamadas: number; triangulos: number };
+    };
   }
 }
 
@@ -34,6 +40,8 @@ const renderizador = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderizador.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderizador.shadowMap.enabled = true;
 renderizador.shadowMap.type = THREE.PCFSoftShadowMap;
+// Nada que projeta sombra se mexe, entao o mapa de sombras so e refeito quando a cidade muda.
+renderizador.shadowMap.autoUpdate = parametros.get('sombras') === 'sempre';
 renderizador.toneMapping = THREE.ACESFilmicToneMapping;
 renderizador.toneMappingExposure = Number(parametros.get('exposicao')) || 1.3;
 
@@ -57,6 +65,7 @@ function noiteInicial(): Noite {
 let noite = noiteInicial();
 let cidade: Cidade = construirCidade(noite.abertos);
 cena.add(cidade.grupo);
+renderizador.shadowMap.needsUpdate = true;
 
 function mostrarNoite(): void {
   const nomes = LUGARES.filter((l) => noite.abertos.includes(l.id)).map((l) => `<li>${l.nome}</li>`);
@@ -70,6 +79,7 @@ function novaNoite(): void {
   noite = sortearNoite(noite.seed + 1);
   cidade = construirCidade(noite.abertos);
   cena.add(cidade.grupo);
+  renderizador.shadowMap.needsUpdate = true;
   jogador.reiniciar();
   mostrarNoite();
 }
@@ -134,6 +144,7 @@ window.__depurar = {
   livre: (x, z) => livre(x, z, cidade.solidos),
   solidos: () => cidade.solidos.length,
   luzes: () => cidade.luzes.length,
+  desenho: () => ({ chamadas: renderizador.info.render.calls, triangulos: renderizador.info.render.triangles }),
 };
 
 const relogio = new THREE.Clock();

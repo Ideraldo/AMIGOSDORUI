@@ -296,3 +296,131 @@ export function sorteador(seed: number): () => number {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
+
+/** Grupo posicionado e girado, para montar um movel em coordenadas locais. */
+export function movel(pai: THREE.Object3D, x: number, z: number, ry = 0, y = 0): THREE.Group {
+  const grupo = new THREE.Group();
+  grupo.position.set(x, y, z);
+  // Primeiro o giro, depois a inclinacao: rotation.x e rotation.z valem no eixo do proprio movel.
+  grupo.rotation.order = 'YXZ';
+  grupo.rotation.y = ry;
+  pai.add(grupo);
+  return grupo;
+}
+
+const geoEsfera = new THREE.SphereGeometry(1, 12, 8);
+geoEsfera.userData.compartilhada = true;
+
+/** Esfera (ou elipsoide, com sy e sz) centrada em (x, y, z). */
+export function esfera(
+  pai: THREE.Object3D,
+  raio: number,
+  material: THREE.Material,
+  x: number,
+  y: number,
+  z: number,
+  op: OpcoesForma & { sy?: number; sz?: number } = {},
+): THREE.Mesh {
+  const malha = new THREE.Mesh(geoEsfera, material);
+  malha.scale.set(raio, raio * (op.sy ?? 1), raio * (op.sz ?? 1));
+  return finalizar(malha, pai, x, y, z, op);
+}
+
+/** Arco ou anel (toro) em pe no plano XY, centrado em (x, y, z). */
+export function anel(
+  pai: THREE.Object3D,
+  raio: number,
+  espessura: number,
+  material: THREE.Material,
+  x: number,
+  y: number,
+  z: number,
+  op: OpcoesForma & { arco?: number } = {},
+): THREE.Mesh {
+  const geo = new THREE.TorusGeometry(raio, espessura, 5, 14, op.arco ?? Math.PI * 2);
+  return finalizar(new THREE.Mesh(geo, material), pai, x, y, z, op);
+}
+
+export interface OpcoesTexto {
+  fundo: string;
+  tinta: string;
+  /** Tamanho do canvas em pixels. Padrao 512 x 512. */
+  largura?: number;
+  altura?: number;
+  /** Altura da letra em pixels. Padrao: cabe todas as linhas. */
+  tamanho?: number;
+  /** A primeira linha sai maior, como titulo. */
+  titulo?: boolean;
+  fonte?: string;
+  moldura?: string;
+}
+
+/** Papel, cartaz ou quadro com texto, pintado em canvas. */
+export function materialTexto(linhas: readonly string[], op: OpcoesTexto): THREE.MeshStandardMaterial {
+  const chave = `texto:${JSON.stringify([linhas, op])}`;
+  let m = cacheMateriais.get(chave) as THREE.MeshStandardMaterial | undefined;
+  if (m) return m;
+  const largura = op.largura ?? 512;
+  const altura = op.altura ?? 512;
+  const [canvas, ctx] = criarCanvas(largura, altura);
+  ctx.fillStyle = op.fundo;
+  ctx.fillRect(0, 0, largura, altura);
+  for (let i = 0; i < 40; i++) {
+    ctx.fillStyle = `rgba(0,0,0,${0.02 + ruido(i * 3) * 0.05})`;
+    ctx.fillRect(ruido(i) * largura, ruido(i * 7) * altura, 30 + ruido(i * 11) * 90, 4 + ruido(i * 5) * 30);
+  }
+  if (op.moldura) {
+    ctx.strokeStyle = op.moldura;
+    ctx.lineWidth = Math.round(largura * 0.03);
+    ctx.strokeRect(ctx.lineWidth / 2, ctx.lineWidth / 2, largura - ctx.lineWidth, altura - ctx.lineWidth);
+  }
+  const fonte = op.fonte ?? 'Georgia, "Times New Roman", serif';
+  const passo = altura / (linhas.length + (op.titulo ? 1.6 : 1));
+  const tamanhoBase = op.tamanho ?? Math.min(passo * 0.72, 120);
+  ctx.fillStyle = op.tinta;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  let y = passo * (op.titulo ? 1.0 : 0.95);
+  linhas.forEach((linha, i) => {
+    let tamanho = op.titulo && i === 0 ? tamanhoBase * 1.7 : tamanhoBase;
+    ctx.font = `bold ${tamanho}px ${fonte}`;
+    while (ctx.measureText(linha).width > largura * 0.88 && tamanho > 12) {
+      tamanho -= 2;
+      ctx.font = `bold ${tamanho}px ${fonte}`;
+    }
+    ctx.fillText(linha, largura / 2, y);
+    y += op.titulo && i === 0 ? passo * 1.4 : passo;
+  });
+  const mapa = new THREE.CanvasTexture(canvas);
+  mapa.colorSpace = THREE.SRGBColorSpace;
+  mapa.anisotropy = 4;
+  m = new THREE.MeshStandardMaterial({ map: mapa, roughness: 0.95 });
+  cacheMateriais.set(chave, m);
+  return m;
+}
+
+/**
+ * Telhado de duas aguas com a cumeeira ao longo de Z. Cobre de z0 (fundo) ate z1 (frente),
+ * com a base na altura y.
+ */
+export function telhadoDuasAguas(
+  pai: THREE.Object3D,
+  largura: number,
+  z0: number,
+  z1: number,
+  y: number,
+  alturaCumeeira: number,
+  material: THREE.Material,
+): THREE.Mesh {
+  const forma = new THREE.Shape();
+  forma.moveTo(-largura / 2, 0);
+  forma.lineTo(largura / 2, 0);
+  forma.lineTo(0, alturaCumeeira);
+  forma.closePath();
+  const prisma = new THREE.Mesh(new THREE.ExtrudeGeometry(forma, { depth: z1 - z0, bevelEnabled: false }), material);
+  prisma.position.set(0, y, z0);
+  prisma.castShadow = true;
+  prisma.receiveShadow = true;
+  pai.add(prisma);
+  return prisma;
+}

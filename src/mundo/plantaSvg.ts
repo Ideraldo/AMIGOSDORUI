@@ -6,6 +6,7 @@
 // ponto do mundo (x, z) vira (-x, -z) no SVG. E uma rotacao de 180 graus, nao um espelho.
 
 import {
+  CAMINHOS,
   FIGURANTES,
   LIMITES,
   LUGARES,
@@ -49,11 +50,7 @@ export function plantaSvg(abertos: readonly string[], comJogador = false): strin
     `<rect ${ret(LIMITES)} fill="#2a2420" stroke="#4a4038" stroke-width="0.6"/>`,
     `<rect ${ret({ minX: -RUA.largura / 2, maxX: RUA.largura / 2, minZ: RUA.minZ, maxZ: RUA.maxZ })} fill="${chao}"/>`,
     `<circle cx="${-PRACA.x}" cy="${-PRACA.z}" r="${PRACA.raio}" fill="${chao}"/>`,
-    // Caminhos para o cemiterio, a mina e o casarao (os mesmos de cenario.ts).
-    `<rect ${ret({ minX: -11, maxX: -7, minZ: 45, maxZ: 61 })} fill="${chao}"/>`,
-    `<rect ${ret({ minX: 9, maxX: 13, minZ: 47, maxZ: 59 })} fill="${chao}"/>`,
-    `<rect ${ret({ minX: 10, maxX: 40, minZ: 56, maxZ: 60 })} fill="${chao}"/>`,
-    `<rect ${ret({ minX: 9, maxX: 22, minZ: 26.5, maxZ: 29.5 })} fill="${chao}"/>`,
+    ...CAMINHOS.map((c) => `<rect ${ret(c)} fill="${chao}"/>`),
     // Trilhos do trem.
     `<rect ${ret({ minX: LIMITES.minX, maxX: LIMITES.maxX, minZ: -72.1, maxZ: -70.9 })} fill="#5a5048"/>`,
   );
@@ -72,7 +69,9 @@ export function plantaSvg(abertos: readonly string[], comJogador = false): strin
     );
     const cx = (r.minX + r.maxX) / 2;
     const cz = (r.minZ + r.maxZ) / 2;
-    const tamanho = figurante ? 2.4 : r.maxX - r.minX < 13 ? 2.8 : 3.4;
+    // A letra encolhe para o nome caber na largura do predio.
+    const cabe = (r.maxX - r.minX - 0.8) / (c.nome.length * 0.5);
+    const tamanho = figurante ? 2.0 : Math.max(1.7, Math.min(3.4, cabe));
     partes.push(
       `<text x="${-cx}" y="${-cz + 1.1}" font-size="${tamanho}" text-anchor="middle" fill="${aberto ? '#1c1408' : '#d8cfc4'}"${figurante ? ' fill-opacity="0.6"' : ''}>${escapar(c.nome)}</text>`,
     );

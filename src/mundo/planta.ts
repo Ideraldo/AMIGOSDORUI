@@ -17,7 +17,14 @@ export type LugarId =
   | 'casarao'
   | 'igreja'
   | 'cemiterio'
-  | 'mina';
+  | 'mina'
+  | 'funeraria'
+  | 'ferraria'
+  | 'pensao'
+  | 'estabulo'
+  | 'botica'
+  | 'escola'
+  | 'telegrafo';
 
 export interface Construcao {
   id: string;
@@ -54,10 +61,12 @@ export const RUA = { largura: 13, minZ: -72, maxZ: 46 };
 export const PRACA = { x: 0, z: 42, raio: 11 };
 export const PORTA = { largura: 1.6, altura: 2.4 };
 export const ALPENDRE = 2.6;
+/** Espessura das paredes dos predios. */
+export const PAREDE = 0.25;
 export const NASCIMENTO = { x: 0, z: -53 };
-export const LUGARES_ABERTOS_POR_NOITE = 5;
+export const LUGARES_ABERTOS_POR_NOITE = 8;
 
-/** Os 9 lugares que a historia pode abrir ou fechar a cada noite. */
+/** Os lugares que a historia pode abrir ou fechar a cada noite. */
 export const LUGARES: Lugar[] = [
   {
     id: 'estacao',
@@ -176,22 +185,142 @@ export const LUGARES: Lugar[] = [
     altura: 3,
     andares: 1,
   },
+  {
+    id: 'funeraria',
+    nome: 'Funerária',
+    placa: 'FUNERÁRIA',
+    descricao: 'Sempre tem um caixão pronto a mais. Ninguém encomendou.',
+    x: 9,
+    z: -16,
+    frente: 'O',
+    largura: 10,
+    profundidade: 9,
+    altura: 4,
+    andares: 1,
+  },
+  {
+    id: 'ferraria',
+    nome: 'Ferraria',
+    placa: 'FERRARIA',
+    descricao: 'A forja ainda está morna, e o ferreiro sumiu faz uma semana.',
+    x: 9,
+    z: 3,
+    frente: 'O',
+    largura: 14,
+    profundidade: 12,
+    altura: 4.2,
+    andares: 1,
+  },
+  {
+    id: 'pensao',
+    nome: 'Pensão',
+    placa: 'PENSÃO',
+    descricao: 'Seis chaves no quadro, cinco quartos no corredor.',
+    x: -9,
+    z: 27,
+    frente: 'L',
+    largura: 10,
+    profundidade: 8,
+    altura: 7,
+    andares: 2,
+  },
+  // Rua de tras do lado leste, alcancada pelos becos.
+  {
+    id: 'botica',
+    nome: 'Botica',
+    placa: 'BOTICA',
+    descricao: 'Frascos sem rótulo e uma mesa de exame que ninguém limpou.',
+    x: 27,
+    z: -24.5,
+    frente: 'O',
+    largura: 10,
+    profundidade: 9,
+    altura: 4,
+    andares: 1,
+  },
+  {
+    id: 'estabulo',
+    nome: 'Estábulo',
+    placa: 'ESTÁBULO',
+    descricao: 'Baias vazias, feno fresco e marcas de casco viradas para a parede.',
+    x: 27,
+    z: -7.5,
+    frente: 'O',
+    largura: 14,
+    profundidade: 10,
+    altura: 5,
+    andares: 1,
+  },
+  // Rua de tras do lado oeste.
+  {
+    id: 'telegrafo',
+    nome: 'Telégrafo',
+    placa: 'TELÉGRAFO',
+    descricao: 'O aparelho bate sozinho de madrugada. A fita sai em branco.',
+    x: -30,
+    z: -25.5,
+    frente: 'L',
+    largura: 10,
+    profundidade: 8,
+    altura: 4,
+    andares: 1,
+  },
+  {
+    id: 'escola',
+    nome: 'Escola',
+    placa: 'ESCOLA',
+    descricao: 'A mesma frase escrita no quadro, de cima a baixo.',
+    x: -30,
+    z: -0.5,
+    frente: 'L',
+    largura: 12,
+    profundidade: 10,
+    altura: 4.2,
+    andares: 1,
+  },
 ];
 
-/** Predios que so compoem a rua. Ficam sempre fechados. */
+/** Casas que so compoem a cidade. Ficam sempre fechadas e nao tem placa. */
 export const FIGURANTES: Construcao[] = [
-  { id: 'funeraria', nome: 'Funerária', placa: 'FUNERÁRIA', x: 9, z: -16, frente: 'O', largura: 10, profundidade: 9, altura: 4, andares: 1 },
-  { id: 'ferraria', nome: 'Ferraria', placa: 'FERRARIA', x: 9, z: 3, frente: 'O', largura: 14, profundidade: 12, altura: 4.2, andares: 1 },
-  { id: 'pensao', nome: 'Pensão', placa: 'PENSÃO', x: -9, z: 27, frente: 'L', largura: 10, profundidade: 8, altura: 7, andares: 2 },
+  { id: 'casa1', nome: 'Casa', placa: '', x: 27, z: -44, frente: 'O', largura: 8, profundidade: 7, altura: 3.6, andares: 1 },
+  { id: 'casa2', nome: 'Casa', placa: '', x: 27, z: 7, frente: 'O', largura: 7, profundidade: 7, altura: 3.6, andares: 1 },
+  { id: 'casa3', nome: 'Casa', placa: '', x: -30, z: -13.5, frente: 'L', largura: 7, profundidade: 7, altura: 3.6, andares: 1 },
+  { id: 'casa4', nome: 'Casa', placa: '', x: -30, z: 18.5, frente: 'L', largura: 8, profundidade: 7, altura: 3.6, andares: 1 },
 ];
 
-export const POSTES_DE_LUZ: { x: number; z: number }[] = [
+/**
+ * Caminhos de terra batida alem da rua principal e da praca. Sao so pintura no chao:
+ * o terreno e o mapa desenham a partir daqui.
+ */
+export const CAMINHOS: Retangulo[] = [
+  // Da praca ao cemiterio, a mina e ao casarao.
+  { minX: -11, maxX: -7, minZ: 45, maxZ: 61 },
+  { minX: 9, maxX: 13, minZ: 47, maxZ: 59 },
+  { minX: 10, maxX: 40, minZ: 56, maxZ: 60 },
+  { minX: 9, maxX: 22, minZ: 26.5, maxZ: 29.5 },
+  // Becos do lado oeste e a rua de tras.
+  { minX: -27.5, maxX: -6.5, minZ: -27.25, maxZ: -23.75 },
+  { minX: -27.5, maxX: -6.5, minZ: -2.25, maxZ: 1.25 },
+  { minX: -27.5, maxX: -6.5, minZ: 16.75, maxZ: 20.25 },
+  { minX: -27.5, maxX: -23.5, minZ: -27.25, maxZ: 20.25 },
+  // Becos do lado leste e a rua de tras.
+  { minX: 6.5, maxX: 25, minZ: -26.25, maxZ: -22.75 },
+  { minX: 6.5, maxX: 25, minZ: -9.25, maxZ: -5.75 },
+  { minX: 6.5, maxX: 25, minZ: 11.75, maxZ: 15.25 },
+  { minX: 21.75, maxX: 25, minZ: -46, maxZ: 15.25 },
+];
+
+/** braco: para que lado (em X) o braco do poste aponta. Padrao: para a rua principal. */
+export const POSTES_DE_LUZ: { x: number; z: number; braco?: 1 | -1 }[] = [
   { x: -5.6, z: -46 },
-  { x: 5.6, z: -25 },
-  { x: -5.6, z: -1 },
+  { x: 5.6, z: -27.2 },
+  { x: -5.6, z: -4.4 },
   { x: 5.6, z: 17 },
   { x: -7, z: 44 },
   { x: 14, z: 56 },
+  // Um em cada rua de tras.
+  { x: -23.6, z: -9, braco: -1 },
+  { x: 21.9, z: -16, braco: 1 },
 ];
 
 /** Vetor unitario para onde a fachada olha. */
@@ -246,6 +375,11 @@ export function sobrepoe(a: Retangulo, b: Retangulo, margem = 0): boolean {
 
 export function contem(r: Retangulo, x: number, z: number): boolean {
   return x > r.minX && x < r.maxX && z > r.minZ && z < r.maxZ;
+}
+
+/** Altura livre do terreo: o forro, nos sobrados, ou o teto. */
+export function alturaDoTeto(c: Construcao): number {
+  return c.andares === 2 ? 3.38 : c.altura;
 }
 
 export function todasAsConstrucoes(): Construcao[] {

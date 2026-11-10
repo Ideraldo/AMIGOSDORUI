@@ -50,8 +50,8 @@ try {
     }, t);
 
   await abrir(LUGARES.map((l) => l.id).join(','));
-  const info = await pagina.evaluate(() => ({ solidos: window.__depurar!.solidos(), luzes: window.__depurar!.luzes() }));
-  console.log(`tudo aberto: ${info.solidos} caixas de colisao, ${info.luzes} luzes`);
+  const info = await pagina.evaluate(() => ({ solidos: window.__depurar!.solidos(), luzes: window.__depurar!.luzes(), ...window.__depurar!.desenho() }));
+  console.log(`tudo aberto: ${info.solidos} caixas de colisao, ${info.luzes} luzes, ${info.chamadas} chamadas de desenho, ${info.triangulos} triangulos no quadro`);
   for (const l of LUGARES) conferir((await bloqueados(travessia(l))) === 0, `${l.nome} aberto: da para entrar`);
   for (const f of FIGURANTES) conferir((await bloqueados(travessia(f))) > 0, `${f.nome}: sempre fechada`);
 
@@ -62,6 +62,14 @@ try {
     ['praca ate a boca da mina', [11, 50, 38, 58]],
     ['rua ate o portao do casarao', [5, 28, 20, 28]],
     ['tunel da mina ate o vagonete', [41, 58, 45.5, 58]],
+    ['beco oeste do telegrafo', [-6, -25.5, -27, -25.5]],
+    ['beco oeste da escola', [-6, -0.5, -27, -0.5]],
+    ['beco oeste da pensao', [-6, 18.5, -27, 18.5]],
+    ['rua de tras oeste', [-25.5, -27, -25.5, 20]],
+    ['beco leste da botica', [6, -24.5, 24, -24.5]],
+    ['beco leste do estabulo', [6, -7.5, 24, -7.5]],
+    ['beco leste do casarao', [6, 13.5, 24, 13.5]],
+    ['rua de tras leste', [22.6, -45, 22.6, 15]],
   ];
   for (const [nome, trecho] of caminhos) conferir((await bloqueados(trecho)) === 0, `caminho livre: ${nome}`);
   conferir((await bloqueados([-44, 0, -52, 0])) > 0, 'paredao oeste segura o jogador');

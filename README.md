@@ -8,8 +8,9 @@ Jogo de terror e mistério para 3 a 6 amigos. Cada partida sorteia uma história
 
 | | |
 | --- | --- |
-| ![Fachada do bar](docs/02-bar.png) | ![Praça, poço e igreja](docs/03-praca-e-igreja.png) |
-| ![Vista de dia, para inspeção](docs/04-vista-de-dia.png) | ![Planta da cidade](docs/planta.png) |
+| ![Beco que leva ao estábulo](docs/02-beco-do-estabulo.png) | ![Praça, poço e igreja](docs/03-praca-e-igreja.png) |
+| ![Funerária por dentro](docs/04-funeraria.png) | ![Escola por dentro](docs/05-escola.png) |
+| ![Vista de dia, para inspeção](docs/06-vista-de-dia.png) | ![Planta da cidade](docs/planta.png) |
 
 ## Como rodar
 
@@ -42,10 +43,24 @@ Abra o endereço que aparecer no terminal (normalmente http://localhost:5173) e 
 | `hud` | `?hud=0` | esconde a interface |
 | `exposicao` | `?exposicao=1.6` | clareia ou escurece a imagem (padrão 1.3) |
 | `cam` | `?cam=0,26,-70,3.14,-0.42` | prende a câmera em x, y, z, giro, inclinação |
+| `sombras` | `?sombras=sempre` | refaz o mapa de sombras a cada quadro (o normal é só quando a cidade muda) |
 
 ## A cidade
 
-Nove lugares podem abrir ou fechar a cada noite: Estação, Armazém, Bar, Banco, Delegacia, Casarão, Igreja, Cemitério e Mina. Cinco abrem por noite. Lugar aberto tem porta aberta, janelas acesas e lampião. Lugar fechado tem porta e janelas pregadas com tábuas. Funerária, Ferraria e Pensão só compõem a rua e nunca abrem.
+Uma rua principal que desce da estação até a praça da igreja, com becos que levam a uma rua de trás de cada lado.
+
+**16 lugares** podem abrir ou fechar a cada noite, e 8 abrem por vez:
+
+| Onde | Lugares |
+| --- | --- |
+| Chegada | Estação |
+| Rua principal, lado oeste | Armazém, Bar, Banco, Pensão |
+| Rua principal, lado leste | Delegacia, Funerária, Ferraria |
+| Rua de trás oeste | Telégrafo, Escola |
+| Rua de trás leste | Botica, Estábulo |
+| Em volta da praça | Igreja, Cemitério, Casarão, Mina |
+
+Lugar aberto tem porta aberta, janelas acesas e lampião. Lugar fechado tem porta e janelas pregadas com tábuas. Todos têm interior mobiliado. Quatro casas completam as ruas de trás e nunca abrem.
 
 A planta inteira está em dados em `src/mundo/planta.ts`. O mapa do jogo, a colisão e os testes saem todos dali.
 
@@ -53,9 +68,17 @@ A planta inteira está em dados em `src/mundo/planta.ts`. O mapa do jogo, a coli
 
 ```bash
 npm run conferir   # tipos + testes da planta
-npm run colisao    # anda pela cidade num Chrome sem janela e confere portas e caminhos
-npm run capturas   # tira capturas de tela de 18 pontos da cidade, na pasta capturas/
+npm run colisao    # anda pela cidade num Chrome sem janela e confere portas, becos e caminhos
+npm run capturas   # tira capturas de tela da cidade, na pasta capturas/
 npm run planta     # regenera docs/planta.svg e docs/planta.png
+```
+
+`capturas` aceita filtros pelo nome da vista, e todo lugar ganha duas vistas de dentro automaticamente:
+
+```bash
+npm run capturas -- rua praca          # só as vistas de rua e de praça
+npm run capturas -- dentro-escola      # as duas vistas de dentro da escola
+npm run capturas -- dentro --dia       # todos os interiores com luz de dia
 ```
 
 `colisao` e `capturas` precisam do Google Chrome instalado. Se ele não estiver em `/usr/bin/google-chrome`, aponte o caminho na variável `CHROME`. No Windows, por exemplo:
@@ -67,25 +90,28 @@ $env:CHROME = "C:\Program Files\Google\Chrome\Application\chrome.exe"; npm run c
 ## Estrutura
 
 ```
-index.html              página e interface (HUD, mapa, tela de entrada)
-src/main.ts             cria a cena, monta a noite, laço principal
-src/jogador/jogador.ts  câmera em primeira pessoa e colisão
-src/mundo/planta.ts     planta da cidade em dados puros
-src/mundo/noite.ts      sorteio dos lugares abertos
-src/mundo/base.ts       materiais, texturas e formas básicas
-src/mundo/predios.ts    prédios, interiores, igreja, mina e cemitério
-src/mundo/cenario.ts    chão, paredão, céu, lua e adereços
-src/mundo/cidade.ts     junta tudo e calcula as caixas de colisão
-src/mundo/plantaSvg.ts  desenha o mapa
-src/nucleo/rng.ts       gerador de números com semente
-scripts/                capturas, colisão e planta
-test/                   testes da planta e do sorteio
+index.html                página e interface (HUD, mapa, tela de entrada)
+src/main.ts               cria a cena, monta a noite, laço principal
+src/jogador/jogador.ts    câmera em primeira pessoa e colisão
+src/mundo/planta.ts       planta da cidade em dados puros
+src/mundo/noite.ts        sorteio dos lugares abertos
+src/mundo/base.ts         materiais, texturas, textos pintados e formas básicas
+src/mundo/objetos.ts      móveis e objetos reaproveitados (mesa, cama, estante, carroça...)
+src/mundo/predios.ts      casca dos prédios, igreja, mina e cemitério
+src/mundo/interiores.ts   o interior de cada lugar
+src/mundo/cenario.ts      chão, paredão, céu, lua e o que fica na rua
+src/mundo/cidade.ts       junta tudo, calcula a colisão e funde as peças
+src/mundo/plantaSvg.ts    desenha o mapa
+src/nucleo/rng.ts         gerador de números com semente
+scripts/                  capturas, colisão e planta
+test/                     testes da planta e do sorteio
 ```
 
 ## Próximos passos
 
 1. Você andar pela cidade e dizer o que mudar: escala, distâncias, clima, lugares.
-2. Jogabilidade solo: regras, fragmentos de história e cenas disparadas ao entrar nos lugares.
-3. Multiplayer: servidor, salas, votos e os outros jogadores visíveis na cidade.
+2. Ampliar o mapa, se a cidade ainda parecer pequena depois de adensada.
+3. Jogabilidade solo: regras, fragmentos de história e cenas disparadas ao entrar nos lugares.
+4. Multiplayer: servidor, salas, votos e os outros jogadores visíveis na cidade.
 
 O documento de conceito do jogo tem o desenho completo. As convenções para quem for mexer no código estão em `CLAUDE.md`.
