@@ -1,29 +1,13 @@
-// Jogador em primeira pessoa: mouse olha, teclado anda, colisao contra caixas.
-// O chao da cidade e plano, entao a colisao e feita so no plano XZ.
+// Jogador em primeira pessoa: mouse olha, teclado anda. A colisao fica em colisao.ts.
 
 import * as THREE from 'three';
 import { NASCIMENTO } from '../mundo/planta.ts';
+import { mover, type Corpo, type Solido } from './colisao.ts';
 
-const RAIO = 0.35;
 const ALTURA_DOS_OLHOS = 1.68;
 const VELOCIDADE = 4.2;
 const VELOCIDADE_CORRENDO = 7.2;
 const SENSIBILIDADE = 0.0022;
-/** Faixa de altura do corpo. Caixas fora dela (degraus, toldos) nao bloqueiam. */
-const CORPO_MIN = 0.35;
-const CORPO_MAX = 1.7;
-
-export function livre(x: number, z: number, solidos: readonly THREE.Box3[], raio = RAIO): boolean {
-  for (const b of solidos) {
-    if (b.max.y < CORPO_MIN || b.min.y > CORPO_MAX) continue;
-    const cx = Math.max(b.min.x, Math.min(x, b.max.x));
-    const cz = Math.max(b.min.z, Math.min(z, b.max.z));
-    const dx = x - cx;
-    const dz = z - cz;
-    if (dx * dx + dz * dz < raio * raio) return false;
-  }
-  return true;
-}
 
 export class Jogador {
   readonly posicao = new THREE.Vector3(NASCIMENTO.x, 0, NASCIMENTO.z);
@@ -35,6 +19,9 @@ export class Jogador {
   private readonly teclas = new Set<string>();
   private passo = 0;
   private camFixa = false;
+  private readonly corpo: Corpo = { x: NASCIMENTO.x, y: 0, z: NASCIMENTO.z, vy: 0, noChao: true };
+  /** Altura dos olhos suavizada, para a camera nao dar tranco a cada degrau. */
+  private pesSuave = 0;
 
   constructor(
     private readonly camera: THREE.PerspectiveCamera,
@@ -77,6 +64,8 @@ export class Jogador {
   }
 
   reiniciar(): void {
+    Object.assign(this.corpo, { x: NASCIMENTO.x, y: 0, z: NASCIMENTO.z, vy: 0, noChao: true });
+    this.pesSuave = 0;
     this.posicao.set(NASCIMENTO.x, 0, NASCIMENTO.z);
     this.giro = Math.PI;
     this.inclinacao = 0;
@@ -87,7 +76,14 @@ export class Jogador {
     return { x: -Math.sin(this.giro), z: -Math.cos(this.giro) };
   }
 
-  atualizar(dt: number, solidos: readonly THREE.Box3[]): void {
+  /** Coloca o jogador num ponto, com os pes na altura y. Usado pelos testes. */
+  teleportar(x: number, y: number, z: number): void {
+    Object.assign(this.corpo, { x, y, z, vy: 0, noChao: false });
+    this.pesSuave = y;
+    this.posicao.set(x, y, z);
+  }
+
+  atualizar(dt: number, solidos: readonly Solido[]): void {
     if (this.camFixa) return;
     let andar = 0;
     let lado = 0;
@@ -96,32 +92,27 @@ export class Jogador {
     if (this.teclas.has('KeyD') || this.teclas.has('ArrowRight')) lado += 1;
     if (this.teclas.has('KeyA') || this.teclas.has('ArrowLeft')) lado -= 1;
 
-    let movendo = false;
+    let dx = 0;
+    let dz = 0;
+    const correndo = this.teclas.has('ShiftLeft') || this.teclas.has('ShiftRight');
     if (andar !== 0 || lado !== 0) {
-      const norma = Math.hypot(andar, lado);
-      const correndo = this.teclas.has('ShiftLeft') || this.teclas.has('ShiftRight');
-      const v = ((correndo ? VELOCIDADE_CORRENDO : VELOCIDADE) * dt) / norma;
+      const v = ((correndo ? VELOCIDADE_CORRENDO : VELOCIDADE) * dt) / Math.hypot(andar, lado);
       const f = this.frente();
-      // Vetor para a direita de quem olha.
-      const dx = (f.x * andar - f.z * lado) * v;
-      const dz = (f.z * andar + f.x * lado) * v;
-      const preso = !livre(this.posicao.x, this.posicao.z, solidos);
-      // Um eixo por vez, para deslizar ao longo das paredes.
-      if (preso || livre(this.posicao.x + dx, this.posicao.z, solidos)) {
-        this.posicao.x += dx;
-        movendo = true;
-      }
-      if (preso || livre(this.posicao.x, this.posicao.z + dz, solidos)) {
-        this.posicao.z += dz;
-        movendo = true;
-      }
-      if (movendo) this.passo += dt * (correndo ? 13 : 9);
+      // (-f.z, f.x) e o vetor para a direita de quem olha.
+      dx = (f.x * andar - f.z * lado) * v;
+      dz = (f.z * andar + f.x * lado) * v;
     }
-    this.aplicar(movendo ? Math.sin(this.passo) * 0.035 : 0);
+    const andou = mover(this.corpo, dx, dz, dt, solidos);
+    if (andou && this.corpo.noChao) this.passo += dt * (correndo ? 13 : 9);
+    this.posicao.set(this.corpo.x, this.corpo.y, this.corpo.z);
+    // Subir degrau e suave. Cair acompanha de perto.
+    const k = this.corpo.y > this.pesSuave ? 14 : 30;
+    this.pesSuave += (this.corpo.y - this.pesSuave) * Math.min(1, k * dt);
+    this.aplicar(andou && this.corpo.noChao ? Math.sin(this.passo) * 0.035 : 0);
   }
 
   private aplicar(balanco: number): void {
-    this.camera.position.set(this.posicao.x, ALTURA_DOS_OLHOS + balanco, this.posicao.z);
+    this.camera.position.set(this.posicao.x, this.pesSuave + ALTURA_DOS_OLHOS + balanco, this.posicao.z);
     this.camera.rotation.set(this.inclinacao, this.giro, 0);
   }
 }

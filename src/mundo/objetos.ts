@@ -113,7 +113,7 @@ export function bancoComprido(g: THREE.Object3D, x: number, z: number, w: number
 }
 
 /** Cama de solteiro, com a cabeceira para -Z. */
-export function cama(g: THREE.Object3D, x: number, z: number, ry = 0, cor: number = COR.pano): void {
+export function cama(g: THREE.Object3D, x: number, z: number, ry = 0, cor: number = COR.pano): THREE.Group {
   const c = movel(g, x, z, ry);
   caixa(c, 0.95, 0.3, 1.95, madeira(COR.madeiraEscura), 0, 0.3, 0);
   caixa(c, 0.9, 0.14, 1.9, fosco(COR.osso), 0, 0.52, 0, { sombra: false });
@@ -121,6 +121,26 @@ export function cama(g: THREE.Object3D, x: number, z: number, ry = 0, cor: numbe
   caixa(c, 0.6, 0.1, 0.35, fosco(0xd8d2c4), 0, 0.63, -0.72, { sombra: false });
   caixa(c, 0.95, 0.9, 0.08, madeira(COR.madeiraEscura), 0, 0.65, -0.98);
   barreira(c, 0.95, 0.9, 1.95, 0, 0.45, 0);
+  return c;
+}
+
+export function cavalinho(g: THREE.Object3D, x: number, z: number, ry = 0): void {
+  const cavalo = movel(g, x, z, ry);
+  const m = madeira(COR.madeira);
+  esfera(cavalo, 0.2, m, 0, 0.6, 0, { sz: 2.2 });
+  caixa(cavalo, 0.14, 0.4, 0.16, m, 0, 0.9, 0.35, { rx: 0.5 });
+  caixa(cavalo, 0.12, 0.14, 0.3, m, 0, 1.05, 0.52, { rx: 0.3, sombra: false });
+  for (const sx of [-1, 1]) {
+    for (const sz of [-1, 1]) caixa(cavalo, 0.05, 0.5, 0.05, m, sx * 0.12, 0.3, sz * 0.28, { sombra: false });
+    caixa(cavalo, 0.05, 0.05, 1.1, madeira(COR.madeiraEscura), sx * 0.12, 0.04, 0, { sombra: false });
+  }
+}
+
+/** Lavatorio: mesinha com bacia e jarro. */
+export function lavatorio(g: THREE.Object3D, x: number, z: number, ry = 0): void {
+  const l = mesa(g, x, z, 0.7, 0.5, ry, 0.8, COR.madeiraEscura);
+  cilindro(l, 0.2, 0.13, 0.1, fosco(COR.osso), -0.08, 0.89, 0, { sombra: false, lados: 10 });
+  cilindro(l, 0.06, 0.09, 0.24, fosco(0x7a8a9a), 0.24, 0.96, -0.08, { sombra: false, lados: 8 });
 }
 
 export function bau(g: THREE.Object3D, x: number, z: number, ry = 0): void {
@@ -220,18 +240,22 @@ export function copo(g: THREE.Object3D, x: number, y: number, z: number): void {
   cilindro(g, 0.035, 0.028, 0.09, fosco(0x9aa3a0), x, y + 0.045, z, { sombra: false, lados: 6 });
 }
 
-/** Escada que sobe na direcao -Z. E so cenario: uma barreira impede de subir. */
-export function escadaDecorativa(g: THREE.Object3D, x: number, z: number, ry: number, altura: number, largura = 1.2): void {
-  const e = movel(g, x, z, ry);
+/**
+ * Escada de 12 degraus que sobe na direcao -Z, a partir de (x, z). Cada degrau e solido:
+ * o jogador sobe de verdade. O corrimao fica do lado indicado e e so visual.
+ */
+export function escada(g: THREE.Object3D, x: number, z: number, altura: number, largura: number, ladoDoCorrimao: 1 | -1): void {
+  const e = movel(g, x, z);
   const mat = madeira(COR.madeira);
+  const escura = madeira(COR.madeiraEscura);
   const degraus = 12;
   const h = altura / degraus;
-  for (let i = 0; i < degraus; i++) caixa(e, largura, h, 0.5, mat, 0, (i + 0.5) * h, -i * 0.5 - 0.25, { sombra: false });
+  for (let i = 0; i < degraus; i++) caixa(e, largura, h, 0.5, mat, 0, (i + 0.5) * h, -i * 0.5 - 0.25, { solido: true, sombra: false });
+  const xCorrimao = ladoDoCorrimao * (largura / 2 - 0.03);
   const comprimento = Math.hypot(degraus * 0.5, altura);
   const inclinacao = Math.atan2(altura, degraus * 0.5);
-  caixa(e, 0.06, 0.06, comprimento, madeira(COR.madeiraEscura), largura / 2 - 0.03, altura / 2 + 0.9, -degraus * 0.25, { rx: inclinacao, sombra: false });
-  for (let i = 0; i < degraus; i += 3) caixa(e, 0.05, 0.9, 0.05, madeira(COR.madeiraEscura), largura / 2 - 0.03, (i + 1) * h + 0.45, -i * 0.5 - 0.25, { sombra: false });
-  barreira(e, largura, altura, degraus * 0.5, 0, altura / 2, -degraus * 0.25);
+  caixa(e, 0.06, 0.06, comprimento, escura, xCorrimao, altura / 2 + 0.95, -degraus * 0.25, { rx: inclinacao, sombra: false });
+  for (let i = 0; i < degraus; i += 3) caixa(e, 0.05, 0.95, 0.05, escura, xCorrimao, (i + 1) * h + 0.47, -i * 0.5 - 0.25, { sombra: false });
 }
 
 /** Lustre de roda de carroca, com velas. */

@@ -8,7 +8,8 @@
 //   ?dia=1               luz de dia, para inspecionar a geometria
 
 import * as THREE from 'three';
-import { Jogador, livre } from './jogador/jogador.ts';
+import { alcance, caminhar, livre, type Alcance, type Caminhada } from './jogador/colisao.ts';
+import { Jogador } from './jogador/jogador.ts';
 import { ambiente } from './mundo/cenario.ts';
 import { construirCidade, descartarCidade, type Cidade } from './mundo/cidade.ts';
 import { sortearNoite, type Noite } from './mundo/noite.ts';
@@ -20,7 +21,12 @@ declare global {
     __pronto?: boolean;
     /** Ganchos para os scripts de conferencia (capturas e colisao). */
     __depurar?: {
-      livre: (x: number, z: number) => boolean;
+      /** Ha espaco para o jogador em (x, z), com os pes na altura y? */
+      livre: (x: number, z: number, y?: number) => boolean;
+      /** Simula uma caminhada a partir de (x, y, z), ponto a ponto. */
+      caminhar: (inicio: [number, number, number], pontos: [number, number][]) => Caminhada;
+      /** Aonde da para chegar andando pelo chao, a partir de um ponto. */
+      alcance: (inicio: [number, number], pontos: [number, number][], area: { minX: number; maxX: number; minZ: number; maxZ: number }) => Alcance;
       solidos: () => number;
       luzes: () => number;
       /** Chamadas de desenho e triangulos do ultimo quadro. */
@@ -141,7 +147,9 @@ function atualizarInterface(): void {
 }
 
 window.__depurar = {
-  livre: (x, z) => livre(x, z, cidade.solidos),
+  livre: (x, z, y = 0) => livre(x, z, y, cidade.solidos),
+  caminhar: ([x, y, z], pontos) => caminhar({ x, y, z, vy: 0, noChao: true }, pontos, cidade.solidos),
+  alcance: (inicio, pontos, area) => alcance(inicio, pontos, area, cidade.solidos),
   solidos: () => cidade.solidos.length,
   luzes: () => cidade.luzes.length,
   desenho: () => ({ chamadas: renderizador.info.render.calls, triangulos: renderizador.info.render.triangles }),

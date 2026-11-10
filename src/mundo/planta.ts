@@ -215,7 +215,7 @@ export const LUGARES: Lugar[] = [
     id: 'pensao',
     nome: 'Pensão',
     placa: 'PENSÃO',
-    descricao: 'Seis chaves no quadro, cinco quartos no corredor.',
+    descricao: 'Quatro chaves no quadro, três quartos no corredor.',
     x: -9,
     z: 27,
     frente: 'L',
@@ -376,6 +376,9 @@ export function sobrepoe(a: Retangulo, b: Retangulo, margem = 0): boolean {
 export function contem(r: Retangulo, x: number, z: number): boolean {
   return x > r.minX && x < r.maxX && z > r.minZ && z < r.maxZ;
 }
+
+/** Altura do piso do andar de cima dos sobrados. */
+export const PISO_DE_CIMA = 3.52;
 
 /** Altura livre do terreo: o forro, nos sobrados, ou o teto. */
 export function alturaDoTeto(c: Construcao): number {

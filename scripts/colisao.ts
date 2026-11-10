@@ -4,7 +4,7 @@
 
 import puppeteer from 'puppeteer-core';
 import { createServer } from 'vite';
-import { FIGURANTES, LUGARES, NASCIMENTO, PRACA, direcao, type Construcao } from '../src/mundo/planta.ts';
+import { FIGURANTES, LIMITES, LUGARES, NASCIMENTO, PISO_DE_CIMA, PRACA, direcao, lugarPorId, rotacaoY, type Construcao, type LugarId } from '../src/mundo/planta.ts';
 
 const CHROME = process.env.CHROME ?? '/usr/bin/google-chrome';
 const PORTA = 5198;
@@ -16,6 +16,25 @@ function travessia(c: Construcao): Trecho {
   const { dx, dz } = direcao(c.frente);
   return [c.x + dx * 4, c.z + dz * 4, c.x - dx * 2.5, c.z - dz * 2.5];
 }
+
+/** Ponto do referencial do predio (porta na origem, interior em -Z) levado para o mundo. */
+function noMundo(c: Construcao, x: number, z: number): [number, number] {
+  const a = rotacaoY(c.frente);
+  return [c.x + x * Math.cos(a) + z * Math.sin(a), c.z - x * Math.sin(a) + z * Math.cos(a)];
+}
+
+/** Passeios pelos sobrados, no referencial de cada predio: entra, sobe a escada e visita os quartos. */
+const PASSEIOS: [LugarId, string, [number, number][]][] = [
+  ['bar', 'quarto 5', [[0, -1.5], [-8.1, -0.75], [-8.1, -7.85], [0, -7.85], [0, -10.5]]],
+  ['bar', 'quarto 1', [[0, -1.5], [-8.1, -0.75], [-8.1, -7.85], [-4.4, -7.85], [-4.4, -5]]],
+  ['bar', 'quarto 3', [[0, -1.5], [-8.1, -0.75], [-8.1, -7.85], [5.3, -7.85], [5.3, -5]]],
+  ['pensao', 'quarto 1', [[0, -1.5], [3.0, -0.8], [4.1, -0.8], [4.1, -7.2], [2.3, -7.25], [2.3, -6.3], [0, -6.3]]],
+  ['pensao', 'quarto 3', [[0, -1.5], [3.0, -0.8], [4.1, -0.8], [4.1, -7.2], [2.3, -7.25], [2.3, -1.45], [0, -1.45]]],
+  ['casarao', 'quarto de crianca', [[0, -1.2], [5.2, -2.2], [9.0, -2.2], [9.0, -9.35], [0, -9.35], [0, -5]]],
+  ['casarao', 'suite', [[0, -1.2], [5.2, -2.2], [9.0, -2.2], [9.0, -9.35], [-5.9, -9.35], [-5.9, -6]]],
+  ['casarao', 'escritorio', [[0, -1.2], [5.2, -2.2], [9.0, -2.2], [9.0, -9.35], [4.9, -9.35], [4.9, -6]]],
+  ['casarao', 'banho', [[0, -1.2], [5.2, -2.2], [9.0, -2.2], [9.0, -9.35], [6.4, -9.35], [6.4, -12]]],
+];
 
 const servidor = await createServer({ server: { port: PORTA, strictPort: true }, logLevel: 'error' });
 await servidor.listen();
@@ -49,6 +68,19 @@ try {
       return n;
     }, t);
 
+  /**
+   * Enche o chao a partir da chegada, de celula em celula, e devolve por onde da para andar.
+   * Pega o que as travessias em linha reta nao pegam: parede com fresta e lugar sem saida.
+   */
+  const alcance = (pontos: [number, number][]) =>
+    pagina.evaluate(
+      (inicio, pontos, caixa) => window.__depurar!.alcance(inicio, pontos, caixa),
+      [NASCIMENTO.x, NASCIMENTO.z] as [number, number],
+      pontos,
+      { minX: LIMITES.minX - 14, maxX: LIMITES.maxX + 30, minZ: LIMITES.minZ - 14, maxZ: LIMITES.maxZ + 14 },
+    );
+  const miolos = LUGARES.map((l) => noMundo(l, 0, -2.4));
+
   await abrir(LUGARES.map((l) => l.id).join(','));
   const info = await pagina.evaluate(() => ({ solidos: window.__depurar!.solidos(), luzes: window.__depurar!.luzes(), ...window.__depurar!.desenho() }));
   console.log(`tudo aberto: ${info.solidos} caixas de colisao, ${info.luzes} luzes, ${info.chamadas} chamadas de desenho, ${info.triangulos} triangulos no quadro`);
@@ -76,7 +108,22 @@ try {
   conferir((await bloqueados([38, 0, 46, 0])) > 0, 'paredao leste segura o jogador');
   conferir((await bloqueados([50, 58, 62, 58])) > 0, 'fundo da mina segura o jogador');
 
+  const aberta = await alcance(miolos);
+  conferir(!aberta.fugiu, 'ninguem escapa do vale andando');
+  LUGARES.forEach((l, i) => conferir(aberta.chegou[i]!, `${l.nome} aberto: alcancavel a pe desde a chegada`));
+
+  for (const [id, destino, pontos] of PASSEIOS) {
+    const c = lugarPorId(id)!;
+    const [x0, z0] = noMundo(c, 0, 3);
+    const r = await pagina.evaluate((inicio, pontos) => window.__depurar!.caminhar(inicio, pontos), [x0, 0, z0] as [number, number, number], pontos.map(([x, z]) => noMundo(c, x, z)));
+    const ok = r.chegou && Math.abs(r.y - PISO_DE_CIMA) < 0.02;
+    conferir(ok, `${c.nome}: sobe a escada e chega em ${destino}${ok ? '' : ` (parou no ponto ${r.alcancados} em x ${r.x.toFixed(2)}, y ${r.y.toFixed(2)}, z ${r.z.toFixed(2)})`}`);
+  }
+
   await abrir('');
+  const fechada = await alcance(miolos);
+  conferir(!fechada.fugiu, 'tudo fechado: ninguem escapa do vale');
+  LUGARES.forEach((l, i) => conferir(!fechada.chegou[i]!, `${l.nome} fechado: sem fresta para entrar`));
   for (const l of LUGARES) conferir((await bloqueados(travessia(l))) > 0, `${l.nome} fechado: porta barrada`);
 } finally {
   await navegador.close();

@@ -13,7 +13,7 @@ import { mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import puppeteer from 'puppeteer-core';
 import { createServer } from 'vite';
-import { LUGARES, direcao } from '../src/mundo/planta.ts';
+import { LUGARES, PISO_DE_CIMA, direcao, lugarPorId, rotacaoY, type LugarId } from '../src/mundo/planta.ts';
 
 const CHROME = process.env.CHROME ?? '/usr/bin/google-chrome';
 const PORTA = Number(process.env.PORTA) || 5199;
@@ -95,7 +95,39 @@ function vistasDeDentro(): Vista[] {
   return vistas;
 }
 
-const VISTAS = [...RUAS, ...vistasDeDentro()];
+/**
+ * Vistas dos sobrados, no referencial do predio (porta na origem, interior em -Z):
+ * x, z, direcao do olhar (dx, dz), e se a camera fica no andar de cima.
+ */
+const SOBRADOS: [LugarId, string, number, number, number, number, boolean][] = [
+  ['bar', 'escada', -7.2, -0.7, -0.25, -1, false],
+  ['bar', 'corredor', -8.2, -7.85, 1, 0, true],
+  ['bar', 'quarto1', -4.4, -6.9, -0.1, 1, true],
+  ['bar', 'quarto3', 5.3, -6.9, 0.1, 1, true],
+  ['bar', 'quarto5', 0, -8.9, 0, -1, true],
+  ['pensao', 'escada', 2.6, -0.7, 0.3, -1, false],
+  ['pensao', 'corredor', 2.3, -7.3, 0, 1, true],
+  ['pensao', 'quarto1', 1.3, -6.3, -1, -0.1, true],
+  ['pensao', 'quarto3', 1.3, -1.45, -1, 0.1, true],
+  ['casarao', 'escada', 7.4, -2.0, 0.3, -1, false],
+  ['casarao', 'corredor', 8.8, -9.35, -1, 0, true],
+  ['casarao', 'suite', -5.9, -8.2, 0, 1, true],
+  ['casarao', 'crianca', 0, -8.2, 0, 1, true],
+  ['casarao', 'escritorio', 4.9, -8.2, 0, 1, true],
+  ['casarao', 'banho', 6.4, -10.5, 0.15, -1, true],
+];
+
+function vistasDeCima(): Vista[] {
+  return SOBRADOS.map(([id, nome, x, z, dx, dz, emCima]) => {
+    const l = lugarPorId(id)!;
+    const a = rotacaoY(l.frente);
+    const mx = l.x + x * Math.cos(a) + z * Math.sin(a);
+    const mz = l.z - x * Math.sin(a) + z * Math.cos(a);
+    return { nome: `cima-${id}-${nome}`, cam: [mx, OLHOS + (emCima ? PISO_DE_CIMA : 0), mz, giroPara(dx, dz) + a, emCima ? -0.08 : 0.3], abertos: id };
+  });
+}
+
+const VISTAS = [...RUAS, ...vistasDeDentro(), ...vistasDeCima()];
 
 const argumentos = process.argv.slice(2);
 const forcarDia = argumentos.includes('--dia');

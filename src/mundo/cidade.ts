@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { FIGURANTES, LUGARES, rotacaoY, type Construcao } from './planta.ts';
+import { type Solido } from '../jogador/colisao.ts';
 import { type LuzTremulante } from './base.ts';
 import { aderecos, terreno } from './cenario.ts';
 import { cemiterio, igreja, mina, predio } from './predios.ts';
@@ -21,7 +22,7 @@ export interface PortaInfo {
 export interface Cidade {
   grupo: THREE.Group;
   /** Caixas de colisao, em coordenadas do mundo. */
-  solidos: THREE.Box3[];
+  solidos: Solido[];
   luzes: LuzTremulante[];
   portas: PortaInfo[];
 }
@@ -37,6 +38,49 @@ function construir(c: Construcao, aberto: boolean, luzes: LuzTremulante[]): THRE
     default:
       return predio(c, aberto, luzes);
   }
+}
+
+const posicao = new THREE.Vector3();
+const giro = new THREE.Quaternion();
+const escala = new THREE.Vector3();
+const centro = new THREE.Vector3();
+const tamanho = new THREE.Vector3();
+
+/**
+ * Caixa de colisao de uma malha. Se a malha so esta girada em torno de Y, a caixa
+ * acompanha o giro e fica justa. Se esta inclinada, vale a caixa alinhada aos eixos.
+ */
+function solidoDe(malha: THREE.Mesh): Solido {
+  malha.matrixWorld.decompose(posicao, giro, escala);
+  if (malha.isMesh && Math.abs(giro.x) < 1e-3 && Math.abs(giro.z) < 1e-3) {
+    if (!malha.geometry.boundingBox) malha.geometry.computeBoundingBox();
+    const caixa = malha.geometry.boundingBox!;
+    caixa.getCenter(centro).applyMatrix4(malha.matrixWorld);
+    caixa.getSize(tamanho);
+    const angulo = 2 * Math.atan2(giro.y, giro.w);
+    const hy = (tamanho.y * Math.abs(escala.y)) / 2;
+    return {
+      cx: centro.x,
+      cz: centro.z,
+      hx: (tamanho.x * Math.abs(escala.x)) / 2,
+      hz: (tamanho.z * Math.abs(escala.z)) / 2,
+      cos: Math.cos(angulo),
+      sin: Math.sin(angulo),
+      minY: centro.y - hy,
+      maxY: centro.y + hy,
+    };
+  }
+  const caixa = new THREE.Box3().setFromObject(malha);
+  return {
+    cx: (caixa.min.x + caixa.max.x) / 2,
+    cz: (caixa.min.z + caixa.max.z) / 2,
+    hx: (caixa.max.x - caixa.min.x) / 2,
+    hz: (caixa.max.z - caixa.min.z) / 2,
+    cos: 1,
+    sin: 0,
+    minY: caixa.min.y,
+    maxY: caixa.max.y,
+  };
 }
 
 /**
@@ -116,9 +160,9 @@ export function construirCidade(abertos: readonly string[]): Cidade {
 
   // A colisao e calculada antes de fundir, enquanto cada peca ainda existe.
   grupo.updateMatrixWorld(true);
-  const solidos: THREE.Box3[] = [];
+  const solidos: Solido[] = [];
   grupo.traverse((objeto) => {
-    if (objeto.userData.solido) solidos.push(new THREE.Box3().setFromObject(objeto));
+    if (objeto.userData.solido) solidos.push(solidoDe(objeto as THREE.Mesh));
   });
   for (const pedaco of pedacos) fundir(pedaco, grupo);
 

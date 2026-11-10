@@ -5,7 +5,7 @@
 // senao o jogador nao consegue entrar. O script de colisao confere isso.
 
 import * as THREE from 'three';
-import { PAREDE, alturaDoTeto, type Construcao } from './planta.ts';
+import { PAREDE, PISO_DE_CIMA, alturaDoTeto, type Construcao } from './planta.ts';
 import {
   COR,
   anel,
@@ -29,17 +29,19 @@ import {
   barril,
   bau,
   cadeira,
+  cadeiraDeBalanco,
   caixao,
   caixote,
   cama,
   cavalete,
+  cavalinho,
   copo,
-  escadaDecorativa,
   estante,
   fardoDeFeno,
   fogaoALenha,
   garrafa,
   lampiaoDeMesa,
+  lavatorio,
   lustreDeRoda,
   mesa,
   quadro,
@@ -65,6 +67,93 @@ interface Sala {
   teto: number;
   aberto: boolean;
   luzes: LuzTremulante[];
+  /** Cor das paredes, para as divisorias combinarem. */
+  corParede: number;
+  /** Pe-direito do andar de cima (so nos sobrados). */
+  alturaDeCima: number;
+  /** Vao da escada (so nos sobrados). */
+  poco?: Poco;
+}
+
+/** Vao da escada de um sobrado, no referencial do predio. A escada sobe de z0 ate z1. */
+export interface Poco {
+  lado: -1 | 1;
+  largura: number;
+  z0: number;
+  z1: number;
+  /** Centro da escada e face de dentro da caixa da escada, em X. */
+  xEscada: number;
+  xDentro: number;
+}
+
+interface PortaInterna {
+  /** Centro da porta ao longo da parede (x ou z, conforme a parede). */
+  em: number;
+  fechada?: boolean;
+  numero?: string;
+}
+
+/**
+ * Parede interna reta, alinhada a X ou a Z, com vaos de porta de 1 m.
+ * `ladoDaPlaca` diz de que lado fica o corredor (+1 = lado +Z ou +X): a placa com o numero
+ * fica ali e a folha da porta aberta gira para o outro lado.
+ */
+function divisoria(
+  pai: THREE.Object3D,
+  x1: number,
+  z1: number,
+  x2: number,
+  z2: number,
+  altura: number,
+  cor: number,
+  portas: readonly PortaInterna[] = [],
+  ladoDaPlaca: 1 | -1 = 1,
+): void {
+  const emX = z1 === z2;
+  const comprimento = emX ? Math.abs(x2 - x1) : Math.abs(z2 - z1);
+  // No grupo, a parede corre ao longo do X local a partir da origem.
+  const grupo = emX ? movel(pai, Math.min(x1, x2), z1, 0) : movel(pai, x1, Math.max(z1, z2), PI / 2);
+  const posicao = (em: number) => (emX ? em - Math.min(x1, x2) : Math.max(z1, z2) - em);
+  const mat = madeira(cor, 3);
+  const escura = madeira(COR.madeiraEscura);
+  const VAO = 1.0;
+  const ALTURA_DA_PORTA = 2.1;
+  const trecho = (de: number, ate: number) => {
+    if (ate - de < 0.02) return;
+    caixa(grupo, ate - de, altura, 0.12, mat, (de + ate) / 2, altura / 2, 0, { solido: true, sombra: false });
+  };
+  let cursor = 0;
+  for (const porta of [...portas].sort((a, b) => posicao(a.em) - posicao(b.em))) {
+    const u = posicao(porta.em);
+    trecho(cursor, u - VAO / 2);
+    caixa(grupo, VAO, altura - ALTURA_DA_PORTA, 0.12, mat, u, (altura + ALTURA_DA_PORTA) / 2, 0, { sombra: false });
+    for (const lado of [-1, 1]) caixa(grupo, 0.08, ALTURA_DA_PORTA, 0.18, escura, u + lado * (VAO / 2 - 0.04), ALTURA_DA_PORTA / 2, 0, { sombra: false });
+    caixa(grupo, VAO, 0.08, 0.18, escura, u, ALTURA_DA_PORTA + 0.04, 0, { sombra: false });
+    if (porta.fechada) {
+      caixa(grupo, VAO - 0.16, ALTURA_DA_PORTA, 0.07, escura, u, ALTURA_DA_PORTA / 2, 0, { solido: true, sombra: false });
+      esfera(grupo, 0.035, metal(COR.ouro), u + 0.32, 1.0, ladoDaPlaca * 0.07, { sombra: false });
+    } else {
+      caixa(grupo, 0.05, ALTURA_DA_PORTA - 0.05, VAO - 0.2, escura, u - VAO / 2 + 0.1, ALTURA_DA_PORTA / 2, -ladoDaPlaca * (VAO / 2 - 0.02), { sombra: false });
+    }
+    if (porta.numero) {
+      const placa = materialTexto([porta.numero], { fundo: '#5e4630', tinta: '#e8d9b0', largura: 256, altura: 256 });
+      quadro(grupo, u, ALTURA_DA_PORTA + 0.32, ladoDaPlaca * 0.07, 0.26, 0.26, ladoDaPlaca === 1 ? 0 : PI, placa);
+    }
+    cursor = u + VAO / 2;
+  }
+  trecho(cursor, comprimento);
+}
+
+/** Arandela acesa na parede. E so o brilho: a luz vem de uma lampada por andar. */
+function arandela(pai: THREE.Object3D, x: number, y: number, z: number, acesa: boolean): void {
+  caixa(pai, 0.16, 0.05, 0.16, metal(COR.ferro), x, y - 0.12, z, { sombra: false });
+  caixa(pai, 0.1, 0.18, 0.1, acesa ? brilho(COR.luzQuente, 2.2) : fosco(0x39342c), x, y, z, { sombra: false });
+}
+
+/** Mesinha de cabeceira com lampiao. */
+function criadoMudo(pai: THREE.Object3D, x: number, z: number, aceso: boolean): void {
+  mesa(pai, x, z, 0.5, 0.5, 0, 0.6, COR.madeiraEscura);
+  lampiaoDeMesa(pai, x, 0.64, z, aceso);
 }
 
 function mesaRedonda(g: THREE.Object3D, x: number, z: number): void {
@@ -98,7 +187,8 @@ function grade(g: THREE.Object3D, x1: number, x2: number, z: number, altura: num
 
 // ---------- Lugares da rua principal ----------
 
-function bar({ g, W, D, L, F, teto, aberto }: Sala): void {
+function bar(sala: Sala): void {
+  const { g, W, D, F, teto, aberto } = sala;
   const m = madeira(COR.madeira);
   const escura = madeira(COR.madeiraEscura);
   // Balcao, prateleira de garrafas e espelho no fundo, a esquerda.
@@ -140,8 +230,7 @@ function bar({ g, W, D, L, F, teto, aberto }: Sala): void {
   caixa(g, 0.3, 0.08, 1.4, fosco(COR.osso), px - 0.45, 0.82, -D + 1.6, { sombra: false });
   caixa(g, 0.35, 0.45, 0.6, escura, px - 0.95, 0.22, -D + 1.6, { sombra: false });
 
-  // Escada para os quartos, lustre, porta dos fundos e a caveira de boi.
-  escadaDecorativa(g, L + 0.7, -1.2, 0, teto);
+  // Lustre, porta dos fundos e a caveira de boi. A escada para os quartos vem da casca.
   lustreDeRoda(g, 1.5, 2.6, -6.6, aberto, teto);
   caixa(g, 1.0, 2.2, 0.06, m, 3, 1.1, F + 0.03, { sombra: false });
   cilindro(g, 0.04, 0.04, 0.06, metal(COR.ouro), 3.35, 1.05, F + 0.08, { rx: PI / 2, sombra: false, lados: 6 });
@@ -151,6 +240,52 @@ function bar({ g, W, D, L, F, teto, aberto }: Sala): void {
   for (const lado of [-1, 1]) cilindro(boi, 0.01, 0.045, 0.55, fosco(0xd8d2c4), lado * 0.36, 0.14, 0, { rz: lado * -1.05, sombra: false, lados: 5 });
   const fiado = materialTexto(['FIADO', 'SÓ AMANHÃ'], { fundo: '#5e4630', tinta: '#e8d9b0', altura: 256, moldura: '#2b1d10' });
   quadro(g, -0.6, 2.1, F + 0.03, 1.3, 0.6, 0, fiado);
+  quartosDoBar(sala);
+}
+
+/** Andar de cima do bar: corredor atravessado e seis quartos, tres deles trancados. */
+function quartosDoBar({ g, L, R, F, aberto, luzes, corParede, alturaDeCima: A, poco }: Sala): void {
+  if (!poco || !aberto) return;
+  const c = movel(g, 0, 0, 0, PISO_DE_CIMA);
+  const zc = poco.z1;
+  const zf = zc - 1.3;
+  const meio = (zc + zf) / 2;
+  divisoria(c, poco.xDentro, zc, R, zc, A, corParede, [{ em: -4.4, numero: '1' }, { em: 0, fechada: true, numero: '2' }, { em: 5.3, numero: '3' }], -1);
+  divisoria(c, L, zf, R, zf, A, corParede, [{ em: -5.9, fechada: true, numero: '4' }, { em: 0, numero: '5' }, { em: 5.8, fechada: true, numero: '6' }], 1);
+  divisoria(c, -1.8, -PAREDE, -1.8, zc, A, corParede);
+  divisoria(c, 1.8, -PAREDE, 1.8, zc, A, corParede);
+  divisoria(c, -3, zf, -3, F, A, corParede);
+  divisoria(c, 2.9, zf, 2.9, F, A, corParede);
+  tapete(c, 0.5, meio, R - L - 3, 0.8, 0x4a2a2a);
+  luzDeLampiao(c, luzes, 0, 2.5, meio, 16, 15);
+  arandela(c, -2.6, 1.9, zf + 0.14, true);
+  arandela(c, 2.9, 1.9, zc - 0.14, true);
+
+  // Quarto 1: cama desfeita, mala aberta e lavatorio.
+  cama(c, -6.3, -1.35, PI, 0x5a3a3a);
+  criadoMudo(c, -5.4, -0.6, true);
+  lavatorio(c, -2.2, -3.2, -PI / 2);
+  bau(c, -6.3, -3.0, PI / 2);
+  tapete(c, -4.3, -3.4, 2.2, 1.6, 0x3d4a3a);
+  cadeira(c, -2.5, -5.6, -PI / 2);
+
+  // Quarto 3: o jogo de cartas subiu para ca.
+  cama(c, 8.1, -1.35, PI);
+  criadoMudo(c, 7.2, -0.6, false);
+  mesaRedonda(c, 4.4, -3.2);
+  garrafa(c, 4.5, 0.81, -3.1, 0x7a4a1e);
+  copo(c, 4.1, 0.81, -3.4);
+  copo(c, 4.7, 0.81, -3.5);
+  for (let i = 0; i < 5; i++) caixa(c, 0.06, 0.004, 0.09, fosco(COR.osso), 4.2 + i * 0.09, 0.812, -2.9, { ry: i * 0.7, sombra: false });
+  bau(c, 8.2, -6.3, -PI / 2);
+  quadro(c, 1.8 + 0.07, 1.8, -3.6, 0.8, 0.6, PI / 2, fosco(0x2a2622), -0.1);
+
+  // Quarto 5: alguem ficava olhando pela janela dos fundos.
+  cama(c, -2.3, F + 1.05, 0, 0x3a3a4a);
+  criadoMudo(c, -1.4, F + 0.4, true);
+  cadeiraDeBalanco(c, 1.6, F + 1.1, PI);
+  lavatorio(c, 2.5, -10.6, -PI / 2);
+  tapete(c, 0, -11.2, 2.4, 1.8, 0x4a3a2a);
 }
 
 function armazem({ g, W, D, L, F, aberto }: Sala): void {
@@ -350,7 +485,8 @@ function igreja({ g, W, D, R, F, aberto, luzes }: Sala): void {
   }
 }
 
-function casarao({ g, D, L, R, F, teto, aberto, luzes }: Sala): void {
+function casarao(sala: Sala): void {
+  const { g, D, L, F, teto, aberto, luzes } = sala;
   const m = madeira(COR.madeira);
   const escura = madeira(COR.madeiraEscura);
   const estofado = fosco(0x3b2a2a);
@@ -381,7 +517,6 @@ function casarao({ g, D, L, R, F, teto, aberto, luzes }: Sala): void {
   quadro(g, -7.6, 2.0, F + 0.03, 0.9, 1.2);
 
   // Sala de estar: sofa, poltronas, mesa de centro e lustre.
-  escadaDecorativa(g, R - 0.7, -2.75, 0, teto, 1.4);
   tapete(g, 3, -6, 3, 4.2);
   const sofa = movel(g, 3, -3.2, PI);
   caixa(sofa, 2.2, 0.45, 0.8, estofado, 0, 0.3, 0, { solido: true });
@@ -412,14 +547,77 @@ function casarao({ g, D, L, R, F, teto, aberto, luzes }: Sala): void {
   caixa(espelho, 0.9, 1.9, 0.08, escura, 0, 1.05, 0, { solido: true });
   caixa(espelho, 1.0, 1.7, 0.14, fosco(0x8f8a7c), 0, 1.25, 0.02, { rz: 0.04 });
   caixa(espelho, 0.5, 0.4, 0.14, fosco(0x8f8a7c), -0.3, 0.3, 0.03, { rz: 0.3, sombra: false });
-  const cavalo = movel(g, 6.6, -12.4, 0.7);
-  esfera(cavalo, 0.2, m, 0, 0.6, 0, { sz: 2.2 });
-  caixa(cavalo, 0.14, 0.4, 0.16, m, 0, 0.9, 0.35, { rx: 0.5 });
-  caixa(cavalo, 0.12, 0.14, 0.3, m, 0, 1.05, 0.52, { rx: 0.3, sombra: false });
-  for (const sx of [-1, 1]) {
-    for (const sz of [-1, 1]) caixa(cavalo, 0.05, 0.5, 0.05, m, sx * 0.12, 0.3, sz * 0.28, { sombra: false });
-    caixa(cavalo, 0.05, 0.05, 1.1, escura, sx * 0.12, 0.04, 0, { sombra: false });
+  andarDeCimaDoCasarao(sala);
+}
+
+/** Andar de cima do casarao: suite, quarto de crianca, escritorio e banho. Dois quartos trancados. */
+function andarDeCimaDoCasarao({ g, L, R, F, aberto, luzes, corParede, alturaDeCima: A, poco }: Sala): void {
+  if (!poco || !aberto) return;
+  const c = movel(g, 0, 0, 0, PISO_DE_CIMA);
+  const escura = madeira(COR.madeiraEscura);
+  const zc = poco.z1;
+  const zf = zc - 1.2;
+  const meio = (zc + zf) / 2;
+  divisoria(c, L, zc, poco.xDentro, zc, A, corParede, [{ em: -5.9 }, { em: 0 }, { em: 4.9 }], -1);
+  divisoria(c, L, zf, R, zf, A, corParede, [{ em: -6.5, fechada: true }, { em: 0, fechada: true }, { em: 6.4 }], 1);
+  divisoria(c, -2, -PAREDE, -2, zc, A, corParede);
+  divisoria(c, 2, -PAREDE, 2, zc, A, corParede);
+  divisoria(c, -3.2, zf, -3.2, F, A, corParede);
+  divisoria(c, 3.2, zf, 3.2, F, A, corParede);
+  tapete(c, -1, meio, R - L - 4, 0.8, 0x4a2a2a);
+  luzDeLampiao(c, luzes, 0, 2.5, meio, 18, 16);
+  arandela(c, -3, 1.9, zf + 0.14, true);
+  arandela(c, 3, 1.9, zc - 0.14, true);
+  quadro(c, 3.2, 1.8, zf + 0.07, 0.7, 0.9, 0);
+
+  // Suite: cama de casal, penteadeira com espelho e cadeira de balanco.
+  cama(c, -6.4, -1.35, PI, 0x4a2a2a);
+  cama(c, -5.45, -1.35, PI, 0x4a2a2a);
+  criadoMudo(c, -7.4, -0.6, true);
+  criadoMudo(c, -4.45, -0.6, false);
+  bau(c, -5.9, -2.9, 0);
+  mesa(c, L + 0.4, -3.4, 1.3, 0.55, PI / 2, 0.8, COR.madeiraEscura);
+  quadro(c, L + 0.03, 1.6, -3.4, 0.7, 0.9, PI / 2, metal(0x56636a));
+  banqueta(c, L + 1.1, -3.4);
+  tapete(c, -5.9, -4.6, 3.2, 2.2, 0x3a2a3a);
+  cadeiraDeBalanco(c, -3.0, -6.6, -PI / 2 - 0.4);
+  estante(c, L + 0.2, -7.2, 2.2, 2.4, PI / 2, 'vazio');
+
+  // Quarto de crianca: cama pequena, cavalinho e bau de brinquedos.
+  const caminha = cama(c, -1.35, -1.2, PI, 0x3a4a5a);
+  caminha.scale.set(0.85, 0.85, 0.8);
+  cavalinho(c, 0.9, -3.4, 0.7);
+  bau(c, 1.45, -1.0, -PI / 2);
+  tapete(c, 0, -4.2, 2.6, 2.4, 0x5a4a2a);
+  for (const [x, z, cor] of [[-0.6, -4.0, 0x8a2f2a], [0.3, -4.7, 0x2f4f6b], [-0.2, -3.5, 0x6b6a3a]] as const) {
+    caixa(c, 0.16, 0.16, 0.16, fosco(cor), x, 0.09, z, { ry: x * 3, sombra: false });
   }
+  quadro(c, -2 + 0.07, 1.7, -5.5, 0.6, 0.5, PI / 2, fosco(0x2a2622), 0.12);
+
+  // Escritorio: escrivaninha, estante e papeis pelo chao.
+  mesa(c, 5, -2.3, 1.8, 0.9, 0, 0.78, COR.madeiraEscura);
+  cadeira(c, 5, -1.3, PI);
+  lampiaoDeMesa(c, 5.6, 0.82, -2.3, true);
+  livro(c, 4.5, 0.82, -2.2, 0x27402f, 0.2);
+  papel(c, 5.0, 0.82, -2.4, 0.1);
+  papel(c, 4.3, 0.02, -3.6, 0.6);
+  papel(c, 5.6, 0.02, -4.1, -0.4);
+  papel(c, 4.9, 0.02, -4.8, 1.2);
+  estante(c, 2.2 + 0.07, -5.2, 3.2, 2.6, PI / 2, 'livros');
+  bau(c, 7.1, -7.6, -PI / 2);
+  tapete(c, 5, -3.8, 3, 2.6, 0x2a3a2a);
+
+  // Banho: banheira de ferro, lavatorio e espelho.
+  const banheira = movel(c, R - 0.6, -13.6, 0);
+  caixa(banheira, 0.85, 0.5, 1.75, fosco(COR.osso), 0, 0.37, 0, { solido: true });
+  caixa(banheira, 0.69, 0.02, 1.59, fosco(0x1a2226), 0, 0.625, 0, { sombra: false });
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) caixa(banheira, 0.08, 0.12, 0.08, metal(COR.ferro), sx * 0.34, 0.06, sz * 0.75, { sombra: false });
+  lavatorio(c, 5.0, F + 0.35, 0);
+  quadro(c, 5.0, 1.6, F + 0.03, 0.6, 0.8, 0, metal(0x56636a));
+  cilindro(c, 0.16, 0.13, 0.3, madeira(COR.madeira), 7.6, 0.15, -12.4, { sombra: false, lados: 8 });
+  banqueta(c, 7.9, -11.3);
+  caixa(c, 0.34, 0.03, 0.3, fosco(COR.osso), 7.9, 0.5, -11.3, { sombra: false });
+  caixa(c, 0.03, 0.7, 0.03, escura, 3.6, 1.5, F + 0.1, { sombra: false });
 }
 
 function estacao({ g, W, D, R, F, teto, aberto }: Sala): void {
@@ -577,7 +775,8 @@ function ferraria({ g, L, R, F, teto, aberto, luzes }: Sala): void {
   }
 }
 
-function pensao({ g, L, R, F, teto, aberto }: Sala): void {
+function pensao(sala: Sala): void {
+  const { g, L, F, aberto } = sala;
   const m = madeira(COR.madeira);
   const escura = madeira(COR.madeiraEscura);
   // Recepcao: balcao com sineta e livro de hospedes, e o quadro de chaves atras.
@@ -587,11 +786,11 @@ function pensao({ g, L, R, F, teto, aberto }: Sala): void {
   livro(g, -3.2, 1.11, -4.6, 0x27402f, 0.1);
   lampiaoDeMesa(g, -3.9, 1.11, -4.6, aberto);
   caixa(g, 1.3, 0.8, 0.05, escura, -3.0, 1.9, F + 0.03, { sombra: false });
-  for (let i = 0; i < 6; i++) {
-    const x = -3.5 + (i % 3) * 0.5;
-    const y = 2.08 - Math.floor(i / 3) * 0.36;
+  for (let i = 0; i < 4; i++) {
+    const x = -3.25 + (i % 2) * 0.5;
+    const y = 2.08 - Math.floor(i / 2) * 0.36;
     caixa(g, 0.03, 0.03, 0.04, metal(COR.ferro), x, y, F + 0.07, { sombra: false });
-    if (i !== 4) caixa(g, 0.03, 0.16, 0.015, metal(COR.ouro), x, y - 0.1, F + 0.08, { rz: (i - 2) * 0.05, sombra: false });
+    if (i !== 1) caixa(g, 0.03, 0.16, 0.015, metal(COR.ouro), x, y - 0.1, F + 0.08, { rz: (i - 2) * 0.05, sombra: false });
   }
   banqueta(g, -2.9, -5.6);
 
@@ -610,13 +809,43 @@ function pensao({ g, L, R, F, teto, aberto }: Sala): void {
   cilindro(g, 0.2, 0.22, 0.05, fosco(0x1c1917), 1.42, 1.75, -0.7, { rz: 0.4, sombra: false, lados: 10 });
   cilindro(g, 0.11, 0.12, 0.13, fosco(0x1c1917), 1.45, 1.82, -0.7, { rz: 0.4, sombra: false, lados: 10 });
 
-  // Escada para os quartos, com bagagem embaixo.
-  escadaDecorativa(g, R - 0.65, -1.3, 0, teto);
+  // Bagagem esquecida e a placa dos quartos. A escada vem da casca.
   bau(g, 2.6, F + 0.5, 0);
   caixa(g, 0.7, 0.35, 0.45, fosco(0x4a2f22), 1.5, 0.18, F + 0.5, { ry: 0.2 });
-  const quartos = materialTexto(['QUARTOS', '1 a 5'], { fundo: '#5e4630', tinta: '#e8d9b0', altura: 256 });
+  const quartos = materialTexto(['QUARTOS', 'EM CIMA'], { fundo: '#5e4630', tinta: '#e8d9b0', altura: 256 });
   quadro(g, 0.6, 2.5, F + 0.03, 1.0, 0.5, 0, quartos);
-  caixa(g, 1.0, 2.1, 0.06, m, 0.6, 1.05, F + 0.03, { sombra: false });
+  quartosDaPensao(sala);
+}
+
+/** Andar de cima da pensao: corredor ao lado da escada e tres quartos, o do meio trancado. */
+function quartosDaPensao({ g, L, F, aberto, luzes, corParede, alturaDeCima: A, poco }: Sala): void {
+  if (!poco || !aberto) return;
+  const c = movel(g, 0, 0, 0, PISO_DE_CIMA);
+  const xc = poco.xDentro - 1.25;
+  const meio = (xc + poco.xDentro) / 2;
+  divisoria(c, xc, -PAREDE, xc, F, A, corParede, [{ em: -6.3, numero: '1' }, { em: -3.85, fechada: true, numero: '2' }, { em: -1.45, numero: '3' }], 1);
+  divisoria(c, L, -5.05, xc, -5.05, A, corParede);
+  divisoria(c, L, -2.65, xc, -2.65, A, corParede);
+  tapete(c, meio, -3.6, 0.7, 5.6, 0x4a2a2a);
+  luzDeLampiao(c, luzes, meio - 0.3, 2.5, -3.9, 14, 13);
+  arandela(c, poco.xDentro - 0.14, 1.9, -3.85, true);
+
+  // Quarto 1: hospede que saiu com pressa.
+  cama(c, -3.7, F + 0.6, PI / 2, 0x5a3a3a);
+  criadoMudo(c, -2.3, F + 0.4, true);
+  lavatorio(c, -0.3, F + 0.35, 0);
+  bau(c, L + 0.4, -5.6, PI / 2);
+  caixa(c, 0.7, 0.3, 0.45, fosco(0x4a2f22), -1.2, 0.15, -5.7, { ry: 0.5 });
+  tapete(c, -1.6, -6.4, 2.2, 1.3, 0x3d4a3a);
+
+  // Quarto 3: o da frente, com a cadeira virada para a janela.
+  cama(c, -3.7, -2.1, PI / 2);
+  criadoMudo(c, -2.3, -2.3, false);
+  cadeiraDeBalanco(c, -0.6, -1.0, PI);
+  mesa(c, 0.9, -0.7, 0.9, 0.55, 0, 0.78);
+  livro(c, 0.8, 0.82, -0.7, 0x3a2c4a, 0.3);
+  vela(c, 1.15, 0.82, -0.7, true);
+  tapete(c, -1.2, -1.4, 2.0, 1.4, 0x4a3a2a);
 }
 
 function estabulo({ g, L, R, F, aberto }: Sala): void {
@@ -864,10 +1093,10 @@ const INTERIORES: Record<string, (s: Sala) => void> = {
 };
 
 /** Mobilia o predio. Lugares sem interior proprio (as casas) ficam vazios. */
-export function interior(c: Construcao, g: THREE.Group, aberto: boolean, luzes: LuzTremulante[]): void {
+export function interior(c: Construcao, g: THREE.Group, aberto: boolean, luzes: LuzTremulante[], corParede: number, poco?: Poco): void {
   const montar = INTERIORES[c.id];
   if (!montar) return;
   const W = c.largura;
   const D = c.profundidade;
-  montar({ g, W, D, L: -W / 2 + PAREDE, R: W / 2 - PAREDE, F: -D + PAREDE, teto: alturaDoTeto(c), aberto, luzes });
+  montar({ g, W, D, L: -W / 2 + PAREDE, R: W / 2 - PAREDE, F: -D + PAREDE, teto: alturaDoTeto(c), aberto, luzes, corParede, alturaDeCima: c.altura - PISO_DE_CIMA, poco });
 }

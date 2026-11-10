@@ -4,7 +4,7 @@
 // Os interiores ficam em interiores.ts e os objetos reaproveitados em objetos.ts.
 
 import * as THREE from 'three';
-import { ALPENDRE, PAREDE, PORTA, alturaDoTeto, type Construcao } from './planta.ts';
+import { ALPENDRE, PAREDE, PISO_DE_CIMA, PORTA, alturaDoTeto, type Construcao } from './planta.ts';
 import {
   COR,
   barreira,
@@ -23,8 +23,8 @@ import {
   volumeDeSombra,
   type LuzTremulante,
 } from './base.ts';
-import { arvoreSeca, caixote, cerca, cercaLateral, corvo, lampiao } from './objetos.ts';
-import { interior } from './interiores.ts';
+import { arvoreSeca, caixote, cerca, cercaLateral, corvo, escada, lampiao } from './objetos.ts';
+import { interior, type Poco } from './interiores.ts';
 
 const T = PAREDE;
 const COR_TELHADO = 0x2a2320;
@@ -43,6 +43,16 @@ export interface Estilo {
   /** Chamine: posicao em X, de -1 (esquerda) a 1 (direita). */
   chamine?: number;
   semPlaca?: boolean;
+  /** Sobrados: em qual parede fica a escada (-1 esquerda, 1 direita), onde comeca e a largura. */
+  escada?: { lado: -1 | 1; z0: number; largura: number };
+}
+
+/** Onde fica o vao da escada de um sobrado, no referencial do predio. */
+export function pocoDaEscada(c: Construcao, est: Estilo): Poco | undefined {
+  if (c.andares !== 2 || !est.escada) return undefined;
+  const { lado, z0, largura } = est.escada;
+  const parede = lado * (c.largura / 2 - T);
+  return { lado, largura, z0, z1: z0 - 6, xEscada: parede - lado * (largura / 2 + 0.05), xDentro: parede - lado * (largura + 0.6) };
 }
 
 /** Tabuas pregadas em X, usadas em portas e janelas fechadas. */
@@ -93,7 +103,8 @@ export function predioBase(c: Construcao, aberto: boolean, est: Estilo, luzes: L
   caixa(g, T, H, D, parede, W / 2 - T / 2, H / 2, -D / 2, { solido: true });
   caixa(g, seg, Hf, T, fachada, -(dw / 2 + seg / 2), Hf / 2, -T / 2, { solido: true });
   caixa(g, seg, Hf, T, fachada, dw / 2 + seg / 2, Hf / 2, -T / 2, { solido: true });
-  caixa(g, dw, Hf - dh, T, fachada, 0, dh + (Hf - dh) / 2, -T / 2);
+  // Solida por causa do andar de cima: no terreo ela fica acima da cabeca.
+  caixa(g, dw, Hf - dh, T, fachada, 0, dh + (Hf - dh) / 2, -T / 2, { solido: true });
   if (est.fachadaFalsa) caixa(g, W + 0.3, 0.18, T + 0.2, escura, 0, Hf + 0.09, -T / 2);
 
   volumeDeSombra(g, W - 0.16, H - 0.1, D - 0.16, 0, H / 2, -D / 2);
@@ -112,10 +123,35 @@ export function predioBase(c: Construcao, aberto: boolean, est: Estilo, luzes: L
   // Teto, piso, forro (nos sobrados) e vigas.
   caixa(g, W + 0.3, 0.2, D + 0.2, madeira(COR.tabuaVelha, Math.round(W / 2)), 0, H + 0.1, -D / 2);
   caixa(g, W - 2 * T, 0.04, D - 2 * T, madeira(COR.madeiraEscura, Math.round(W / 1.5)), 0, 0.02, -D / 2, { sombra: false });
+  const poco = pocoDaEscada(c, est);
+  const esquerda = -W / 2 + T;
+  const direita = W / 2 - T;
+  // Trecho livre, em X, ao lado do vao da escada.
+  const aoLado: [number, number] = poco ? (poco.lado === 1 ? [esquerda, poco.xDentro] : [poco.xDentro, direita]) : [esquerda, direita];
   if (c.andares === 2) {
-    caixa(g, W - 2 * T, 0.14, D - 2 * T, madeira(COR.tabuaVelha, Math.round(W / 2)), 0, 3.45, -D / 2, { sombra: false });
+    const assoalho = madeira(COR.tabuaVelha, Math.round(W / 2));
+    const yPiso = PISO_DE_CIMA - 0.07;
+    if (poco) {
+      // O piso de cima e solido e tem um vao sobre a escada.
+      const fundoDoVao = poco.z1;
+      caixa(g, W - 2 * T, 0.14, fundoDoVao + D - T, assoalho, 0, yPiso, (fundoDoVao - D + T) / 2, { solido: true, sombra: false });
+      caixa(g, aoLado[1] - aoLado[0], 0.14, -T - fundoDoVao, assoalho, (aoLado[0] + aoLado[1]) / 2, yPiso, (fundoDoVao - T) / 2, { solido: true, sombra: false });
+      escada(g, poco.xEscada, poco.z0, teto, poco.largura, poco.lado === 1 ? -1 : 1);
+      // Guarda-corpo no alto, entre a escada e a parede da caixa.
+      const xBorda = poco.xEscada - poco.lado * (poco.largura / 2);
+      caixa(g, Math.abs(xBorda - poco.xDentro), 1.0, 0.08, escura, (xBorda + poco.xDentro) / 2, PISO_DE_CIMA + 0.5, fundoDoVao + 0.04, { solido: true, sombra: false });
+      // Parede que fecha a caixa da escada no andar de cima.
+      const alturaDeCima = H - PISO_DE_CIMA;
+      caixa(g, 0.12, alturaDeCima, -T - fundoDoVao, madeira(est.parede, 3), poco.xDentro, PISO_DE_CIMA + alturaDeCima / 2, (fundoDoVao - T) / 2, { solido: true, sombra: false });
+    } else {
+      caixa(g, W - 2 * T, 0.14, D - 2 * T, assoalho, 0, yPiso, -D / 2, { sombra: false });
+    }
   }
-  for (let z = -2; z > -D + 1; z -= 3) caixa(g, W - 2 * T, 0.16, 0.16, escura, 0, teto - 0.08, z, { sombra: false });
+  for (let z = -2; z > -D + 1; z -= 3) {
+    // As vigas param no vao da escada.
+    const [x0, x1] = poco && z > poco.z1 - 0.3 ? aoLado : [esquerda, direita];
+    caixa(g, x1 - x0, 0.16, 0.16, escura, (x0 + x1) / 2, teto - 0.08, z, { sombra: false });
+  }
 
   // Telhado de duas aguas e chamine.
   const cumeeira = est.telhado ?? (est.fachadaFalsa ? 1.5 : 2.2);
@@ -137,12 +173,12 @@ export function predioBase(c: Construcao, aberto: boolean, est: Estilo, luzes: L
       janela(g, aberto, x, 1.75);
       janela(g, aberto, -x, 1.75);
       if (c.andares === 2) {
-        janela(g, aberto, x, 5.1, 1.0, 1.4, false);
-        janela(g, aberto, -x, 5.1, 1.0, 1.4, false);
+        janela(g, aberto, x, 5.1, 1.0, 1.4);
+        janela(g, aberto, -x, 5.1, 1.0, 1.4);
       }
     }
   }
-  if (c.andares === 2) janela(g, aberto, 0, 5.1, 1.0, 1.4, false);
+  if (c.andares === 2) janela(g, aberto, 0, 5.1, 1.0, 1.4);
 
   // Janelas laterais: vidro por fora e por dentro.
   const vidro = aberto ? brilho(COR.janelaAcesa, 0.9) : fosco(COR.janelaApagada);
@@ -156,6 +192,8 @@ export function predioBase(c: Construcao, aberto: boolean, est: Estilo, luzes: L
       if (c.andares === 2) {
         caixa(g, 0.06, 1.5, 1.2, escura, lado * (W / 2 + 0.01), 5.1, z, { sombra: false });
         caixa(g, 0.06, 1.3, 1.0, vidro, lado * (W / 2 + 0.03), 5.1, z, { sombra: false });
+        caixa(g, 0.06, 1.5, 1.2, escura, lado * (W / 2 - T - 0.03), 5.1, z, { sombra: false });
+        caixa(g, 0.04, 1.3, 1.0, fosco(VIDRO_DE_DENTRO), lado * (W / 2 - T - 0.05), 5.1, z, { sombra: false });
       }
     }
   }
@@ -215,14 +253,14 @@ export function predioBase(c: Construcao, aberto: boolean, est: Estilo, luzes: L
 export const ESTILOS: Record<string, Estilo> = {
   estacao: { parede: 0x6a5a48, fachada: 0x75634e, fachadaFalsa: true, alpendre: true },
   armazem: { parede: 0x6b4f36, fachada: 0x7d5a3a, fachadaFalsa: true, alpendre: true },
-  bar: { parede: 0x5e3d2c, fachada: 0x7a3f2e, fachadaFalsa: true, alpendre: true, chamine: 0.8 },
+  bar: { parede: 0x5e3d2c, fachada: 0x7a3f2e, fachadaFalsa: true, alpendre: true, chamine: 0.8, escada: { lado: -1, z0: -1.2, largura: 1.2 } },
   banco: { parede: 0x5f5d58, fachada: 0x6e6c66, fachadaFalsa: true, alpendre: true },
   delegacia: { parede: 0x55504a, fachada: 0x5f5a52, fachadaFalsa: true, alpendre: true, chamine: -0.8 },
-  casarao: { parede: 0x4e4a52, fachada: 0x57525c, fachadaFalsa: false, alpendre: true, telhado: 3, chamine: -0.44, semPlaca: true },
+  casarao: { parede: 0x4e4a52, fachada: 0x57525c, fachadaFalsa: false, alpendre: true, telhado: 3, chamine: -0.44, semPlaca: true, escada: { lado: 1, z0: -2.75, largura: 1.4 } },
   igreja: { parede: 0x77706a, fachada: 0x7f7871, fachadaFalsa: false, alpendre: false, portaLargura: 2.2, portaAltura: 3, telhado: 3.8, semPlaca: true },
   funeraria: { parede: 0x3f3a38, fachada: 0x47413f, fachadaFalsa: true, alpendre: true },
   ferraria: { parede: 0x4f4034, fachada: 0x58473a, fachadaFalsa: true, alpendre: true, portaLargura: 2.6, portaAltura: 2.7, chamine: -0.55 },
-  pensao: { parede: 0x5a5046, fachada: 0x645a4e, fachadaFalsa: true, alpendre: true, chamine: 0.7 },
+  pensao: { parede: 0x5a5046, fachada: 0x645a4e, fachadaFalsa: true, alpendre: true, chamine: -0.7, escada: { lado: 1, z0: -0.75, largura: 1.2 } },
   estabulo: { parede: 0x5a3028, fachada: 0x63342b, fachadaFalsa: false, alpendre: false, portaLargura: 3, portaAltura: 3, telhado: 3 },
   botica: { parede: 0x4d5a52, fachada: 0x56645b, fachadaFalsa: true, alpendre: true },
   escola: { parede: 0x7a7466, fachada: 0x858070, fachadaFalsa: false, alpendre: true, telhado: 2.4, chamine: -0.8 },
@@ -241,8 +279,9 @@ function estiloDe(c: Construcao): Estilo {
 
 /** Predio comum (tudo menos igreja, mina e cemiterio), ja com o interior. */
 export function predio(c: Construcao, aberto: boolean, luzes: LuzTremulante[]): THREE.Group {
-  const g = predioBase(c, aberto, estiloDe(c), luzes);
-  interior(c, g, aberto, luzes);
+  const est = estiloDe(c);
+  const g = predioBase(c, aberto, est, luzes);
+  interior(c, g, aberto, luzes, est.parede, pocoDaEscada(c, est));
   return g;
 }
 
@@ -272,7 +311,7 @@ export function igreja(c: Construcao, aberto: boolean, luzes: LuzTremulante[]): 
   cilindro(g, 0.85, 0.85, 0.08, aberto ? brilho(0xc9862e, 0.9) : fosco(COR.janelaApagada), 0, 4.5, 0.05, { rx: Math.PI / 2, lados: 16, sombra: false });
   caixa(g, 4.2, 0.16, 1.4, fosco(COR.pedraClara), 0, 0.08, 0.7, { sombra: false });
 
-  interior(c, g, aberto, luzes);
+  interior(c, g, aberto, luzes, ESTILOS.igreja!.parede);
   return g;
 }
 
