@@ -82,6 +82,7 @@ A planta inteira está em dados em `src/mundo/planta.ts`. O mapa do jogo, a coli
 - Na virada de cada hora a ameaça age conforme a **regra secreta** da noite. No ato 1 só há presságios. Depois ela ataca cada vez mais.
 - A regra vale pelo lugar em que você está quando a hora vira. Com 3 de ferimento o personagem morre.
 - Quem junta 2 pistas da regra entende a ameaça. O fim mostra a regra, o epílogo e as pistas achadas.
+- Em grupo (regras prontas, tela ainda não): quem está no mesmo lugar vota e o empate vai para sorteio. Quem está sozinho decide sozinho. Algumas pistas ficam só com quem as achou, até a pessoa contar. O dano de uma cena pode cair em todos, em quem escolheu, em alguém sorteado ou em quem o NPC escolher.
 
 As regras ficam em `src/nucleo/`, sem tela e sem Three.js, e a história é um arquivo de dados (`src/nucleo/historias/exemplo.ts`). O formato está em `src/nucleo/tipos.ts` e é o que o pipeline do Roteirista e do Crítico precisa produzir.
 

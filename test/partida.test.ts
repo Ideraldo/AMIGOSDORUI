@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { LUGARES } from '../src/mundo/planta.ts';
 import { jogar } from '../src/nucleo/bot.ts';
 import { EXEMPLO } from '../src/nucleo/historias/exemplo.ts';
-import { candidatos, cenaDe, entrar, escolher, escolhasDisponiveis, novaPartida, passarRodada, validarBiblioteca } from '../src/nucleo/partida.ts';
+import { apurar, candidatos, cenaDe, contar, descobriuARegra, entrar, escolher, escolhasDisponiveis, novaPartida, passarRodada, sabeARegra, validarBiblioteca, votar } from '../src/nucleo/partida.ts';
 import { FERIMENTO_FATAL, MEDO_MAXIMO, RODADAS, type Biblioteca } from '../src/nucleo/tipos.ts';
 
 const UM = [{ id: 'a', nome: 'Ana' }];
@@ -147,4 +147,123 @@ test('abrir e fechar lugar so vale na virada da rodada', () => {
   const virada = passarRodada(e, EXEMPLO);
   assert.ok(virada.estado.abertos.includes('banco'));
   assert.ok(virada.eventos.some((r) => r.tipo === 'lugar' && r.lugar === 'banco'));
+});
+
+/** Biblioteca minima, com uma cena so, para testar voto, pista e alvo sem depender do exemplo. */
+function mini(escolhas: Biblioteca['fragmentos'][number]['escolhas']): Biblioteca {
+  return {
+    ...EXEMPLO,
+    fragmentos: [{ id: 'unica', lugares: 'qualquer', titulo: 'Unica', texto: '...', repetivel: true, escolhas }],
+  };
+}
+const QUATRO = [...TRES, { id: 'd', nome: 'Dora' }];
+
+test('em grupo, ganha a opcao mais votada e a cena fecha quando todos votaram', () => {
+  const bib = mini([
+    { texto: 'A', resultado: 'a', efeitos: [{ tipo: 'marca', marca: 'foi-a' }] },
+    { texto: 'B', resultado: 'b', efeitos: [{ tipo: 'marca', marca: 'foi-b' }] },
+  ]);
+  let e = novaPartida(bib, 1, TRES, { abertos: ['bar'] });
+  e = entrar(e, bib, ['a', 'b', 'c'], 'bar');
+  e = votar(e, bib, 'a', 1);
+  e = votar(e, bib, 'b', 0);
+  assert.ok(cenaDe(e, 'a'), 'faltando um voto, a cena continua aberta');
+  e = votar(e, bib, 'c', 1);
+  assert.equal(cenaDe(e, 'a'), null);
+  assert.deepEqual(e.marcas, ['foi-b']);
+});
+
+test('empate no voto vai para sorteio, e o sorteio depende so da semente', () => {
+  const bib = mini([
+    { texto: 'A', resultado: 'a', efeitos: [{ tipo: 'marca', marca: 'foi-a' }] },
+    { texto: 'B', resultado: 'b', efeitos: [{ tipo: 'marca', marca: 'foi-b' }] },
+  ]);
+  const resultado = (semente: number) => {
+    let e = novaPartida(bib, semente, QUATRO, { abertos: ['bar'] });
+    e = entrar(e, bib, ['a', 'b', 'c', 'd'], 'bar');
+    for (const [quem, voto] of [['a', 0], ['b', 0], ['c', 1], ['d', 1]] as const) e = votar(e, bib, quem, voto);
+    return e.marcas[0]!;
+  };
+  const vistos = new Set<string>();
+  for (let s = 1; s <= 40; s++) {
+    assert.equal(resultado(s), resultado(s));
+    vistos.add(resultado(s));
+  }
+  assert.deepEqual([...vistos].sort(), ['foi-a', 'foi-b']);
+});
+
+test('quando o tempo acaba, apurar fecha com os votos que houver', () => {
+  const bib = mini([
+    { texto: 'A', resultado: 'a', efeitos: [{ tipo: 'marca', marca: 'foi-a' }] },
+    { texto: 'B', resultado: 'b', efeitos: [{ tipo: 'marca', marca: 'foi-b' }] },
+  ]);
+  let e = novaPartida(bib, 1, TRES, { abertos: ['bar'] });
+  e = entrar(e, bib, ['a', 'b', 'c'], 'bar');
+  e = votar(e, bib, 'c', 0);
+  e = apurar(e, bib, 'a');
+  assert.deepEqual(e.marcas, ['foi-a']);
+  // Sem voto nenhum, ainda assim a cena se resolve.
+  let vazio = novaPartida(bib, 2, TRES, { abertos: ['bar'] });
+  vazio = apurar(entrar(vazio, bib, ['a', 'b', 'c'], 'bar'), bib, 'a');
+  assert.equal(vazio.marcas.length, 1);
+});
+
+test("o alvo 'quem-escolheu' cai em alguem que votou na opcao vencedora", () => {
+  const bib = mini([
+    { texto: 'A', resultado: 'a', efeitos: [{ tipo: 'ferimento', valor: 1, alvo: 'quem-escolheu' }] },
+    { texto: 'B', resultado: 'b', efeitos: [{ tipo: 'marca', marca: 'foi-b' }] },
+  ]);
+  for (let s = 1; s <= 30; s++) {
+    let e = novaPartida(bib, s, TRES, { abertos: ['bar'] });
+    e = entrar(e, bib, ['a', 'b', 'c'], 'bar');
+    for (const [quem, voto] of [['a', 0], ['b', 0], ['c', 1]] as const) e = votar(e, bib, quem, voto);
+    const feridos = e.personagens.filter((p) => p.ferimento > 0).map((p) => p.id);
+    assert.equal(feridos.length, 1);
+    assert.ok(feridos[0] !== 'c', 'quem votou contra nao paga pela escolha');
+  }
+});
+
+test('pista pode ser so de quem estava na cena, ate a pessoa contar', () => {
+  const regra = EXEMPLO.regras.find((r) => r.id === 'chao-consagrado')!;
+  const [p1, p2] = regra.pistas as [string, string];
+  const bib = mini([
+    { texto: 'A', resultado: 'a', efeitos: [{ tipo: 'pista', pista: p1, para: 'presentes' }, { tipo: 'pista', pista: p2, para: 'presentes' }] },
+    { texto: 'B', resultado: 'b', efeitos: [{ tipo: 'marca', marca: 'foi-b' }] },
+  ]);
+  let e = novaPartida(bib, 1, TRES, { abertos: ['bar'], regra: regra.id });
+  e = escolher(entrar(e, bib, ['a'], 'bar'), bib, 'a', 0);
+  assert.deepEqual(e.pistas, []);
+  assert.ok(sabeARegra(e, bib, 'a') && !sabeARegra(e, bib, 'b'));
+  assert.ok(e.diario.some((r) => r.tipo === 'pista' && r.privada && r.quem?.join() === 'a'));
+  e = contar(contar(e, bib, 'a', p1), bib, 'a', p2);
+  assert.ok(sabeARegra(e, bib, 'b') && descobriuARegra(e, bib));
+  assert.throws(() => contar(e, bib, 'b', 'sino'), /nao conhece/);
+});
+
+test('o NPC escolhe o alvo pelo jeito que cada um o tratou, e o acaso so entra no empate', () => {
+  const bib = mini([
+    { texto: 'Agradar', resultado: 'a', efeitos: [{ tipo: 'relacao', npc: 'xerife', valor: 1, alvo: 'quem-escolheu' }] },
+    { texto: 'Provocar', resultado: 'b', efeitos: [{ tipo: 'ferimento', valor: 1, alvo: { npc: 'xerife', prefere: 'quem-trata-mal' } }] },
+    { texto: 'Ofender', resultado: 'c', efeitos: [{ tipo: 'relacao', npc: 'xerife', valor: -1, alvo: 'quem-escolheu' }] },
+  ]);
+  const feridos = new Set<string>();
+  for (let s = 1; s <= 30; s++) {
+    let e = novaPartida(bib, s, TRES, { abertos: ['bar', 'banco', 'igreja'] });
+    // A cena unica aparece uma vez por hora, e no ato 1 a ameaca ainda nao ataca.
+    e = escolher(entrar(e, bib, ['a'], 'bar'), bib, 'a', 0);
+    e = passarRodada(e, bib).estado;
+    e = escolher(entrar(e, bib, ['c'], 'banco'), bib, 'c', 2);
+    e = passarRodada(e, bib).estado;
+    e = escolher(entrar(e, bib, ['a', 'b', 'c'], 'igreja'), bib, 'a', 1);
+    assert.equal(e.personagens.find((p) => p.id === 'c')!.ferimento, 1, 'o xerife vai em quem o ofendeu');
+    // Sem ninguem ter ofendido, sobra o empate entre b e c (a agradou): ai e sorteio.
+    let empate = novaPartida(bib, s, TRES, { abertos: ['bar', 'igreja'] });
+    empate = escolher(entrar(empate, bib, ['a'], 'bar'), bib, 'a', 0);
+    empate = passarRodada(empate, bib).estado;
+    empate = escolher(entrar(empate, bib, ['a', 'b', 'c'], 'igreja'), bib, 'a', 1);
+    const ferido = empate.personagens.find((p) => p.ferimento > 0)!.id;
+    assert.notEqual(ferido, 'a');
+    feridos.add(ferido);
+  }
+  assert.deepEqual([...feridos].sort(), ['b', 'c']);
 });

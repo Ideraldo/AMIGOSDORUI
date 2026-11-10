@@ -189,8 +189,8 @@ export const EXEMPLO: Biblioteca = {
       texto: 'A cela está trancada por dentro, com a chave caída do lado de dentro da grade. No catre, um cobertor ainda com a forma de alguém.',
       escolhas: [
         { texto: 'Pescar a chave pela grade', resultado: 'A chave vem, junto com um molho inteiro. Uma delas tem a etiqueta "banco".', efeitos: [{ tipo: 'marca', marca: 'molho-de-chaves' }, { tipo: 'abrir', lugar: 'banco' }] },
-        { texto: 'Ler o livro de ocorrências', resultado: 'A última linha, de ontem: "Tranquei a mim mesmo. Se eu pedir para sair, não abram."', efeitos: [{ tipo: 'medo', valor: 1 }, { tipo: 'marca', marca: 'livro-do-xerife' }] },
-        { texto: 'Chamar pelo xerife', resultado: 'Brandão sai dos fundos de espingarda na mão e baixa o cano devagar. "Gente viva. Esta noite ninguém sai de perto de mim."', requer: { npcs: ['xerife'] }, efeitos: [{ tipo: 'relacao', npc: 'xerife', valor: 1 }, { tipo: 'medo', valor: -1 }] },
+        { texto: 'Ler o livro de ocorrências', resultado: 'A última linha, de ontem: "Tranquei a mim mesmo. Se eu pedir para sair, não abram." Quem leu sente que mexeu no que não devia.', efeitos: [{ tipo: 'medo', valor: 1 }, { tipo: 'marca', marca: 'livro-do-xerife' }, { tipo: 'relacao', npc: 'xerife', valor: -1, alvo: 'quem-escolheu' }] },
+        { texto: 'Chamar pelo xerife', resultado: 'Brandão sai dos fundos de espingarda na mão e baixa o cano devagar. "Gente viva. Esta noite ninguém sai de perto de mim."', requer: { npcs: ['xerife'] }, efeitos: [{ tipo: 'relacao', npc: 'xerife', valor: 1, alvo: 'quem-escolheu' }, { tipo: 'medo', valor: -1 }] },
       ],
     },
     {
@@ -359,7 +359,7 @@ export const EXEMPLO: Biblioteca = {
       titulo: 'A mensagem que não saiu',
       texto: 'Há um telegrama escrito e nunca enviado, preso debaixo de um peso de papel.',
       escolhas: [
-        { texto: 'Ler o telegrama', resultado: '"Padre tocou o sino a noite toda. Enquanto tocou, ela não passou da cerca. Às quatro, o braço dele cansou."', efeitos: [{ tipo: 'pista', pista: 'sino' }, { tipo: 'medo', valor: 1 }] },
+        { texto: 'Ler o telegrama', resultado: '"Padre tocou o sino a noite toda. Enquanto tocou, ela não passou da cerca. Às quatro, o braço dele cansou."', efeitos: [{ tipo: 'pista', pista: 'sino', para: 'presentes' }, { tipo: 'medo', valor: 1 }] },
         { texto: 'Guardar sem ler', resultado: 'O papel vai para o bolso. Algumas coisas é melhor ler de dia.', efeitos: [{ tipo: 'marca', marca: 'telegrama-no-bolso' }] },
       ],
     },
@@ -419,7 +419,7 @@ export const EXEMPLO: Biblioteca = {
       titulo: 'A receita do doutor',
       texto: 'O Dr. Amâncio está contando gotas num copo, com a mão mais firme da cidade.',
       escolhas: [
-        { texto: 'Perguntar para quem é o remédio', resultado: '"Para mim. Calmante, toda noite, desde que entendi. Ela vem atrás de quem treme. Eu não tremo há seis meses." E oferece o copo.', efeitos: [{ tipo: 'pista', pista: 'anotacao-do-medo' }, { tipo: 'medo', valor: -1 }, { tipo: 'relacao', npc: 'boticario', valor: 1 }] },
+        { texto: 'Perguntar para quem é o remédio', resultado: '"Para mim. Calmante, toda noite, desde que entendi. Ela vem atrás de quem treme. Eu não tremo há seis meses." E oferece o copo.', efeitos: [{ tipo: 'pista', pista: 'anotacao-do-medo', para: 'presentes' }, { tipo: 'medo', valor: -1 }, { tipo: 'relacao', npc: 'boticario', valor: 1 }] },
         { texto: 'Recusar e sair', resultado: 'Ele dá de ombros e bebe sozinho. Da porta, dá para ver que ele não olha para trás nem uma vez.', efeitos: [{ tipo: 'medo', valor: 1 }] },
       ],
     },
@@ -455,7 +455,7 @@ export const EXEMPLO: Biblioteca = {
       titulo: 'O diário do xerife',
       texto: 'Há um diário de capa de couro numa gaveta sem tranca.',
       escolhas: [
-        { texto: 'Ler as últimas páginas', resultado: '"Mandei os homens andarem em dupla e não perdi mais nenhum. Ela nunca levou dois de uma vez. Ontem o Vicente foi sozinho ao poço."', efeitos: [{ tipo: 'pista', pista: 'nunca-dois' }, { tipo: 'medo', valor: 1 }] },
+        { texto: 'Ler as últimas páginas', resultado: '"Mandei os homens andarem em dupla e não perdi mais nenhum. Ela nunca levou dois de uma vez. Ontem o Vicente foi sozinho ao poço."', efeitos: [{ tipo: 'pista', pista: 'nunca-dois', para: 'presentes' }, { tipo: 'medo', valor: 1 }] },
         { texto: 'Devolver à gaveta', resultado: 'Diário alheio não se lê. A gaveta fecha com um estalo que parece alto demais.', efeitos: [{ tipo: 'medo', valor: 1 }] },
       ],
     },
@@ -468,7 +468,31 @@ export const EXEMPLO: Biblioteca = {
       texto: 'Uma voz conhecida chama do cômodo dos fundos. É a voz de alguém do grupo, que ficou em outro lugar da cidade.',
       escolhas: [
         { texto: 'Ir até a voz', resultado: 'O cômodo está vazio. A porta bate por trás, e alguma coisa passa as unhas pelas costas antes de a tranca ceder.', efeitos: [{ tipo: 'ferimento', valor: 1, alvo: 'quem-escolheu' }, { tipo: 'medo', valor: 2 }] },
-        { texto: 'Sair e procurar os outros', resultado: 'A voz chama mais duas vezes, cada vez mais perto da porta. Na rua, ela se cala.', efeitos: [{ tipo: 'medo', valor: 1 }, { tipo: 'pista', pista: 'pegadas-em-roda' }] },
+        { texto: 'Sair e procurar os outros', resultado: 'A voz chama mais duas vezes, cada vez mais perto da porta. Na rua, ela se cala.', efeitos: [{ tipo: 'medo', valor: 1 }, { tipo: 'pista', pista: 'pegadas-em-roda', para: 'presentes' }] },
+      ],
+    },
+
+    // ---------- Alvo escolhido pelo NPC ou pelo acaso ----------
+    {
+      id: 'xerife-desconfia',
+      lugares: 'qualquer',
+      requer: { npcs: ['xerife'], atos: [2, 3], marcas: ['livro-do-xerife'] },
+      titulo: 'O xerife quer saber',
+      texto: 'Brandão está encostado no batente, de espingarda no braço. "Alguém andou lendo o meu livro." Ele olha um por um, devagar.',
+      escolhas: [
+        { texto: 'Negar', resultado: 'Ele não acredita. O cano sobe e para na cara de quem ele menos engole. Fica ali um tempo comprido antes de baixar.', efeitos: [{ tipo: 'medo', valor: 2, alvo: { npc: 'xerife', prefere: 'quem-trata-mal' } }] },
+        { texto: 'Admitir e pedir desculpa', resultado: '"Pelo menos é gente honesta." Ele tira do bolso um cantil e passa para quem ele mais respeita no grupo.', efeitos: [{ tipo: 'medo', valor: -2, alvo: { npc: 'xerife', prefere: 'quem-trata-bem' } }, { tipo: 'relacao', npc: 'xerife', valor: 1 }] },
+      ],
+    },
+    {
+      id: 'telhado-cede',
+      lugares: 'qualquer',
+      requer: { atos: [2, 3], sozinho: false },
+      titulo: 'O teto estala',
+      texto: 'Uma viga do teto estala, comprida, e solta poeira. Há algo pesado andando lá em cima, de um lado para o outro.',
+      escolhas: [
+        { texto: 'Sair depressa', resultado: 'Na correria, alguém tropeça na soleira e cai de mau jeito em cima do braço.', efeitos: [{ tipo: 'ferimento', valor: 1, alvo: 'sorteado' }] },
+        { texto: 'Ficar imóvel até parar', resultado: 'Os passos param bem em cima. Um fio de poeira desce, reto, na cabeça de alguém. Depois, mais nada.', efeitos: [{ tipo: 'medo', valor: 2, alvo: 'sorteado' }, { tipo: 'medo', valor: 1 }] },
       ],
     },
 

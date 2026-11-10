@@ -83,7 +83,10 @@ No fim de `construirCidade`, `fundir` troca as milhares de caixas e cilindros de
 - Nada em `src/nucleo/` importa Three.js nem DOM. Só `planta.ts` (ids dos lugares) e `rng.ts`.
 - `tipos.ts` define o formato. Biblioteca e estado são dado puro, viram JSON sem perda. Não ponha função dentro de fragmento, regra ou estado.
 - `partida.ts` tem as regras como funções que recebem um estado e devolvem outro, sem alterar o recebido: `novaPartida`, `entrar`, `sair`, `escolher`, `passarRodada`. O sorteio usa `estado.rng`, então mesma semente e mesmas ações dão a mesma noite. Nunca use `Math.random` ali.
-- Em grupo, quem chama `escolher` já resolveu o voto. O núcleo aceita vários personagens e várias cenas ao mesmo tempo. A tela, por enquanto, só tem um jogador (`voce`).
+- Decisão em grupo (combinado com o Ideraldo): quem está junto vota, quem está sozinho decide sozinho. `votar` registra o voto e fecha a cena quando todos votaram. `apurar` fecha com os votos que houver, quando o tempo acabar. Empate vai para sorteio. `escolher` decide de uma vez, para um jogador só e para os bots.
+- Efeito no corpo (medo, ferimento) e relação com NPC caem em personagens, conforme o `alvo` do efeito: `presentes` (padrão), `todos`, `quem-escolheu` (um dos que votaram na vencedora, sorteado), `sorteado`, ou `{ npc, prefere }`, em que o NPC escolhe pelo jeito que cada um o tratou. Marcas e lugares mudam o mundo para todos.
+- Pista pode ser do grupo (padrão) ou só de quem estava na cena (`para: 'presentes'`). A pista privada fica em `personagem.pistas` até a pessoa usar `contar`. `sabeARegra` é por personagem, e o epílogo de cada um depende disso.
+- O núcleo aceita vários personagens e várias cenas ao mesmo tempo. A tela, por enquanto, só tem um jogador (`voce`).
 - A regra secreta é dado: `alvo` diz quem a ameaça alcança na virada (`sozinho`, `fora-de-abrigo`, `mais-medo`). Tipo novo de regra entra em `AlvoDaAmeaca` e em `naMira`.
 - Lugares abrem e fecham só na virada da rodada (`aAbrir`, `aFechar`). A tela refaz a cidade e tira o jogador de dentro de um lugar que fechou.
 - Toda biblioteca tem de passar em `validarBiblioteca`: escolha sem efeito, pista sem cena que a entregue em qualquer noite, id solto e travessão no texto são reprovados.
@@ -102,7 +105,7 @@ No fim de `construirCidade`, `fundir` troca as milhares de caixas e cilindros de
 ## O que vem depois e o que não fazer agora
 
 - Próximas etapas: biblioteca de verdade vinda do pipeline, enfrentamento final, NPCs visíveis e som. Depois multiplayer.
-- Decisões de jogo ainda em aberto com o Ideraldo: se o jogador anda livre (como está) ou escolhe o destino no mapa, duração da hora, quão letal a ameaça deve ser e o que acontece no enfrentamento do amanhecer. Não feche nenhuma sozinho.
+- Decisões de jogo ainda em aberto com o Ideraldo: se o jogador anda livre (como está) ou escolhe o destino no mapa, duração da hora, tempo de voto, quão letal a ameaça deve ser e o que acontece no enfrentamento do amanhecer. Não feche nenhuma sozinho.
 - Nenhum modelo de IA gera texto durante a partida. A história vem de uma biblioteca pronta, feita antes.
 - Não troque de motor, não acrescente framework de interface e não traga modelos 3D prontos sem combinar com o Ideraldo.
 - Não existe pulo nem agachar, de propósito. Se a jogabilidade pedir, combine antes.

@@ -20,15 +20,22 @@ export function atoDaRodada(rodada: number): 1 | 2 | 3 {
   return rodada <= 2 ? 1 : rodada <= 6 ? 2 : 3;
 }
 
-/** Em quem um efeito cai. O padrao e quem esta na cena. */
-export type Alvo = 'quem-escolheu' | 'presentes' | 'todos';
+/**
+ * Em quem um efeito cai. O padrao e 'presentes' (todos na cena).
+ * - 'quem-escolheu': um dos que votaram na opcao vencedora, sorteado.
+ * - 'sorteado': um dos presentes, ao acaso.
+ * - { npc, prefere }: o NPC escolhe pelo jeito que cada um o tratou nesta noite. Empate vai para sorteio.
+ */
+export type Alvo = 'quem-escolheu' | 'presentes' | 'todos' | 'sorteado' | { npc: string; prefere: 'quem-trata-mal' | 'quem-trata-bem' };
 
 export type Efeito =
   | { tipo: 'medo'; valor: number; alvo?: Alvo }
   | { tipo: 'ferimento'; valor: number; alvo?: Alvo }
-  | { tipo: 'pista'; pista: string }
+  /** 'grupo' (padrao): a pista vai para o diario de todos. 'presentes': so quem estava na cena fica sabendo. */
+  | { tipo: 'pista'; pista: string; para?: 'grupo' | 'presentes' }
   | { tipo: 'marca'; marca: string }
-  | { tipo: 'relacao'; npc: string; valor: number }
+  /** A relacao com um NPC e de cada personagem. */
+  | { tipo: 'relacao'; npc: string; valor: number; alvo?: Alvo }
   /** Lugares mudam na virada da rodada, nunca no meio dela. */
   | { tipo: 'abrir'; lugar: LugarId }
   | { tipo: 'fechar'; lugar: LugarId };
@@ -139,12 +146,18 @@ export interface Personagem {
   lugar: LugarId | null;
   /** Lugares em que ja teve cena nesta rodada. */
   visitados: LugarId[];
+  /** Pistas que so este personagem conhece, ate decidir contar. */
+  pistas: string[];
+  /** Como cada NPC ve este personagem. */
+  relacoes: Record<string, number>;
 }
 
 export interface Cena {
   fragmento: string;
   lugar: LugarId;
   quem: string[];
+  /** Voto de cada presente: indice da escolha no fragmento. */
+  votos: Record<string, number>;
 }
 
 export interface Registro {
@@ -155,15 +168,17 @@ export interface Registro {
   lugar?: LugarId;
   fragmento?: string;
   escolha?: number;
+  /** Pista que so `quem` conhece. */
+  privada?: boolean;
 }
 
 export interface Fim {
   /** Alguem chegou vivo ao amanhecer. */
   amanheceu: boolean;
-  /** O grupo juntou pistas suficientes para entender a regra. */
+  /** Alguem juntou pistas suficientes para entender a regra. */
   descobriu: boolean;
   revelacao: string;
-  epilogos: { id: string; nome: string; vivo: boolean; texto: string }[];
+  epilogos: { id: string; nome: string; vivo: boolean; sabia: boolean; texto: string }[];
 }
 
 export interface Estado extends ComRng {
@@ -174,9 +189,9 @@ export interface Estado extends ComRng {
   gancho: string;
   elenco: string[];
   personagens: Personagem[];
+  /** Pistas que o grupo inteiro conhece. */
   pistas: string[];
   marcas: string[];
-  relacoes: Record<string, number>;
   /** Fragmentos que ja apareceram. */
   usados: string[];
   cenas: Cena[];

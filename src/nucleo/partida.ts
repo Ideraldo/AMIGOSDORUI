@@ -16,6 +16,7 @@ import {
   RODADAS,
   atoDaRodada,
   type Biblioteca,
+  type Alvo,
   type Cena,
   type Condicao,
   type Efeito,
@@ -56,10 +57,9 @@ export function novaPartida(bib: Biblioteca, semente: number, jogadores: readonl
     regra: '',
     gancho: '',
     elenco: [],
-    personagens: jogadores.map((j) => ({ id: j.id, nome: j.nome, medo: 0, ferimento: 0, vivo: true, lugar: null, visitados: [] })),
+    personagens: jogadores.map((j) => ({ id: j.id, nome: j.nome, medo: 0, ferimento: 0, vivo: true, lugar: null, visitados: [], pistas: [], relacoes: {} })),
     pistas: [],
     marcas: [],
-    relacoes: {},
     usados: [],
     cenas: [],
     aAbrir: [],
@@ -101,8 +101,10 @@ function vale(e: Estado, cond: Condicao | undefined, presentes: readonly Persona
   if (cond.atos && !cond.atos.includes(atoDaRodada(e.rodada))) return false;
   if (cond.marcas && !cond.marcas.every((m) => e.marcas.includes(m))) return false;
   if (cond.semMarcas && cond.semMarcas.some((m) => e.marcas.includes(m))) return false;
-  if (cond.pistas && !cond.pistas.every((p) => e.pistas.includes(p))) return false;
-  if (cond.semPistas && cond.semPistas.some((p) => e.pistas.includes(p))) return false;
+  // Vale pista do grupo ou de qualquer um dos presentes.
+  const sabida = (p: string) => e.pistas.includes(p) || presentes.some((x) => x.pistas.includes(p));
+  if (cond.pistas && !cond.pistas.every(sabida)) return false;
+  if (cond.semPistas && cond.semPistas.some(sabida)) return false;
   if (cond.npcs && !cond.npcs.every((n) => e.elenco.includes(n))) return false;
   if (cond.sozinho !== undefined && cond.sozinho !== (presentes.length === 1)) return false;
   if (cond.medoMinimo !== undefined && !presentes.some((p) => p.medo >= cond.medoMinimo!)) return false;
@@ -138,7 +140,8 @@ export function candidatos(e: Estado, bib: Biblioteca, lugar: LugarId, presentes
 function peso(e: Estado, f: Fragmento): number {
   let p = f.peso ?? 1;
   if (f.lugares !== 'qualquer') p *= 3;
-  const trazPistaNova = f.escolhas.some((escolha) => escolha.efeitos.some((ef) => ef.tipo === 'pista' && !e.pistas.includes(ef.pista)));
+  const conhecidas = new Set([...e.pistas, ...e.personagens.flatMap((p) => p.pistas)]);
+  const trazPistaNova = f.escolhas.some((escolha) => escolha.efeitos.some((ef) => ef.tipo === 'pista' && !conhecidas.has(ef.pista)));
   if (trazPistaNova && atoDaRodada(e.rodada) >= 2) p *= 2;
   return p;
 }
@@ -163,7 +166,7 @@ export function entrar(estado: Estado, bib: Biblioteca, quem: readonly string[],
   const f = ponderado(e, opcoes, (o) => peso(e, o));
   if (!e.usados.includes(f.id)) e.usados.push(f.id);
   const ids = livres.map((p) => p.id);
-  e.cenas.push({ fragmento: f.id, lugar, quem: ids });
+  e.cenas.push({ fragmento: f.id, lugar, quem: ids, votos: {} });
   e.diario.push({ rodada: e.rodada, tipo: 'cena', texto: f.titulo, quem: ids, lugar, fragmento: f.id });
   return e;
 }
@@ -176,9 +179,19 @@ export function sair(estado: Estado, quem: readonly string[]): Estado {
   return e;
 }
 
-function alvos(e: Estado, cena: Cena, quem: string, efeito: { alvo?: 'quem-escolheu' | 'presentes' | 'todos' }): Personagem[] {
-  const ids = efeito.alvo === 'quem-escolheu' ? [quem] : efeito.alvo === 'todos' ? e.personagens.map((p) => p.id) : cena.quem;
-  return ids.map((id) => personagem(e, id)).filter((p) => p.vivo);
+function alvos(e: Estado, cena: Cena, quem: string, efeito: { alvo?: Alvo }): Personagem[] {
+  const alvo = efeito.alvo ?? 'presentes';
+  const presentes = cena.quem.map((id) => personagem(e, id)).filter((p) => p.vivo);
+  if (alvo === 'presentes') return presentes;
+  if (alvo === 'todos') return e.personagens.filter((p) => p.vivo);
+  if (alvo === 'quem-escolheu') return presentes.filter((p) => p.id === quem);
+  if (presentes.length === 0) return [];
+  if (alvo === 'sorteado') return [sortear(e, presentes)];
+  // O NPC escolhe pelo jeito que cada um o tratou. Empate vai para sorteio.
+  const nota = (p: Personagem) => p.relacoes[alvo.npc] ?? 0;
+  const notas = presentes.map(nota);
+  const extremo = alvo.prefere === 'quem-trata-mal' ? Math.min(...notas) : Math.max(...notas);
+  return [sortear(e, presentes.filter((p) => nota(p) === extremo))];
 }
 
 const limitar = (v: number, max: number) => Math.max(0, Math.min(max, v));
@@ -194,17 +207,24 @@ function aplicar(e: Estado, bib: Biblioteca, cena: Cena, quem: string, efeito: E
         if (p.ferimento >= FERIMENTO_FATAL) p.vivo = false;
       }
       break;
-    case 'pista':
-      if (!e.pistas.includes(efeito.pista)) {
+    case 'pista': {
+      if (e.pistas.includes(efeito.pista)) break;
+      const texto = achar(bib.pistas, efeito.pista, 'pista').texto;
+      if (efeito.para === 'presentes') {
+        const novos = cena.quem.map((id) => personagem(e, id)).filter((p) => !p.pistas.includes(efeito.pista));
+        for (const p of novos) p.pistas.push(efeito.pista);
+        if (novos.length) e.diario.push({ rodada: e.rodada, tipo: 'pista', texto, quem: novos.map((p) => p.id), privada: true });
+      } else {
         e.pistas.push(efeito.pista);
-        e.diario.push({ rodada: e.rodada, tipo: 'pista', texto: achar(bib.pistas, efeito.pista, 'pista').texto, quem: cena.quem });
+        e.diario.push({ rodada: e.rodada, tipo: 'pista', texto });
       }
       break;
+    }
     case 'marca':
       if (!e.marcas.includes(efeito.marca)) e.marcas.push(efeito.marca);
       break;
     case 'relacao':
-      e.relacoes[efeito.npc] = (e.relacoes[efeito.npc] ?? 0) + efeito.valor;
+      for (const p of alvos(e, cena, quem, efeito)) p.relacoes[efeito.npc] = (p.relacoes[efeito.npc] ?? 0) + efeito.valor;
       break;
     case 'abrir':
       if (!e.abertos.includes(efeito.lugar) && !e.aAbrir.includes(efeito.lugar)) e.aAbrir.push(efeito.lugar);
@@ -215,21 +235,69 @@ function aplicar(e: Estado, bib: Biblioteca, cena: Cena, quem: string, efeito: E
   }
 }
 
-/**
- * Resolve a cena em que `quem` esta, com a escolha de indice dado (o indice original no fragmento).
- * Em grupo, quem chama ja resolveu o voto. `quem` e o personagem que deu a palavra final.
- */
-export function escolher(estado: Estado, bib: Biblioteca, quem: string, indice: number): Estado {
-  const atual = cenaDe(estado, quem);
-  if (!atual) throw new Error(`escolher: ${quem} nao esta em nenhuma cena`);
-  const e = copiar(estado);
-  const cena = cenaDe(e, quem)!;
+/** Aplica a escolha vencedora e encerra a cena. `quem` e o personagem em quem cai o alvo 'quem-escolheu'. */
+function resolver(e: Estado, bib: Biblioteca, cena: Cena, quem: string, indice: number): void {
   const disponivel = escolhasDisponiveis(e, bib, cena).find((d) => d.indice === indice);
-  if (!disponivel) throw new Error(`escolher: escolha ${indice} indisponivel em ${cena.fragmento}`);
+  if (!disponivel) throw new Error(`escolha ${indice} indisponivel em ${cena.fragmento}`);
   e.diario.push({ rodada: e.rodada, tipo: 'escolha', texto: disponivel.escolha.resultado, quem: cena.quem, lugar: cena.lugar, fragmento: cena.fragmento, escolha: indice });
   for (const efeito of disponivel.escolha.efeitos) aplicar(e, bib, cena, quem, efeito);
   e.cenas = e.cenas.filter((c) => c !== cena);
   if (e.personagens.every((p) => !p.vivo)) encerrar(e, bib);
+}
+
+/**
+ * Decide a cena de uma vez, sem votacao: `quem` da a palavra final pelo grupo.
+ * E o caminho de quem joga sozinho e dos bots.
+ */
+export function escolher(estado: Estado, bib: Biblioteca, quem: string, indice: number): Estado {
+  if (!cenaDe(estado, quem)) throw new Error(`escolher: ${quem} nao esta em nenhuma cena`);
+  const e = copiar(estado);
+  resolver(e, bib, cenaDe(e, quem)!, quem, indice);
+  return e;
+}
+
+/**
+ * Registra o voto de um personagem na cena em que ele esta. Quando todos os presentes votaram,
+ * a cena se resolve sozinha (ver `apurar`).
+ */
+export function votar(estado: Estado, bib: Biblioteca, quem: string, indice: number): Estado {
+  const atual = cenaDe(estado, quem);
+  if (!atual) throw new Error(`votar: ${quem} nao esta em nenhuma cena`);
+  if (!escolhasDisponiveis(estado, bib, atual).some((d) => d.indice === indice)) throw new Error(`votar: escolha ${indice} indisponivel em ${atual.fragmento}`);
+  const e = copiar(estado);
+  const cena = cenaDe(e, quem)!;
+  cena.votos[quem] = indice;
+  const vivos = cena.quem.filter((id) => personagem(e, id).vivo);
+  return vivos.every((id) => id in cena.votos) ? apurar(e, bib, quem) : e;
+}
+
+/**
+ * Fecha a votacao da cena em que `quem` esta, com os votos que houver (use quando o tempo acabar).
+ * Ganha a opcao mais votada. Empate vai para sorteio. Sem voto nenhum, sorteia entre as opcoes.
+ * O alvo 'quem-escolheu' cai em um dos que votaram na vencedora, sorteado.
+ */
+export function apurar(estado: Estado, bib: Biblioteca, quem: string): Estado {
+  if (!cenaDe(estado, quem)) throw new Error(`apurar: ${quem} nao esta em nenhuma cena`);
+  const e = copiar(estado);
+  const cena = cenaDe(e, quem)!;
+  const opcoes = escolhasDisponiveis(e, bib, cena).map((d) => d.indice);
+  const votos = Object.entries(cena.votos).filter(([id, indice]) => personagem(e, id).vivo && opcoes.includes(indice));
+  const contagem = opcoes.map((indice) => ({ indice, votos: votos.filter(([, v]) => v === indice).length }));
+  const maior = Math.max(...contagem.map((c) => c.votos));
+  const vencedora = sortear(e, contagem.filter((c) => c.votos === maior)).indice;
+  const aFavor = votos.filter(([, v]) => v === vencedora).map(([id]) => id);
+  const vivos = cena.quem.filter((id) => personagem(e, id).vivo);
+  resolver(e, bib, cena, sortear(e, aFavor.length ? aFavor : vivos), vencedora);
+  return e;
+}
+
+/** Um personagem conta ao grupo uma pista que so ele conhecia. */
+export function contar(estado: Estado, bib: Biblioteca, quem: string, pista: string): Estado {
+  if (!personagem(estado, quem).pistas.includes(pista)) throw new Error(`contar: ${quem} nao conhece a pista ${pista}`);
+  if (estado.pistas.includes(pista)) return estado;
+  const e = copiar(estado);
+  e.pistas.push(pista);
+  e.diario.push({ rodada: e.rodada, tipo: 'pista', texto: achar(bib.pistas, pista, 'pista').texto });
   return e;
 }
 
@@ -255,8 +323,15 @@ export function naMira(e: Estado, regra: RegraSecreta): Personagem[] {
   }
 }
 
+/** Este personagem tem pistas suficientes (as do grupo mais as dele) para entender a regra? */
+export function sabeARegra(e: Estado, bib: Biblioteca, quem: string): boolean {
+  const proprias = personagem(e, quem).pistas;
+  return regraDe(e, bib).pistas.filter((p) => e.pistas.includes(p) || proprias.includes(p)).length >= PISTAS_PARA_DESCOBRIR;
+}
+
+/** Alguem do grupo entendeu a regra? */
 export function descobriuARegra(e: Estado, bib: Biblioteca): boolean {
-  return regraDe(e, bib).pistas.filter((p) => e.pistas.includes(p)).length >= PISTAS_PARA_DESCOBRIR;
+  return e.personagens.some((p) => sabeARegra(e, bib, p.id));
 }
 
 function encerrar(e: Estado, bib: Biblioteca): void {
@@ -268,7 +343,10 @@ function encerrar(e: Estado, bib: Biblioteca): void {
     amanheceu: e.personagens.some((p) => p.vivo),
     descobriu,
     revelacao: regra.revelacao,
-    epilogos: e.personagens.map((p) => ({ id: p.id, nome: p.nome, vivo: p.vivo, texto: texto(!p.vivo ? 'morto' : descobriu ? 'vivo-sabendo' : 'vivo-sem-saber') })),
+    epilogos: e.personagens.map((p) => {
+      const sabia = sabeARegra(e, bib, p.id);
+      return { id: p.id, nome: p.nome, vivo: p.vivo, sabia, texto: texto(!p.vivo ? 'morto' : sabia ? 'vivo-sabendo' : 'vivo-sem-saber') };
+    }),
   };
   e.diario.push({ rodada: e.rodada, tipo: 'fim', texto: e.fim.amanheceu ? 'Amanheceu.' : 'Ninguem viu o sol nascer.' });
 }
@@ -381,6 +459,7 @@ export function validarBiblioteca(bib: Biblioteca): string[] {
       for (const ef of esc.efeitos) {
         if (ef.tipo === 'pista' && !pistas.has(ef.pista)) erros.push(`${aqui}: pista desconhecida ${ef.pista}`);
         if (ef.tipo === 'relacao' && !npcs.has(ef.npc)) erros.push(`${aqui}: npc desconhecido ${ef.npc}`);
+        if ('alvo' in ef && typeof ef.alvo === 'object' && !npcs.has(ef.alvo.npc)) erros.push(`${aqui}: npc desconhecido ${ef.alvo.npc}`);
         if ((ef.tipo === 'abrir' || ef.tipo === 'fechar') && !lugares.has(ef.lugar)) erros.push(`${aqui}: lugar desconhecido ${ef.lugar}`);
         if (ef.tipo === 'fechar' && f.lugares !== 'qualquer' && f.lugares.includes(ef.lugar)) erros.push(`${aqui}: nao pode fechar o proprio lugar da cena`);
       }

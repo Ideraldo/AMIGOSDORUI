@@ -3,7 +3,7 @@
 // E DOM puro, sem framework. O Three.js nao aparece aqui.
 
 import { LUGARES, contem, direcao, lugarPorId, pegada, type LugarId } from '../mundo/planta.ts';
-import { cenaDe, descobriuARegra, entrar, escolher, escolhasDisponiveis, fragmentoDe, novaPartida, passarRodada, regraDe, sair, type OpcoesDePartida } from '../nucleo/partida.ts';
+import { cenaDe, entrar, escolher, escolhasDisponiveis, fragmentoDe, novaPartida, passarRodada, regraDe, sabeARegra, sair, type OpcoesDePartida } from '../nucleo/partida.ts';
 import { FERIMENTO_FATAL, MEDO_MAXIMO, PISTAS_PARA_DESCOBRIR, RODADAS, SEGUNDOS_POR_RODADA, atoDaRodada, type Biblioteca, type Estado, type Registro } from '../nucleo/tipos.ts';
 
 const EU = 'voce';
@@ -150,8 +150,10 @@ export class PartidaNaTela {
     };
     delta('Medo', depois.medo - eu.medo);
     delta('Ferimento', depois.ferimento - eu.ferimento);
-    for (const p of this.estado.pistas.filter((id) => !antes.pistas.includes(id))) {
-      efeitos.push(`<span class="pista">Pista: ${escapar(this.bib.pistas.find((x) => x.id === p)!.texto)}</span>`);
+    const pistasDe = (e: Estado) => [...e.pistas, ...e.personagens.find((p) => p.id === EU)!.pistas];
+    const jaTinha = pistasDe(antes);
+    for (const p of pistasDe(this.estado).filter((id) => !jaTinha.includes(id))) {
+      efeitos.push(`<span class="pista">Pista${this.estado.pistas.includes(p) ? '' : ' (só você sabe)'}: ${escapar(this.bib.pistas.find((x) => x.id === p)!.texto)}</span>`);
     }
     if (this.estado.aAbrir.length + this.estado.aFechar.length > antes.aAbrir.length + antes.aFechar.length) {
       efeitos.push('<span class="pista">Alguma coisa vai mudar na cidade quando a hora virar.</span>');
@@ -204,13 +206,14 @@ export class PartidaNaTela {
     const fim = this.estado.fim!;
     const meu = fim.epilogos.find((ep) => ep.id === EU)!;
     const regra = regraDe(this.estado, this.bib);
-    const pistas = this.estado.pistas.map((id) => `<li>${escapar(this.bib.pistas.find((p) => p.id === id)!.texto)}</li>`);
+    const minhas = [...new Set([...this.estado.pistas, ...this.eu.pistas])];
+    const pistas = minhas.map((id) => `<li>${escapar(this.bib.pistas.find((p) => p.id === id)!.texto)}</li>`);
     this.modo = 'fim';
     this.painel(
       `<h3>${fim.amanheceu ? 'Amanheceu' : 'Ninguém viu o sol nascer'}</h3>` +
         `<p>${escapar(meu.texto)}</p>` +
         `<h4>A regra da noite: ${escapar(regra.nome)}</h4><p>${escapar(fim.revelacao)}</p>` +
-        `<p class="${fim.descobriu ? 'bom' : 'ruim'}">${fim.descobriu ? 'As pistas que apareceram bastavam para entender.' : `Faltaram pistas para entender a tempo (${regra.pistas.filter((p) => this.estado.pistas.includes(p)).length} de ${PISTAS_PARA_DESCOBRIR}).`}</p>` +
+        `<p class="${meu.sabia ? 'bom' : 'ruim'}">${meu.sabia ? 'As pistas que apareceram bastavam para entender.' : `Faltaram pistas para entender a tempo (${regra.pistas.filter((p) => minhas.includes(p)).length} de ${PISTAS_PARA_DESCOBRIR}).`}</p>` +
         (pistas.length ? `<h4>Pistas encontradas</h4><ul>${pistas.join('')}</ul>` : '') +
         `<div class="seguir"><kbd>R</kbd> outra noite</div>`,
       'fim',
@@ -222,7 +225,8 @@ export class PartidaNaTela {
       this.elDiario.style.display = 'none';
       return;
     }
-    const pistas = this.estado.pistas.map((id) => `<li>${escapar(this.bib.pistas.find((p) => p.id === id)!.texto)}</li>`);
+    const item = (id: string, privada: boolean) => `<li>${escapar(this.bib.pistas.find((p) => p.id === id)!.texto)}${privada ? ' <i>(só você sabe)</i>' : ''}</li>`;
+    const pistas = [...this.estado.pistas.map((id) => item(id, false)), ...this.eu.pistas.filter((id) => !this.estado.pistas.includes(id)).map((id) => item(id, true))];
     const linhas = this.estado.diario
       .filter((r) => r.tipo !== 'pista')
       .map((r) => `<li><b>${r.rodada}ª hora${r.lugar ? `, ${escapar(lugarPorId(r.lugar)!.nome)}` : ''}.</b> ${escapar(r.texto)}</li>`);
@@ -241,7 +245,7 @@ export class PartidaNaTela {
       `<h2>${e.rodada}ª hora de ${RODADAS} · ato ${atoDaRodada(e.rodada)} · <span class="${s <= 20 ? 'ruim' : ''}">${relogio}</span></h2>` +
       `<div class="medidor">Medo <span>${bolinhas(eu.medo, MEDO_MAXIMO)}</span></div>` +
       `<div class="medidor">Ferimento <span class="${eu.ferimento > 0 ? 'ruim' : ''}">${bolinhas(eu.ferimento, FERIMENTO_FATAL)}</span></div>` +
-      `<div class="medidor">Pistas <span>${e.pistas.length}${descobriuARegra(e, this.bib) ? ' · dá para entender a regra' : ''}</span></div>` +
+      `<div class="medidor">Pistas <span>${new Set([...e.pistas, ...eu.pistas]).size}${sabeARegra(e, this.bib, EU) ? ' · dá para entender a regra' : ''}</span></div>` +
       `<h2>Abertos esta hora</h2><ul>${lugares.join('')}</ul>`;
     if (html !== this.ultimoHud) {
       this.ultimoHud = html;
