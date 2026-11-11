@@ -86,6 +86,15 @@ Confere-se com `npm test` (regras da sala, sem rede) e `npm run sala` (dois nave
 
 Escritas em 11/11/2026, quando o Ideraldo pediu ideias novas e liberdade para criar. Na ordem em que eu faria, com o jogo de onde vem a ideia.
 
+**Próxima leva, aprovada pelo Ideraldo em 11/11/2026** ("gostei bastante", e pediu algo "meio Scooby Doo, de tentar desmascarar o vilão, caso encaixe"). Encaixa, e vira a espinha da noite:
+
+- **Desmascarar a Coisa.** A Coisa é gente da cidade fantasiada, um dos suspeitos que não escreveu a carta. Quem escreveu a carta desconfia, e por isso pediu socorro. A noite passa a ter duas perguntas: quem pediu ajuda (a carta, que já existe) e quem está por baixo da fantasia. As pistas do disfarce são coisas vistas no mundo: um pedaço da fantasia preso numa cerca, a bota que deixou a pegada, o material guardado na casa de alguém. O fim deixa de ser só esperar o sol: o grupo monta uma armadilha (corda, sino, lampiões) no ato 3, atrai a Coisa e arranca a máscara. Errar o nome na hora de desmascarar custa caro. Isso responde o que a revisão de história apontou (o fim não dizia o que era a Coisa, o meio da noite esvaziava e dava para vencer parado).
+- **A Coisa anda** (item 1 abaixo), porque só dá para desmascarar o que se vê.
+- **Reunião no sino da estação**, com voto para acusar (de Among Us).
+- **Provas que só fecham comparadas** entre dois jogadores (de Keep Talking and Nobody Explodes).
+- **Máquina de retrato** com poucas chapas, que pega a Coisa em flagrante (de Phasmophobia).
+- Traição entre amigos (um jogador ajudando a Coisa em segredo) continua dependendo de o Ideraldo dizer que quer.
+
 1. **A Coisa anda (PVE).** Hoje o vulto só aparece parado. Ele passa a rondar a cidade seguindo a regra da noite: fareja medo, procura quem está só, não pisa em chão bento. Quem o vê de longe tem tempo de apagar o lampião, agachar e se esconder atrás de um móvel. Vem de Amnesia e de Lethal Company. É a peça que mais falta para o terror.
 2. **Assombração.** Quem morre continua jogando como fantasma: atravessa parede, não investiga, e uma vez por hora pode piscar uma luz, bater numa porta ou soprar o lampião de um vivo. Dá para ajudar (apontar a prova) ou assustar os amigos. Vem dos fantasmas de Among Us e de Phasmophobia.
 3. **Revólver com três balas (tiros).** Um revólver escondido na cadeia. Bala não mata a Coisa: faz ela recuar por alguns segundos e o estampido aumenta o medo de quem está perto. Três balas para o grupo inteiro, então atirar é decisão. Tiro em amigo não fere, mas apaga o lampião dele e sobe o medo dos dois.
