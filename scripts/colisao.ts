@@ -82,6 +82,12 @@ try {
       pontos,
       { minX: LIMITES.minX - 14, maxX: LIMITES.maxX + 30, minZ: LIMITES.minZ - 14, maxZ: LIMITES.maxZ + 14 },
     );
+  const AREA = { minX: LIMITES.minX - 14, maxX: LIMITES.maxX + 30, minZ: LIMITES.minZ - 14, maxZ: LIMITES.maxZ + 14 };
+  /** O mesmo enchimento, mas contando com degraus, quedas, pulo e corpo agachado. */
+  const alcancePulando = (pontos: [number, number][], op?: { pulo?: number; altura?: number; passo?: number }) =>
+    pagina.evaluate((inicio, pontos, caixa, op) => window.__depurar!.alcancePulando(inicio, pontos, caixa, op), [NASCIMENTO.x, NASCIMENTO.z] as [number, number], pontos, AREA, op);
+  /** Corpo agachado nao pula. */
+  const AGACHADO = { pulo: 0, altura: 1.05 };
   const miolos = LUGARES.map((l) => noMundo(l, 0, -2.4));
 
   await abrir(LUGARES.map((l) => l.id).join(','));
@@ -121,6 +127,22 @@ try {
   conferir(!aberta.fugiu, 'ninguem escapa do vale andando');
   LUGARES.forEach((l, i) => conferir(aberta.chegou[i]!, `${l.nome} aberto: alcancavel a pe desde a chegada`));
 
+  // Todo lugar aberto tem o que investigar, e da para chegar a pe em cada ponto.
+  for (const l of LUGARES) {
+    const pontos = await pagina.evaluate((id) => window.__depurar!.pontos(id), l.id);
+    // Andando, sem pular, numa grade fina: os moveis deixam passagens estreitas.
+    const chega = pontos.length ? (await alcancePulando(pontos.map((p) => p.pe), { pulo: 0, passo: 0.2 })).alturas : [];
+    const presos = pontos.filter((_, i) => chega[i] !== 0);
+    conferir(pontos.length > 0 && presos.length === 0, `${l.nome}: ${pontos.length} ponto(s) para investigar, todos alcancaveis${presos.length ? ` (preso: x ${presos[0]!.pe[0].toFixed(1)}, z ${presos[0]!.pe[1].toFixed(1)})` : ''}`);
+    // Parado no lugar de investigar, a marca tem de estar a um braco de distancia.
+    const longe = pontos.filter((p) => Math.hypot(p.x - p.pe[0], p.z - p.pe[1]) > 1.2);
+    conferir(longe.length === 0, `${l.nome}: toda marca fica ao alcance de quem investiga${longe.length ? ` (${longe.length} longe demais)` : ''}`);
+  }
+
+  const pulando = await alcancePulando(miolos);
+  conferir(!pulando.fugiu, `ninguem escapa do vale pulando (ponto mais alto: y ${pulando.maisAlto.y.toFixed(2)} em x ${pulando.maisAlto.x.toFixed(1)}, z ${pulando.maisAlto.z.toFixed(1)})`);
+  conferir(!(await alcancePulando(miolos, AGACHADO)).fugiu, 'ninguem escapa do vale agachado');
+
   for (const [id, destino, pontos] of PASSEIOS) {
     const c = lugarPorId(id)!;
     const [x0, z0] = noMundo(c, 0, 3);
@@ -141,6 +163,18 @@ try {
   conferir(!fechada.fugiu, 'tudo fechado: ninguem escapa do vale');
   LUGARES.forEach((l, i) => conferir(!fechada.chegou[i]!, `${l.nome} fechado: sem fresta para entrar`));
   for (const l of LUGARES) conferir((await bloqueados(travessia(l))) > 0, `${l.nome} fechado: porta barrada`);
+
+  // Dentro de um lugar fechado ninguem pode pisar, nem pulando (entrando por cima) nem agachado (por baixo).
+  // Chegar acima de 3 m e estar no telhado, nao dentro.
+  const fechadaPulando = await alcancePulando(miolos);
+  const fechadaAgachado = await alcancePulando(miolos, AGACHADO);
+  conferir(!fechadaPulando.fugiu, `tudo fechado: ninguem escapa do vale pulando (ponto mais alto: y ${fechadaPulando.maisAlto.y.toFixed(2)} em x ${fechadaPulando.maisAlto.x.toFixed(1)}, z ${fechadaPulando.maisAlto.z.toFixed(1)})`);
+  conferir(!fechadaAgachado.fugiu, 'tudo fechado: ninguem escapa do vale agachado');
+  LUGARES.forEach((l, i) => {
+    const y = fechadaPulando.alturas[i];
+    conferir(y === null || y === undefined || y > 3, `${l.nome} fechado: nao se entra pulando${y === null || y === undefined ? '' : ` (chegou com os pes em y ${y.toFixed(2)})`}`);
+    conferir(fechadaAgachado.alturas[i] === null, `${l.nome} fechado: nao se entra agachado`);
+  });
 } finally {
   await navegador.close();
   await servidor.close();

@@ -2,7 +2,7 @@
 
 Jogo de terror e mistério para 3 a 6 amigos. Cada partida sorteia uma história nova dentro da mesma cidade de faroeste sombrio, e a história decide quais lugares estão abertos naquela noite.
 
-**Estado atual: cenário pronto e a primeira noite jogável sozinho.** Dá para andar pela cidade e pelo vale do sítio em primeira pessoa. Entrar num lugar aberto dispara uma cena com 2 ou 3 escolhas, o relógio da noite anda em 8 horas, uma ameaça age seguindo uma regra secreta e a noite termina com um epílogo. A história usada é uma **biblioteca de exemplo**, escrita só para o molde funcionar. Ainda não existe multiplayer.
+**Estado atual: cenário pronto e a primeira noite jogável sozinho.** Dá para andar pela cidade e pelo vale do sítio em primeira pessoa. Em cada lugar aberto há algo brilhando para investigar com a tecla E, que abre uma cena com 2 ou 3 escolhas, o relógio da noite anda em 8 horas, uma ameaça age seguindo uma regra secreta e a noite termina com um epílogo. A história usada é uma **biblioteca de exemplo**, escrita só para o molde funcionar. Ainda não existe multiplayer.
 
 ![Chegada pela rua principal](docs/01-chegada.png)
 
@@ -31,6 +31,9 @@ Abra o endereço que aparecer no terminal (normalmente http://localhost:5173) e 
 | WASD ou setas | andar |
 | Mouse | olhar |
 | Shift | correr |
+| Espaço | pular (sobe em mesa, caixote e cama) |
+| C (segurando) | agachar |
+| E | investigar o que brilha dentro dos lugares |
 | F | acender ou apagar o lampião |
 | 1, 2, 3 | escolher numa cena |
 | Espaço | continuar depois de uma cena ou da virada da hora |
@@ -52,6 +55,7 @@ Abra o endereço que aparecer no terminal (normalmente http://localhost:5173) e 
 | `exposicao` | `?exposicao=1.6` | clareia ou escurece a imagem (padrão 1.3) |
 | `cam` | `?cam=0,26,-70,3.14,-0.42` | prende a câmera em x, y, z, giro, inclinação |
 | `sombras` | `?sombras=sempre` | refaz o mapa de sombras a cada quadro (o normal é só quando a cidade muda) |
+| `som` | `?som=0` | deixa o jogo mudo (`?som=0.4` só abaixa) |
 
 ## A cidade
 
@@ -78,13 +82,28 @@ A planta inteira está em dados em `src/mundo/planta.ts`. O mapa do jogo, a coli
 ## Como a noite funciona
 
 - A noite tem 8 horas (rodadas) de 2 minutos e meio, em 3 atos. O relógio só anda com o jogo em foco e para durante as cenas.
-- Cada hora, cada lugar aberto rende no máximo uma cena. Toda escolha mexe em medo, ferimento, pistas, relações ou lugares.
+- Entrar num lugar não abre nada sozinho. Lá dentro, um brilho flutua sobre um móvel: chegar perto e apertar E abre a cena. O brilho muda de móvel a cada hora.
+- Cada hora, cada lugar aberto rende no máximo uma cena. Toda escolha mexe em medo, ferimento, pistas, relações ou lugares, e o painel sempre diz o que mudou.
+- **Objetivos**, sempre no canto da tela: investigar 3 lugares, juntar 2 pistas sobre a ameaça e ver o sol nascer. Quando a regra é entendida, o terceiro passa a dizer o que fazer.
 - Na virada de cada hora a ameaça age conforme a **regra secreta** da noite. No ato 1 só há presságios. Depois ela ataca cada vez mais.
+- **O último sino**: na virada da 8ª hora ela vem com certeza, e o golpe vale por dois. Quem entendeu a regra sabe onde estar. Quem não entendeu depende de ter chegado inteiro.
+- Depois do sino a ameaça aparece: um vulto parado na rua, que some se alguém chega perto ou encara demais.
 - A regra vale pelo lugar em que você está quando a hora vira. Com 3 de ferimento o personagem morre.
 - Quem junta 2 pistas da regra entende a ameaça. O fim mostra a regra, o epílogo e as pistas achadas.
+- O que acontece também se vê, não só se lê. O medo fecha a vista, aperta a neblina e deixa o lampião nervoso. O ferimento dá tranco e avermelha as bordas. No presságio as luzes da cidade falham, no ataque tudo apaga por um instante, e quem sobrevive vê o céu clarear.
 - Em grupo (regras prontas, tela ainda não): quem está no mesmo lugar vota e o empate vai para sorteio. Quem está sozinho decide sozinho. Algumas pistas ficam só com quem as achou, até a pessoa contar. O dano de uma cena pode cair em todos, em quem escolheu, em alguém sorteado ou em quem o NPC escolher.
 
 As regras ficam em `src/nucleo/`, sem tela e sem Three.js, e a história é um arquivo de dados (`src/nucleo/historias/exemplo.ts`). O formato está em `src/nucleo/tipos.ts` e é o que o pipeline do Roteirista e do Crítico precisa produzir.
+
+## Som
+
+- Passos (terra na rua, madeira dentro dos lugares), pulo e queda.
+- O sino bate a cada virada de hora. Presságio, ronda e ataque têm cada um o seu som.
+- Medo, alívio, ferimento, pista, investigar, morte e amanhecer também.
+- O vento da noite e o coração de quem está com medo 4 ou 5 são sintetizados na hora, sem arquivo.
+- De vez em quando um uivo ou um corvo ao longe.
+
+Os arquivos ficam em `public/sons/` e foram gerados pela ElevenLabs com `npm run sons`. O script só gera o que falta. A chave da API fica em `.env.local`, na linha `ELEVENLABS_API_KEY=...`, e esse arquivo está fora do git.
 
 ## Conferência automática
 
@@ -92,9 +111,10 @@ As regras ficam em `src/nucleo/`, sem tela e sem Three.js, e a história é um a
 npm run conferir   # tipos + testes da planta, da colisão e da partida
 npm run simular    # bots jogam centenas de noites e mostram sobrevivência, descoberta e falta de cenas
 npm run partida    # joga uma noite inteira pelo teclado num Chrome sem janela
-npm run colisao    # anda pela cidade num Chrome sem janela: portas, becos, caminhos, escadas e frestas
+npm run colisao    # anda pela cidade num Chrome sem janela: portas, becos, caminhos, escadas, frestas, pulo e agachar
 npm run capturas   # tira capturas de tela da cidade, na pasta capturas/
 npm run planta     # regenera docs/planta.svg e docs/planta.png
+npm run sons       # gera na ElevenLabs os efeitos de som que faltam em public/sons/
 ```
 
 `capturas` aceita filtros pelo nome da vista, e todo lugar ganha duas vistas de dentro automaticamente:
@@ -122,10 +142,16 @@ src/nucleo/partida.ts     regras: entrar, escolher, virar a hora, ameaça, fim e
 src/nucleo/bot.ts         jogadores automáticos para teste e equilíbrio
 src/nucleo/historias/     bibliotecas de história (por enquanto só a de exemplo)
 src/interface/            cena, escolhas, relógio, diário e fim na tela (DOM puro)
-src/jogador/jogador.ts    câmera em primeira pessoa e teclado
+src/interface/efeitos.ts  o que a partida faz sentir: vista, luzes, tranco, neblina e amanhecer
+src/jogador/jogador.ts    câmera em primeira pessoa, teclado, pulo e agachar
 src/jogador/colisao.ts    colisão pura (paredes giradas, degraus, queda), sem Three.js
 src/mundo/planta.ts       planta da cidade em dados puros
 src/mundo/noite.ts        sorteio dos lugares abertos
+src/mundo/pontos.ts       onde fica, em cada lugar, o que o jogador investiga
+src/mundo/vulto.ts        a ameaça vista de longe
+src/interface/segredos.ts coisas escondidas que não mudam as regras
+src/som/som.ts            efeitos gravados, vento e coração (Web Audio)
+public/sons/              efeitos de som gerados por `npm run sons`
 src/mundo/base.ts         materiais, texturas, textos pintados e formas básicas
 src/mundo/objetos.ts      móveis e objetos reaproveitados (mesa, cama, estante, carroça...)
 src/mundo/predios.ts      casca dos prédios, igreja, mina e cemitério
@@ -142,7 +168,7 @@ test/                     testes da planta, do sorteio, da colisão e da partida
 
 1. Você andar pela cidade e dizer o que mudar: escala, distâncias, clima, lugares, e o FPS que a sua máquina faz.
 2. Ligar o pipeline do Roteirista e do Crítico ao formato de `tipos.ts` e trocar a biblioteca de exemplo por uma de verdade (a simulação mostra onde falta cena).
-3. Enfrentamento final, NPCs visíveis na cidade e som.
+3. Objetivo final e missões da noite, enfrentamento do amanhecer e NPCs visíveis na cidade.
 4. Multiplayer: servidor, salas, votos e os outros jogadores visíveis na cidade.
 
-O documento de conceito do jogo tem o desenho completo. As convenções para quem for mexer no código estão em `CLAUDE.md`.
+O que falta e o plano do multiplayer estão em `docs/plano.md`. O documento de conceito do jogo tem o desenho completo. As convenções para quem for mexer no código estão em `CLAUDE.md`.

@@ -12,6 +12,10 @@ export const MEDO_MAXIMO = 5;
 /** Quantas pistas da regra secreta o grupo precisa juntar para entender a ameaca. */
 export const PISTAS_PARA_DESCOBRIR = 2;
 export const NPCS_POR_NOITE = 4;
+/** No ultimo sino a ameaca vem com certeza, e o golpe dela vale por dois. */
+export const DANO_DO_ULTIMO_SINO = 2;
+/** Quantos lugares o jogador precisa investigar para cumprir o primeiro objetivo. */
+export const LUGARES_PARA_EXPLORAR = 3;
 /** Duracao de uma rodada no relogio da cidade, em segundos. */
 export const SEGUNDOS_POR_RODADA = 150;
 
@@ -170,6 +174,15 @@ export interface Registro {
   escolha?: number;
   /** Pista que so `quem` conhece. */
   privada?: boolean;
+}
+
+/** Um objetivo da noite, do jeito que a tela mostra. Sai do estado, nao e guardado nele. */
+export interface Objetivo {
+  id: 'explorar' | 'entender' | 'amanhecer';
+  texto: string;
+  feito: boolean;
+  /** Nao da mais para cumprir (o personagem morreu). */
+  falhou: boolean;
 }
 
 export interface Fim {

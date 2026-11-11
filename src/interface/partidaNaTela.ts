@@ -1,10 +1,12 @@
-// Liga as regras da partida (src/nucleo) a cidade: detecta em que lugar o jogador entrou,
-// mostra a cena e as escolhas, anda o relogio da noite e mostra a virada de rodada e o fim.
+// Liga as regras da partida (src/nucleo) a cidade: detecta em que lugar o jogador esta,
+// abre a cena quando ele investiga alguma coisa la dentro, mostra as escolhas, anda o
+// relogio da noite e mostra a virada de rodada e o fim.
 // E DOM puro, sem framework. O Three.js nao aparece aqui.
 
 import { LUGARES, contem, direcao, lugarPorId, pegada, type LugarId } from '../mundo/planta.ts';
-import { cenaDe, entrar, escolher, escolhasDisponiveis, fragmentoDe, novaPartida, passarRodada, regraDe, sabeARegra, sair, type OpcoesDePartida } from '../nucleo/partida.ts';
+import { cenaDe, chegar, entrar, escolher, escolhasDisponiveis, fragmentoDe, novaPartida, objetivos, passarRodada, regraDe, sabeARegra, sair, type OpcoesDePartida } from '../nucleo/partida.ts';
 import { FERIMENTO_FATAL, MEDO_MAXIMO, PISTAS_PARA_DESCOBRIR, RODADAS, SEGUNDOS_POR_RODADA, atoDaRodada, type Biblioteca, type Estado, type Registro } from '../nucleo/tipos.ts';
+import type { Sinal } from './efeitos.ts';
 
 const EU = 'voce';
 
@@ -16,6 +18,8 @@ export interface Mundo {
   congelar(sim: boolean): void;
   /** Tira o jogador de dentro de um lugar que fechou. */
   levarPara(x: number, z: number): void;
+  /** Algo aconteceu que o jogador deve sentir, alem de ler (ver efeitos.ts). */
+  sinal(sinal: Sinal): void;
 }
 
 const escapar = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;');
@@ -27,10 +31,16 @@ export class PartidaNaTela {
   /** Segundos que faltam nesta rodada. */
   restante = SEGUNDOS_POR_RODADA;
   private lugarAtual: LugarId | null = null;
+  /** Onde o jogador esta de fato, em qualquer tela (o lugarAtual zera na virada da hora). */
+  private aqui: LugarId | null = null;
   private readonly elHud = document.querySelector<HTMLElement>('#noite')!;
   private readonly elCena = document.querySelector<HTMLElement>('#cena')!;
   private readonly elDiario = document.querySelector<HTMLElement>('#diario')!;
   private readonly elGancho = document.querySelector<HTMLElement>('#gancho');
+  private readonly elAviso = document.querySelector<HTMLElement>('#aviso');
+  private avisoAte = 0;
+  /** Objetivos ja cumpridos, para avisar so na hora em que cada um se cumpre. */
+  private cumpridos = new Set<string>();
   private ultimoHud = '';
 
   constructor(
@@ -48,7 +58,9 @@ export class PartidaNaTela {
     this.modo = 'andando';
     this.restante = SEGUNDOS_POR_RODADA;
     this.lugarAtual = null;
+    this.cumpridos = new Set();
     this.fecharPainel();
+    this.mundo.sinal('noite');
     this.elDiario.style.display = 'none';
     if (this.elGancho) this.elGancho.textContent = this.estado.diario[0]!.texto;
     if (reconstruir) this.mundo.reconstruir(this.estado.abertos);
@@ -68,18 +80,52 @@ export class PartidaNaTela {
     return null;
   }
 
+  /** Lugar aberto em que o jogador esta agora. null e a rua. */
+  get dentro(): LugarId | null {
+    return this.aqui;
+  }
+
+  /** Lugares abertos em que ainda ha o que investigar nesta hora. */
+  pendentes(): LugarId[] {
+    if (this.estado.fim || !this.eu.vivo) return [];
+    return this.estado.abertos.filter((id) => !this.eu.visitados.includes(id));
+  }
+
+  /** O jogador mexeu no ponto de interesse do lugar: e ai que a cena comeca. */
+  investigar(lugar: LugarId): void {
+    if (this.modo !== 'andando' || this.estado.fim) return;
+    if (!this.estado.abertos.includes(lugar) || this.eu.visitados.includes(lugar)) return;
+    this.lugarAtual = lugar;
+    this.estado = entrar(this.estado, this.bib, [EU], lugar);
+    if (cenaDe(this.estado, EU)) {
+      this.mundo.sinal('cena');
+      this.abrirCena();
+    } else {
+      this.avisar('Nada aqui que já não tenha sido visto.');
+    }
+  }
+
+  /** Uma linha curta no meio da tela, que some sozinha. */
+  avisar(texto: string, ms = 3500): void {
+    if (!this.elAviso) return;
+    this.elAviso.textContent = texto;
+    this.elAviso.style.opacity = '1';
+    this.avisoAte = performance.now() + ms;
+  }
+
   /** Chamado a cada quadro. O relogio so anda quando `tempoCorre` (jogo em foco e sem painel aberto). */
   atualizar(dt: number, x: number, z: number, tempoCorre: boolean): void {
+    if (this.elAviso && this.avisoAte && performance.now() > this.avisoAte) {
+      this.elAviso.style.opacity = '0';
+      this.avisoAte = 0;
+    }
+    this.aqui = this.lugarEm(x, z);
     if (this.modo === 'andando') {
-      const lugar = this.lugarEm(x, z);
+      const lugar = this.aqui;
       if (lugar !== this.lugarAtual) {
         this.lugarAtual = lugar;
-        if (lugar) {
-          this.estado = entrar(this.estado, this.bib, [EU], lugar);
-          if (cenaDe(this.estado, EU)) this.abrirCena();
-        } else {
-          this.estado = sair(this.estado, [EU]);
-        }
+        // Pisar dentro so muda onde o personagem esta. A cena espera ele investigar.
+        this.estado = lugar ? chegar(this.estado, [EU], lugar) : sair(this.estado, [EU]);
       }
       if (tempoCorre && this.modo === 'andando') {
         this.restante -= dt;
@@ -115,6 +161,9 @@ export class PartidaNaTela {
     this.elCena.className = `painel ${classe}`;
     this.elCena.innerHTML = html;
     this.elCena.style.display = 'block';
+    // Aviso solto na tela nao fica por tras de um painel.
+    if (this.elAviso) this.elAviso.style.opacity = '0';
+    this.avisoAte = 0;
     this.mundo.congelar(true);
   }
 
@@ -152,12 +201,33 @@ export class PartidaNaTela {
     delta('Ferimento', depois.ferimento - eu.ferimento);
     const pistasDe = (e: Estado) => [...e.pistas, ...e.personagens.find((p) => p.id === EU)!.pistas];
     const jaTinha = pistasDe(antes);
-    for (const p of pistasDe(this.estado).filter((id) => !jaTinha.includes(id))) {
+    const novas = pistasDe(this.estado).filter((id) => !jaTinha.includes(id));
+    for (const p of novas) {
       efeitos.push(`<span class="pista">Pista${this.estado.pistas.includes(p) ? '' : ' (só você sabe)'}: ${escapar(this.bib.pistas.find((x) => x.id === p)!.texto)}</span>`);
     }
+    // Toda escolha mexe em alguma coisa, e o jogador tem de ficar sabendo: o que um NPC
+    // passou a achar dele e o que mudou na cidade tambem entram na lista.
+    let mudou = false;
+    for (const npc of this.bib.npcs) {
+      const d = (depois.relacoes[npc.id] ?? 0) - (eu.relacoes[npc.id] ?? 0);
+      if (d === 0) continue;
+      mudou = true;
+      efeitos.push(`<span class="${d > 0 ? 'bom' : 'ruim'}">${escapar(npc.nome)} ${d > 0 ? 'vai lembrar disso com gratidão' : 'não vai esquecer isso'}</span>`);
+    }
+    if (this.estado.marcas.length > antes.marcas.length) {
+      mudou = true;
+      efeitos.push('<span class="pista">Isso muda alguma coisa nesta noite.</span>');
+    }
+    // O que a escolha fez tambem aparece no mundo, nao so no texto. O mais forte fica por ultimo.
+    if (mudou) this.mundo.sinal('mudanca');
+    if (novas.length) this.mundo.sinal('pista');
+    if (depois.medo < eu.medo) this.mundo.sinal('alivio');
+    if (depois.medo > eu.medo) this.mundo.sinal('medo');
+    if (depois.ferimento > eu.ferimento) this.mundo.sinal('ferimento');
     if (this.estado.aAbrir.length + this.estado.aFechar.length > antes.aAbrir.length + antes.aFechar.length) {
       efeitos.push('<span class="pista">Alguma coisa vai mudar na cidade quando a hora virar.</span>');
     }
+    this.conferirObjetivos();
     this.modo = 'resultado';
     this.painel(
       `<h3>${escapar(lugarPorId(cena.lugar)!.nome)}</h3><p class="escolhida">${escapar(opcao.escolha.texto)}</p><p>${escapar(opcao.escolha.resultado)}</p>` +
@@ -184,8 +254,13 @@ export class PartidaNaTela {
       }
       this.mundo.reconstruir(estado.abertos);
     }
+    this.mundo.sinal('hora');
     const classe = (r: Registro) => (r.tipo === 'ameaca' && r.quem ? 'ataque' : r.tipo);
     const linhas = eventos.filter((r) => r.tipo !== 'fim').map((r) => `<p class="${classe(r)}">${escapar(r.texto)}</p>`);
+    for (const r of eventos) {
+      if (r.tipo === 'pressagio') this.mundo.sinal('pressagio');
+      else if (r.tipo === 'ameaca') this.mundo.sinal(r.quem?.includes(EU) ? 'ataque' : 'ronda');
+    }
     this.modo = 'virada';
     this.painel(
       `<h3>Fim da ${horaQueAcabou}ª hora</h3>${linhas.join('')}<div class="seguir"><kbd>Espaço</kbd> ${estado.fim ? 'ver como a noite acabou' : 'continuar'}</div>`,
@@ -198,8 +273,36 @@ export class PartidaNaTela {
       this.mostrarFim();
       return;
     }
+    const vinhaDaVirada = this.modo === 'virada';
     this.modo = 'andando';
     this.fecharPainel();
+    if (vinhaDaVirada) this.anunciarHora();
+  }
+
+  /** Ao voltar para a rua depois do sino: diz em que pe a noite esta. */
+  private anunciarHora(): void {
+    const rodada = this.estado.rodada;
+    if (rodada === RODADAS) this.avisar('Última hora. Quando o sino bater de novo, a coisa vem buscar quem estiver ao alcance.', 8000);
+    else if (rodada === 3) this.avisar('Ato 2. A coisa começou a caçar.', 6000);
+    else if (rodada === 7) this.avisar('Ato 3. Falta pouco para amanhecer, e ela sabe.', 6000);
+  }
+
+  /** Lista de objetivos em HTML, para o canto da tela e para o fim. */
+  private listaDeObjetivos(): string {
+    return objetivos(this.estado, this.bib, EU)
+      .map((o) => `<li class="${o.feito ? 'feito' : o.falhou ? 'falhou' : ''}">${escapar(o.texto)}</li>`)
+      .join('');
+  }
+
+  /** Avisa na hora em que um objetivo se cumpre. */
+  private conferirObjetivos(): void {
+    for (const o of objetivos(this.estado, this.bib, EU)) {
+      if (!o.feito || this.cumpridos.has(o.id)) continue;
+      this.cumpridos.add(o.id);
+      // O do amanhecer ja tem a tela do fim. Os outros ganham um aviso.
+      if (o.id === 'explorar') this.avisar('Objetivo cumprido: a cidade já não é estranha.', 5000);
+      if (o.id === 'entender') this.avisar('Objetivo cumprido: agora dá para entender o que ronda a cidade. Veja os objetivos.', 7000);
+    }
   }
 
   private mostrarFim(): void {
@@ -208,12 +311,14 @@ export class PartidaNaTela {
     const regra = regraDe(this.estado, this.bib);
     const minhas = [...new Set([...this.estado.pistas, ...this.eu.pistas])];
     const pistas = minhas.map((id) => `<li>${escapar(this.bib.pistas.find((p) => p.id === id)!.texto)}</li>`);
+    this.mundo.sinal(meu.vivo ? 'amanhecer' : 'morte');
     this.modo = 'fim';
     this.painel(
       `<h3>${fim.amanheceu ? 'Amanheceu' : 'Ninguém viu o sol nascer'}</h3>` +
         `<p>${escapar(meu.texto)}</p>` +
         `<h4>A regra da noite: ${escapar(regra.nome)}</h4><p>${escapar(fim.revelacao)}</p>` +
         `<p class="${meu.sabia ? 'bom' : 'ruim'}">${meu.sabia ? 'As pistas que apareceram bastavam para entender.' : `Faltaram pistas para entender a tempo (${regra.pistas.filter((p) => minhas.includes(p)).length} de ${PISTAS_PARA_DESCOBRIR}).`}</p>` +
+        `<h4>Objetivos da noite</h4><ul class="objetivos">${this.listaDeObjetivos()}</ul>` +
         (pistas.length ? `<h4>Pistas encontradas</h4><ul>${pistas.join('')}</ul>` : '') +
         `<div class="seguir"><kbd>R</kbd> outra noite</div>`,
       'fim',
@@ -246,6 +351,7 @@ export class PartidaNaTela {
       `<div class="medidor">Medo <span>${bolinhas(eu.medo, MEDO_MAXIMO)}</span></div>` +
       `<div class="medidor">Ferimento <span class="${eu.ferimento > 0 ? 'ruim' : ''}">${bolinhas(eu.ferimento, FERIMENTO_FATAL)}</span></div>` +
       `<div class="medidor">Pistas <span>${new Set([...e.pistas, ...eu.pistas]).size}${sabeARegra(e, this.bib, EU) ? ' · dá para entender a regra' : ''}</span></div>` +
+      `<h2>Objetivos</h2><ul class="objetivos">${this.listaDeObjetivos()}</ul>` +
       `<h2>Abertos esta hora</h2><ul>${lugares.join('')}</ul>`;
     if (html !== this.ultimoHud) {
       this.ultimoHud = html;

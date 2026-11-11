@@ -15,7 +15,8 @@
     "conferir": "npm run typecheck && npm test",
     "colisao": "tsx scripts/colisao.ts",
     "simular": "tsx scripts/simular.ts",
-    "partida": "tsx scripts/partida.ts"
+    "partida": "tsx scripts/partida.ts",
+    "sons": "tsx scripts/sons.ts"
   },
   "dependencies": {
     "three": "^0.187.0"

@@ -124,8 +124,22 @@ export function brilho(cor: number, intensidade = 1.5): THREE.MeshStandardMateri
       roughness: 1,
     });
     cacheMateriais.set(chave, m);
+    brilhos.push({ material: m, base: intensidade });
   }
   return m;
+}
+
+const brilhos: { material: THREE.MeshStandardMaterial; base: number }[] = [];
+let brilhoAtual = 1;
+
+/**
+ * Escala tudo o que brilha sozinho (janelas acesas, chamas, brasas). 1 e o normal.
+ * As janelas nao sao luzes: sem isto, elas continuam acesas quando as luzes da cidade falham.
+ */
+export function brilhoGeral(fator: number): void {
+  if (fator === brilhoAtual) return;
+  brilhoAtual = fator;
+  for (const b of brilhos) b.material.emissiveIntensity = b.base * fator;
 }
 
 /** Placa pintada com o nome do lugar. */

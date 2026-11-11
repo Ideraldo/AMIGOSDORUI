@@ -9,7 +9,9 @@
 import { LUGARES, LUGARES_ABERTOS_POR_NOITE, type LugarId } from '../mundo/planta.ts';
 import { embaralhar, escolher as sortear, ponderado, proximo } from './rng.ts';
 import {
+  DANO_DO_ULTIMO_SINO,
   FERIMENTO_FATAL,
+  LUGARES_PARA_EXPLORAR,
   MEDO_MAXIMO,
   NPCS_POR_NOITE,
   PISTAS_PARA_DESCOBRIR,
@@ -23,6 +25,7 @@ import {
   type Escolha,
   type Estado,
   type Fragmento,
+  type Objetivo,
   type Personagem,
   type Registro,
   type RegraSecreta,
@@ -168,6 +171,19 @@ export function entrar(estado: Estado, bib: Biblioteca, quem: readonly string[],
   const ids = livres.map((p) => p.id);
   e.cenas.push({ fragmento: f.id, lugar, quem: ids, votos: {} });
   e.diario.push({ rodada: e.rodada, tipo: 'cena', texto: f.titulo, quem: ids, lugar, fragmento: f.id });
+  return e;
+}
+
+/**
+ * O grupo pisa dentro de um lugar aberto, sem mexer em nada: so muda onde cada um esta.
+ * A cena so comeca com `entrar`, quando alguem investiga o lugar.
+ */
+export function chegar(estado: Estado, quem: readonly string[], lugar: LugarId): Estado {
+  if (estado.fim) return estado;
+  if (!estado.abertos.includes(lugar)) throw new Error(`chegar: ${lugar} esta fechado`);
+  if (!quem.some((id) => personagem(estado, id).vivo && personagem(estado, id).lugar !== lugar)) return estado;
+  const e = copiar(estado);
+  for (const id of quem) if (personagem(e, id).vivo) personagem(e, id).lugar = lugar;
   return e;
 }
 
@@ -334,6 +350,53 @@ export function descobriuARegra(e: Estado, bib: Biblioteca): boolean {
   return e.personagens.some((p) => sabeARegra(e, bib, p.id));
 }
 
+/** O que fazer para a ameaca nao alcancar ninguem, dito a quem ja entendeu a regra. */
+export function comoEscapar(regra: RegraSecreta): string {
+  switch (regra.alvo.tipo) {
+    case 'sozinho':
+      return 'Não fique sozinho quando o sino bater.';
+    case 'fora-de-abrigo': {
+      const nomes = regra.alvo.abrigos.map((id) => LUGARES.find((l) => l.id === id)!.nome);
+      return `Esteja em ${nomes.length > 1 ? `${nomes.slice(0, -1).join(', ')} ou ${nomes.at(-1)}` : nomes[0]} quando o sino bater.`;
+    }
+    case 'mais-medo':
+      return `Chegue ao sino com o medo abaixo de ${regra.alvo.limiar}.`;
+  }
+}
+
+/**
+ * Os objetivos da noite para um personagem: investigar a cidade, entender a ameaca e ver o
+ * sol nascer. O terceiro so diz como escapar depois que o personagem entendeu a regra.
+ */
+export function objetivos(e: Estado, bib: Biblioteca, quem: string): Objetivo[] {
+  const p = personagem(e, quem);
+  const regra = regraDe(e, bib);
+  const investigados = new Set(e.diario.filter((r) => r.tipo === 'cena' && r.quem?.includes(quem)).map((r) => r.lugar)).size;
+  const achadas = regra.pistas.filter((x) => e.pistas.includes(x) || p.pistas.includes(x)).length;
+  const sabe = achadas >= PISTAS_PARA_DESCOBRIR;
+  const falhou = !p.vivo;
+  return [
+    {
+      id: 'explorar',
+      texto: `Investigar ${LUGARES_PARA_EXPLORAR} lugares (${Math.min(investigados, LUGARES_PARA_EXPLORAR)} de ${LUGARES_PARA_EXPLORAR})`,
+      feito: investigados >= LUGARES_PARA_EXPLORAR,
+      falhou: falhou && investigados < LUGARES_PARA_EXPLORAR,
+    },
+    {
+      id: 'entender',
+      texto: `Juntar ${PISTAS_PARA_DESCOBRIR} pistas sobre o que ronda a cidade (${Math.min(achadas, PISTAS_PARA_DESCOBRIR)} de ${PISTAS_PARA_DESCOBRIR})`,
+      feito: sabe,
+      falhou: falhou && !sabe,
+    },
+    {
+      id: 'amanhecer',
+      texto: `Ver o sol nascer. ${sabe ? comoEscapar(regra) : 'Ainda não se sabe o que afasta a coisa.'}`,
+      feito: e.fim !== null && p.vivo,
+      falhou,
+    },
+  ];
+}
+
 function encerrar(e: Estado, bib: Biblioteca): void {
   const regra = regraDe(e, bib);
   const descobriu = descobriuARegra(e, bib);
@@ -364,14 +427,17 @@ export function passarRodada(estado: Estado, bib: Biblioteca): { estado: Estado;
   // Cena que ninguem resolveu a tempo se perde.
   e.cenas = [];
 
+  // No ultimo sino ela vem com certeza, e o golpe vale por dois: quem entendeu a regra
+  // sabe onde estar, quem nao entendeu depende de ter chegado inteiro ate aqui.
+  const ultimoSino = e.rodada >= RODADAS;
   const sorteio = proximo(e);
-  if (sorteio < chanceDeAtaque(e.rodada)) {
+  if (ultimoSino || sorteio < chanceDeAtaque(e.rodada)) {
     const vitimas = naMira(e, regra);
     if (vitimas.length === 0) {
       e.diario.push({ rodada: e.rodada, tipo: 'ameaca', texto: regra.ronda });
     } else {
       for (const p of vitimas) {
-        p.ferimento = limitar(p.ferimento + 1, FERIMENTO_FATAL);
+        p.ferimento = limitar(p.ferimento + (ultimoSino ? DANO_DO_ULTIMO_SINO : 1), FERIMENTO_FATAL);
         p.medo = limitar(p.medo + 1, MEDO_MAXIMO);
         if (p.ferimento >= FERIMENTO_FATAL) p.vivo = false;
       }

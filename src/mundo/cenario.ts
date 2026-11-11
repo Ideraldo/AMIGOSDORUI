@@ -183,8 +183,18 @@ export function terreno(g: THREE.Object3D): void {
   g.add(capim);
 }
 
+/** O que da para mexer no clima depois de montado. */
+export interface Ambiente {
+  /** 0 e a noite fechada, 1 e o ceu de quem viu o sol nascer. */
+  amanhecer(f: number): void;
+  /** Aperta a neblina: 1 e o normal, mais que isso fecha a vista (medo). */
+  neblina(fator: number): void;
+}
+
+const NEBLINA = 0.013;
+
 /** Ceu, neblina, lua e as luzes que nao mudam de uma noite para outra. */
-export function ambiente(cena: THREE.Scene, dia = false): void {
+export function ambiente(cena: THREE.Scene, dia = false): Ambiente {
   if (dia) {
     // Modo de inspecao: sem neblina e com luz forte, para conferir a geometria.
     cena.background = new THREE.Color(0x8fa3b8);
@@ -203,23 +213,21 @@ export function ambiente(cena: THREE.Scene, dia = false): void {
     sol.shadow.camera.far = 420;
     sol.shadow.normalBias = 0.35;
     cena.add(sol);
-    return;
+    return { amanhecer: () => {}, neblina: () => {} };
   }
-  cena.background = new THREE.Color(0x070b15);
-  cena.fog = new THREE.FogExp2(0x0a0f1c, 0.013);
+  const ceu = new THREE.Color(0x070b15);
+  const nevoa = new THREE.FogExp2(0x0a0f1c, NEBLINA);
+  cena.background = ceu;
+  cena.fog = nevoa;
 
   // A lua fica rua abaixo, sobre a igreja, para quem chega pela estacao.
   const direcaoDaLua = new THREE.Vector3(-0.38, 0.5, 0.78).normalize();
-  const lua = new THREE.Mesh(
-    new THREE.SphereGeometry(16, 24, 24),
-    new THREE.MeshBasicMaterial({ color: 0xe9eeff, fog: false }),
-  );
+  const matLua = new THREE.MeshBasicMaterial({ color: 0xe9eeff, fog: false, transparent: true });
+  const lua = new THREE.Mesh(new THREE.SphereGeometry(16, 24, 24), matLua);
   lua.position.copy(direcaoDaLua).multiplyScalar(520);
   cena.add(lua);
-  const halo = new THREE.Mesh(
-    new THREE.SphereGeometry(24, 24, 24),
-    new THREE.MeshBasicMaterial({ color: 0x8fa5d8, fog: false, transparent: true, opacity: 0.12 }),
-  );
+  const matHalo = new THREE.MeshBasicMaterial({ color: 0x8fa5d8, fog: false, transparent: true, opacity: 0.12 });
+  const halo = new THREE.Mesh(new THREE.SphereGeometry(24, 24, 24), matHalo);
   halo.position.copy(lua.position);
   cena.add(halo);
 
@@ -235,11 +243,11 @@ export function ambiente(cena: THREE.Scene, dia = false): void {
   }
   const geoEstrelas = new THREE.BufferGeometry();
   geoEstrelas.setAttribute('position', new THREE.BufferAttribute(pontos, 3));
-  cena.add(
-    new THREE.Points(geoEstrelas, new THREE.PointsMaterial({ color: 0xcdd6ff, size: 1.6, sizeAttenuation: false, fog: false })),
-  );
+  const matEstrelas = new THREE.PointsMaterial({ color: 0xcdd6ff, size: 1.6, sizeAttenuation: false, fog: false, transparent: true });
+  cena.add(new THREE.Points(geoEstrelas, matEstrelas));
 
-  cena.add(new THREE.HemisphereLight(0x4c5f8c, 0x1c1611, 1.9));
+  const hemisferio = new THREE.HemisphereLight(0x4c5f8c, 0x1c1611, 1.9);
+  cena.add(hemisferio);
 
   const luar = new THREE.DirectionalLight(0x93abdf, 1.9);
   // O alvo fica no meio do mapa (cidade mais o vale do sitio), para a sombra cobrir tudo.
@@ -257,6 +265,33 @@ export function ambiente(cena: THREE.Scene, dia = false): void {
   luar.shadow.normalBias = 0.05;
   cena.add(luar);
   cena.add(luar.target);
+
+  // Noite fechada e amanhecer: o ceu, a neblina e as luzes andam de um para o outro.
+  const noite = { ceu: new THREE.Color(0x070b15), nevoa: new THREE.Color(0x0a0f1c), alto: new THREE.Color(0x4c5f8c), luar: new THREE.Color(0x93abdf) };
+  const manha = { ceu: new THREE.Color(0x8d94b4), nevoa: new THREE.Color(0x9a94a2), alto: new THREE.Color(0xd9c3b0), luar: new THREE.Color(0xffcf9e) };
+  let claro = 0;
+  let aperto = 1;
+  const aplicar = () => {
+    ceu.lerpColors(noite.ceu, manha.ceu, claro);
+    nevoa.color.lerpColors(noite.nevoa, manha.nevoa, claro);
+    nevoa.density = NEBLINA * aperto * (1 - 0.55 * claro);
+    hemisferio.color.lerpColors(noite.alto, manha.alto, claro);
+    hemisferio.intensity = 1.9 + 1.5 * claro;
+    luar.color.lerpColors(noite.luar, manha.luar, claro);
+    matEstrelas.opacity = 1 - claro;
+    matLua.opacity = 1 - 0.75 * claro;
+    matHalo.opacity = 0.12 * (1 - claro);
+  };
+  return {
+    amanhecer(f) {
+      claro = Math.max(0, Math.min(1, f));
+      aplicar();
+    },
+    neblina(fator) {
+      aperto = fator;
+      aplicar();
+    },
+  };
 }
 
 function posteDeLuz(g: THREE.Object3D, luzes: LuzTremulante[], x: number, z: number, braco?: 1 | -1): void {

@@ -3,8 +3,8 @@ import { test } from 'node:test';
 import { LUGARES } from '../src/mundo/planta.ts';
 import { jogar } from '../src/nucleo/bot.ts';
 import { EXEMPLO } from '../src/nucleo/historias/exemplo.ts';
-import { apurar, candidatos, cenaDe, contar, descobriuARegra, entrar, escolher, escolhasDisponiveis, novaPartida, passarRodada, sabeARegra, validarBiblioteca, votar } from '../src/nucleo/partida.ts';
-import { FERIMENTO_FATAL, MEDO_MAXIMO, RODADAS, type Biblioteca } from '../src/nucleo/tipos.ts';
+import { apurar, candidatos, cenaDe, chegar, comoEscapar, contar, descobriuARegra, entrar, escolher, escolhasDisponiveis, novaPartida, objetivos, passarRodada, regraDe, sabeARegra, validarBiblioteca, votar } from '../src/nucleo/partida.ts';
+import { DANO_DO_ULTIMO_SINO, FERIMENTO_FATAL, LUGARES_PARA_EXPLORAR, MEDO_MAXIMO, RODADAS, type Biblioteca, type Estado } from '../src/nucleo/tipos.ts';
 
 const UM = [{ id: 'a', nome: 'Ana' }];
 const TRES = [...UM, { id: 'b', nome: 'Beto' }, { id: 'c', nome: 'Caio' }];
@@ -266,4 +266,75 @@ test('o NPC escolhe o alvo pelo jeito que cada um o tratou, e o acaso so entra n
     feridos.add(ferido);
   }
   assert.deepEqual([...feridos].sort(), ['b', 'c']);
+});
+
+test('pisar num lugar muda onde o personagem esta, mas a cena so comeca ao investigar', () => {
+  const inicio = novaPartida(EXEMPLO, 7, [{ id: 'a', nome: 'A' }]);
+  const lugar = inicio.abertos[0]!;
+  const dentro = chegar(inicio, ['a'], lugar);
+  assert.equal(inicio.personagens[0]!.lugar, null, 'chegar alterou o estado recebido');
+  assert.equal(dentro.personagens[0]!.lugar, lugar);
+  assert.equal(dentro.cenas.length, 0);
+  assert.deepEqual(dentro.personagens[0]!.visitados, []);
+  assert.equal(chegar(dentro, ['a'], lugar), dentro, 'chegar de novo no mesmo lugar nao muda nada');
+  // Pisar nao gasta o sorteio: investigar depois da a mesma cena que investigar direto.
+  assert.deepEqual(entrar(dentro, EXEMPLO, ['a'], lugar).cenas, entrar(inicio, EXEMPLO, ['a'], lugar).cenas);
+  assert.equal(entrar(dentro, EXEMPLO, ['a'], lugar).cenas.length, 1);
+});
+
+/** Passa as horas sem fazer nada ate a ultima, deixando o personagem onde `ficar` mandar. */
+function ateOUltimoSino(inicio: Estado, ficar: (e: Estado) => Estado): Estado {
+  let e = inicio;
+  while (e.rodada < RODADAS && !e.fim) e = passarRodada(ficar(e), EXEMPLO).estado;
+  return e;
+}
+
+test('os objetivos acompanham a noite: investigar, entender e ver o sol nascer', () => {
+  let e = novaPartida(EXEMPLO, 11, [{ id: 'a', nome: 'A' }], { regra: 'chao-consagrado' });
+  const [explorar, entender, amanhecer] = objetivos(e, EXEMPLO, 'a');
+  assert.ok(!explorar!.feito && !entender!.feito && !amanhecer!.feito);
+  assert.ok(explorar!.texto.includes(`0 de ${LUGARES_PARA_EXPLORAR}`));
+  assert.ok(!amanhecer!.texto.includes('Igreja'), 'o objetivo entregou a regra antes da hora');
+
+  // Investigar lugares diferentes cumpre o primeiro.
+  for (const lugar of e.abertos.slice(0, LUGARES_PARA_EXPLORAR)) {
+    e = entrar(e, EXEMPLO, ['a'], lugar);
+    e = escolher(e, EXEMPLO, 'a', escolhasDisponiveis(e, EXEMPLO, cenaDe(e, 'a')!)[0]!.indice);
+  }
+  assert.ok(objetivos(e, EXEMPLO, 'a')[0]!.feito);
+
+  // Com as pistas da regra, o terceiro objetivo passa a dizer como escapar.
+  const regra = regraDe(e, EXEMPLO);
+  const sabendo = { ...e, pistas: regra.pistas.slice(0, 2) };
+  const depois = objetivos(sabendo, EXEMPLO, 'a');
+  assert.ok(depois[1]!.feito);
+  assert.ok(depois[2]!.texto.includes(comoEscapar(regra)));
+  assert.ok(comoEscapar(regra).includes('Igreja') && comoEscapar(regra).includes('Cemitério'));
+  for (const o of depois) assert.ok(!o.texto.includes('—'));
+});
+
+test('no ultimo sino a ameaca vem com certeza: quem segue a regra ve o sol, quem nao segue leva golpe dobrado', () => {
+  for (let semente = 1; semente <= 30; semente++) {
+    const inicio = novaPartida(EXEMPLO, semente, [{ id: 'a', nome: 'A' }], { regra: 'chao-consagrado', abertos: ['igreja', 'bar', 'armazem'] });
+    // Passa a noite inteira no abrigo: nunca e alcancado, nem no fim.
+    const abrigado = ateOUltimoSino(inicio, (e) => chegar(e, ['a'], 'igreja'));
+    const fimAbrigado = passarRodada(chegar(abrigado, ['a'], 'igreja'), EXEMPLO).estado;
+    assert.ok(fimAbrigado.fim?.amanheceu, `semente ${semente}: morreu dentro do abrigo`);
+    assert.equal(fimAbrigado.personagens[0]!.ferimento, 0);
+    assert.ok(objetivos(fimAbrigado, EXEMPLO, 'a')[2]!.feito);
+
+    // Chega inteiro ao fim, mas fora do abrigo: o ultimo sino acerta sempre, e vale por dois.
+    const naRua = passarRodada(abrigado, EXEMPLO);
+    assert.equal(naRua.estado.personagens[0]!.ferimento, DANO_DO_ULTIMO_SINO, `semente ${semente}`);
+    assert.ok(naRua.eventos.some((r) => r.tipo === 'ameaca' && r.quem?.includes('a')));
+    assert.ok(naRua.estado.fim?.amanheceu, 'sem ferimento antes, da para sobreviver ao golpe');
+
+    // Quem ja chegou ferido e fica na rua nao ve o sol.
+    const ferido = structuredClone(abrigado);
+    ferido.personagens[0]!.ferimento = FERIMENTO_FATAL - DANO_DO_ULTIMO_SINO;
+    const morto = passarRodada(ferido, EXEMPLO).estado;
+    assert.ok(!morto.personagens[0]!.vivo && !morto.fim!.amanheceu);
+    const [, , amanhecer] = objetivos(morto, EXEMPLO, 'a');
+    assert.ok(!amanhecer!.feito && amanhecer!.falhou);
+  }
 });

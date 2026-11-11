@@ -1,5 +1,5 @@
 // Joga uma noite inteira no navegador sem janela, pelo teclado, e confere a interface:
-// cena ao entrar num lugar, escolha, virada de rodada, fim e recomeco.
+// cena ao investigar um lugar com a tecla E, escolha, virada de rodada, fim e recomeco.
 // Guarda capturas das telas em capturas/partida-*.png.
 // Uso: npm run partida
 
@@ -55,6 +55,19 @@ try {
     await ir(...dentro(id));
     await pagina.waitForFunction((id) => window.__depurar!.partida().estado.personagens[0]!.lugar === id, { timeout: 60000 }, id);
   };
+  /**
+   * Vai ate o ponto de interesse do lugar e investiga com a tecla E.
+   * Devolve true se uma cena abriu. false: nao havia ponto, ou nao havia cena para dar.
+   */
+  const investigar = async (id: LugarId): Promise<boolean> => {
+    const ponto = await pagina.evaluate((id) => window.__depurar!.ponto(id), id);
+    if (!ponto) return false;
+    await ir(ponto.pe[0], ponto.pe[1]);
+    await pagina.waitForFunction(() => document.querySelector<HTMLElement>('#agir')!.style.opacity === '1', { timeout: 60000 });
+    await pagina.keyboard.press('KeyE');
+    await pagina.waitForFunction((id) => window.__depurar!.partida().modo === 'cena' || window.__depurar!.ponto(id) === null, { timeout: 60000 }, id);
+    return (await partida()).modo === 'cena';
+  };
   const paraARua = async () => {
     await ir(NASCIMENTO.x, NASCIMENTO.z);
     await pagina.waitForFunction(() => window.__depurar!.partida().estado.personagens[0]!.lugar === null, { timeout: 60000 });
@@ -65,12 +78,14 @@ try {
   const gancho = await pagina.$eval('#gancho', (el) => el.textContent ?? '');
   conferir(gancho.length > 20, 'a tela de entrada mostra o gancho da noite');
 
-  // Entrar no bar abre uma cena.
+  // Entrar no bar nao abre nada sozinho: a cena so vem quando o jogador investiga.
   await entrarEm('bar');
-  await esperar('cena');
+  const aoEntrar = await partida();
+  conferir(aoEntrar.modo === 'andando' && aoEntrar.estado.cenas.length === 0, 'entrar no bar nao abre cena sozinho');
+  conferir(await investigar('bar'), 'investigar o ponto do bar com a tecla E abre uma cena');
   await foto('1-cena');
   const antes = (await partida()).estado;
-  conferir(antes.cenas.length === 1 && antes.cenas[0]!.lugar === 'bar', 'entrar no bar abre uma cena do bar');
+  conferir(antes.cenas.length === 1 && antes.cenas[0]!.lugar === 'bar', 'a cena aberta e do bar');
   conferir((await pagina.$$eval('#cena ol li', (itens) => itens.length)) >= 2, 'a cena mostra pelo menos duas escolhas');
   await pagina.keyboard.press('Digit1');
   await esperar('resultado');
@@ -84,7 +99,7 @@ try {
   await paraARua();
   conferir(true, 'voltar para a rua tira o personagem do lugar');
   await entrarEm('bar');
-  conferir((await partida()).modo === 'andando', 'o mesmo lugar nao da duas cenas na mesma hora');
+  conferir(!(await investigar('bar')) && (await partida()).modo === 'andando', 'o mesmo lugar nao da duas cenas na mesma hora');
   await paraARua();
 
   await pagina.keyboard.press('KeyJ');
@@ -97,7 +112,7 @@ try {
   for (let hora = 1; hora <= RODADAS; hora++) {
     const lugar = ABERTOS[hora % ABERTOS.length]!;
     await entrarEm(lugar);
-    if ((await partida()).modo === 'cena') {
+    if (await investigar(lugar)) {
       await pagina.keyboard.press('Digit2');
       await esperar('resultado');
       await pagina.keyboard.press('Space');
@@ -113,9 +128,9 @@ try {
     await pagina.keyboard.press('Space');
     await pagina.waitForFunction(() => window.__depurar!.partida().modo !== 'virada', { timeout: 60000 });
     if ((await partida()).modo === 'fim') break;
-    // Na hora nova, o lugar em que o jogador ficou conta como entrada: resolve a cena, se vier.
+    // Na hora nova, o lugar em que o jogador ficou tem coisa nova para investigar.
     await pagina.waitForFunction((id) => window.__depurar!.partida().estado.personagens[0]!.lugar === id, { timeout: 60000 }, lugar);
-    if ((await partida()).modo === 'cena') {
+    if (await investigar(lugar)) {
       await pagina.keyboard.press('Digit1');
       await esperar('resultado');
       await pagina.keyboard.press('Space');

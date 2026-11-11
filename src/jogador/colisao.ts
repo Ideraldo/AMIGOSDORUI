@@ -26,26 +26,36 @@ export interface Corpo {
   /** Altura dos pes. */
   y: number;
   z: number;
-  /** Velocidade vertical, usada so na queda. */
+  /** Velocidade vertical: positiva no pulo, negativa na queda. */
   vy: number;
   noChao: boolean;
+  /** Altura do corpo. Sem valor vale ALTURA (em pe). Agachado e ALTURA_AGACHADO. */
+  altura?: number;
 }
 
 export const RAIO = 0.35;
 export const ALTURA = 1.75;
+export const ALTURA_AGACHADO = 1.05;
 /** Maior desnivel que se sobe ou desce andando. */
 export const DEGRAU = 0.36;
 /** O movimento e fatiado em passos deste tamanho, para nunca atravessar uma parede fina. */
 const PASSO = 0.12;
 const GRAVIDADE = 22;
 const FOLGA = 1e-3;
+/** Velocidade de saida do pulo. */
+const IMPULSO_DO_PULO = 4.9;
+/**
+ * Quanto os pes sobem num pulo (cerca de 0,55 m). Somado ao degrau, da para subir em
+ * coisas de ate uns 0,9 m: mesa, caixote, cama. Balcao, cerca e guarda-corpo ficam de fora.
+ */
+export const ALTURA_DO_PULO = (IMPULSO_DO_PULO * IMPULSO_DO_PULO) / (2 * GRAVIDADE);
 
 export function solidoReto(minX: number, maxX: number, minZ: number, maxZ: number, minY: number, maxY: number): Solido {
   return { cx: (minX + maxX) / 2, cz: (minZ + maxZ) / 2, hx: (maxX - minX) / 2, hz: (maxZ - minZ) / 2, cos: 1, sin: 0, minY, maxY };
 }
 
-function ehObstaculo(s: Solido, y: number): boolean {
-  return s.maxY > y + DEGRAU + FOLGA && s.minY < y + ALTURA;
+function ehObstaculo(s: Solido, y: number, altura = ALTURA): boolean {
+  return s.maxY > y + DEGRAU + FOLGA && s.minY < y + altura;
 }
 
 /** Posicao (x, z) no referencial da caixa. */
@@ -64,11 +74,29 @@ function distancia2(s: Solido, x: number, z: number): number {
 }
 
 /** Ha espaco para o corpo em (x, z), com os pes na altura y? */
-export function livre(x: number, z: number, y: number, solidos: readonly Solido[], raio = RAIO): boolean {
+export function livre(x: number, z: number, y: number, solidos: readonly Solido[], raio = RAIO, altura = ALTURA): boolean {
   for (const s of solidos) {
-    if (ehObstaculo(s, y) && distancia2(s, x, z) < raio * raio) return false;
+    if (ehObstaculo(s, y, altura) && distancia2(s, x, z) < raio * raio) return false;
   }
   return true;
+}
+
+/** Comeca um pulo, se o corpo esta com os pes no chao. Devolve true se pulou. */
+export function pular(c: Corpo): boolean {
+  if (!c.noChao) return false;
+  c.vy = IMPULSO_DO_PULO;
+  c.noChao = false;
+  return true;
+}
+
+/**
+ * Agacha ou levanta. So levanta se houver espaco para o corpo em pe: quem esta debaixo
+ * de alguma coisa continua agachado. Devolve true se o corpo ficou agachado.
+ */
+export function agachar(c: Corpo, sim: boolean, solidos: readonly Solido[]): boolean {
+  if (sim) c.altura = ALTURA_AGACHADO;
+  else if (c.altura !== undefined && livre(c.x, c.z, c.y, solidos, RAIO - 0.01, ALTURA)) delete c.altura;
+  return c.altura !== undefined;
 }
 
 /** Altura do chao sob o ponto (x, z) para quem esta com os pes em y. */
@@ -87,7 +115,7 @@ function desencostar(c: Corpo, solidos: readonly Solido[]): void {
   for (let volta = 0; volta < 4; volta++) {
     let mexeu = false;
     for (const s of solidos) {
-      if (!ehObstaculo(s, c.y)) continue;
+      if (!ehObstaculo(s, c.y, c.altura)) continue;
       const [lx, lz] = paraLocal(s, c.x, c.z);
       const px = Math.max(-s.hx, Math.min(lx, s.hx));
       const pz = Math.max(-s.hz, Math.min(lz, s.hz));
@@ -135,30 +163,40 @@ export function mover(c: Corpo, dx: number, dz: number, dt: number, solidos: rea
     c.z += dz / fatias;
     desencostar(c, solidos);
     // Encurralado num canto: desiste desta fatia.
-    if (!livre(c.x, c.z, c.y, solidos, RAIO - 0.01)) {
+    if (!livre(c.x, c.z, c.y, solidos, RAIO - 0.01, c.altura)) {
       c.x = ax;
       c.z = az;
     }
     // Sobe o degrau na hora, para a proxima fatia ja enxergar a altura certa.
+    // So sobe se o corpo cabe la em cima (no pulo, a cabeca pode estar perto do teto).
     const chao = alturaDoChao(c.x, c.z, c.y, solidos);
     if (chao > c.y) {
-      c.y = chao;
-      c.vy = 0;
-      c.noChao = true;
+      if (c.noChao || livre(c.x, c.z, chao, solidos, RAIO - 0.01, c.altura)) {
+        c.y = chao;
+        c.vy = 0;
+        c.noChao = true;
+      } else {
+        c.x = ax;
+        c.z = az;
+      }
     }
   }
 
   const chao = alturaDoChao(c.x, c.z, c.y, solidos);
-  if (c.y <= chao + 1e-4) {
+  const subindo = c.vy > 0;
+  if (!subindo && c.y <= chao + 1e-4) {
     c.y = chao;
     c.vy = 0;
     c.noChao = true;
-  } else if (c.noChao && c.y - chao <= DEGRAU + 0.02) {
+  } else if (!subindo && c.noChao && c.y - chao <= DEGRAU + 0.02) {
     c.y = chao;
   } else {
     c.noChao = false;
     c.vy -= GRAVIDADE * dt;
-    c.y += c.vy * dt;
+    const novoY = c.y + c.vy * dt;
+    // Bateu a cabeca no meio do pulo: para de subir e comeca a cair.
+    if (c.vy > 0 && !livre(c.x, c.z, novoY, solidos, RAIO - 0.01, c.altura)) c.vy = 0;
+    else c.y = novoY;
     if (c.y <= chao) {
       c.y = chao;
       c.vy = 0;
@@ -249,4 +287,104 @@ export function alcance(
     }
   }
   return { fugiu, chegou: pontos.map(([x, z]) => visto[celula(x, z)] === 1) };
+}
+
+export interface AlcancePulando {
+  /** Alguem chegou na borda da area examinada, em qualquer altura. */
+  fugiu: boolean;
+  /** Para cada ponto pedido, a menor altura dos pes com que se chega nele. null: nao se chega. */
+  alturas: (number | null)[];
+  /** O ponto mais alto em que da para ficar de pe. */
+  maisAlto: { x: number; y: number; z: number };
+}
+
+/**
+ * Como `alcance`, mas em tres dimensoes: enche o mundo a partir de um ponto contando com
+ * degraus, quedas, pulos e o corpo agachado. Serve para conferir que pular e agachar nao
+ * abrem caminho para fora do vale nem para dentro de lugar fechado.
+ * E otimista de proposito (ignora batidas no meio do ar): se acusar passagem, confira no jogo.
+ */
+export function alcancePulando(
+  inicio: readonly [number, number],
+  pontos: readonly (readonly [number, number])[],
+  area: { minX: number; maxX: number; minZ: number; maxZ: number },
+  solidos: readonly Solido[],
+  op: { passo?: number; pulo?: number; altura?: number } = {},
+): AlcancePulando {
+  const passo = op.passo ?? 0.4;
+  const pulo = op.pulo ?? ALTURA_DO_PULO;
+  const altura = op.altura ?? ALTURA;
+  const nx = Math.ceil((area.maxX - area.minX) / passo);
+  const nz = Math.ceil((area.maxZ - area.minZ) / passo);
+
+  // Grade grossa: cada casa guarda os solidos que podem tocar um corpo ali dentro.
+  const CASA = 4;
+  const gx = Math.ceil((area.maxX - area.minX) / CASA) + 1;
+  const gz = Math.ceil((area.maxZ - area.minZ) / CASA) + 1;
+  const casas: Solido[][] = Array.from({ length: gx * gz }, () => []);
+  for (const s of solidos) {
+    const r = Math.hypot(s.hx, s.hz) + RAIO + 0.05;
+    const i0 = Math.max(0, Math.floor((s.cx - r - area.minX) / CASA));
+    const i1 = Math.min(gx - 1, Math.floor((s.cx + r - area.minX) / CASA));
+    const j0 = Math.max(0, Math.floor((s.cz - r - area.minZ) / CASA));
+    const j1 = Math.min(gz - 1, Math.floor((s.cz + r - area.minZ) / CASA));
+    for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) casas[i + gx * j]!.push(s);
+  }
+  const perto = (x: number, z: number) => casas[Math.floor((x - area.minX) / CASA) + gx * Math.floor((z - area.minZ) / CASA)] ?? [];
+
+  const celula = (x: number, z: number) => Math.floor((x - area.minX) / passo) + nx * Math.floor((z - area.minZ) / passo);
+  // Estado: celula e altura dos pes, em faixas de 5 cm.
+  const chave = (c: number, y: number) => c * 2048 + Math.round(y * 20);
+  const vistos = new Set<number>();
+  const menor = new Map<number, number>();
+  const fila: [number, number][] = [];
+  const visitar = (c: number, y: number) => {
+    const k = chave(c, y);
+    if (vistos.has(k)) return;
+    vistos.add(k);
+    fila.push([c, y]);
+    const m = menor.get(c);
+    if (m === undefined || y < m) menor.set(c, y);
+  };
+
+  const y0 = alturaDoChao(inicio[0], inicio[1], 0, perto(inicio[0], inicio[1]));
+  visitar(celula(inicio[0], inicio[1]), y0);
+  let fugiu = false;
+  const maisAlto = { x: inicio[0], y: y0, z: inicio[1] };
+  const impulsos = pulo > 0 ? [0, pulo] : [0];
+  // Correndo, um pulo cobre uns 3,2 m no plano (0,45 s no ar a 7,2 m/s).
+  const celulasDeVoo = Math.ceil(3.3 / passo);
+  while (fila.length) {
+    const [c, y] = fila.pop()!;
+    const i = c % nx;
+    const j = Math.floor(c / nx);
+    if (i === 0 || j === 0 || i === nx - 1 || j === nz - 1) {
+      fugiu = true;
+      continue;
+    }
+    const x = area.minX + (i + 0.5) * passo;
+    const z = area.minZ + (j + 0.5) * passo;
+    if (y > maisAlto.y) Object.assign(maisAlto, { x, y, z });
+    const aqui = perto(x, z);
+    for (const h of impulsos) {
+      // No alto do pulo o corpo precisa caber aqui mesmo.
+      if (h > 0 && !livre(x, z, y + h, aqui, RAIO, altura)) continue;
+      // Andando vale a celula vizinha. Pulando, o corpo voa em linha reta enquanto couber.
+      const voo = h > 0 ? celulasDeVoo : 1;
+      for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+        for (let k = 1; k <= voo; k++) {
+          const vi = i + di * k;
+          const vj = j + dj * k;
+          if (vi < 0 || vj < 0 || vi >= nx || vj >= nz) break;
+          const vx = x + di * k * passo;
+          const vz = z + dj * k * passo;
+          const la = perto(vx, vz);
+          const yv = alturaDoChao(vx, vz, y + h, la);
+          if (livre(vx, vz, yv, la, RAIO, altura)) visitar(vi + nx * vj, yv);
+          if (h > 0 && !livre(vx, vz, y + h, la, RAIO, altura)) break;
+        }
+      }
+    }
+  }
+  return { fugiu, alturas: pontos.map(([x, z]) => menor.get(celula(x, z)) ?? null), maisAlto };
 }
