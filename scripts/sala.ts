@@ -6,6 +6,8 @@
 import { mkdirSync } from 'node:fs';
 import puppeteer, { type Page } from 'puppeteer-core';
 import { createServer } from 'vite';
+import { cenasNoMundo } from '../src/nucleo/gestos.ts';
+import { EXEMPLO } from '../src/nucleo/historias/exemplo.ts';
 
 const CHROME = process.env.CHROME ?? '/usr/bin/google-chrome';
 const PORTA = 5195;
@@ -134,10 +136,31 @@ try {
   await modo(ana, 'resultado');
   await modo(bento, 'resultado');
   conferir((await ana.$eval('#cena', (el) => el.textContent!)).includes('O grupo decidiu'), 'quando os dois votam, a cena fecha para os dois com o resultado');
+  // O que a escolha fez ver no mundo sai do estado: os dois veem o mesmo adereco, com o mesmo gesto.
+  const esperado = cenasNoMundo((await partida(ana)).estado, EXEMPLO).map((c) => `${c.lugar}:${c.adereco}:${c.gesto}`);
+  for (const p of [ana, bento]) await p.waitForFunction((n) => window.__depurar!.palco().cenas.length === n, espera, esperado.length);
+  const vistos = await Promise.all([ana, bento].map((p) => p.evaluate(() => window.__depurar!.palco().cenas.map((c) => `${c.lugar}:${c.adereco}:${c.gesto}`))));
+  conferir(vistos[0]!.join() === esperado.join() && vistos[1]!.join() === esperado.join(), `os dois veem o mesmo no ponto investigado (${esperado.join(', ') || 'cena sem adereco'})`);
   for (const p of [ana, bento]) {
     await p.keyboard.press('Space');
     await modo(p, 'andando');
   }
+
+  // O cofre de ferro e de todos: Bento gira um disco e Ana, ao lado, ve o disco girar.
+  const cofre = (await ana.evaluate(() => window.__depurar!.palco())).cofre!;
+  for (const p of [ana, bento]) await p.evaluate((pe) => window.__depurar!.teleportar(pe[0], 0, pe[1]), cofre.pe);
+  for (const p of [ana, bento]) await p.waitForFunction((id) => window.__depurar!.partida().estado.personagens.every((x) => x.lugar === id), espera, cofre.lugar);
+  await bento.evaluate(() => window.__depurar!.mexerNoCofre());
+  await modo(bento, 'cofre');
+  await bento.keyboard.press('KeyW');
+  await bento.keyboard.press('KeyD');
+  await bento.keyboard.press('KeyS');
+  for (const p of [ana, bento]) await p.waitForFunction(() => window.__depurar!.partida().estado.cofre!.discos.join() === '1,9,0', espera);
+  conferir((await partida(ana)).modo === 'andando', 'Bento gira os discos do cofre pelo teclado e Ana recebe os discos girados');
+  await new Promise((r) => setTimeout(r, 1200));
+  await ana.screenshot({ path: 'capturas/sala-3-cofre.png' });
+  await bento.keyboard.press('KeyE');
+  await modo(bento, 'andando');
 
   // A hora: so quem criou a sala adianta, e vira para todos.
   await bento.keyboard.press('KeyN');

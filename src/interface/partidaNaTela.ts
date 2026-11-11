@@ -32,13 +32,14 @@ import {
   usar,
   type OpcoesDePartida,
 } from '../nucleo/partida.ts';
+import { anotarNumero, entregar, girarDisco, levandoAEncomenda, missoes, puxarAlavanca, segredoAnotado } from '../nucleo/missoes.ts';
 import { FERIMENTO_FATAL, MEDO_MAXIMO, PISTAS_PARA_DESCOBRIR, RODADAS, SEGUNDOS_POR_RODADA, atoDaRodada, type Achado, type Biblioteca, type Cena, type Estado, type Personagem, type Registro } from '../nucleo/tipos.ts';
 import type { Sinal } from './efeitos.ts';
 
 /** Quanto tempo de chama um lampiao cheio aguenta, em segundos de relogio. */
 const SEGUNDOS_DE_QUEROSENE = 300;
 
-type Modo = 'andando' | 'cena' | 'resultado' | 'virada' | 'fim';
+type Modo = 'andando' | 'cena' | 'resultado' | 'cofre' | 'virada' | 'fim';
 
 export interface Mundo {
   /** Os lugares abertos mudaram: refazer a cidade. */
@@ -63,6 +64,11 @@ export interface Condutor {
   pegar(id: string): void;
   usar(tipo: 'atadura' | 'tonico'): void;
   mostrar(npc: string): void;
+  /** O cofre de ferro e o favor (src/nucleo/missoes.ts). */
+  anotar(numero: number): void;
+  disco(disco: number, passo: number): void;
+  alavanca(): void;
+  entregar(): void;
   virar(): void;
   outra(): void;
 }
@@ -115,7 +121,12 @@ export class PartidaNaTela {
   /** A gente da cidade que este jogador ja viu de perto nesta noite. Quem ele nao viu aparece sem nome na lista de suspeitos. */
   private conhecidos = new Set<string>();
   private ultimoHud = '';
+  /** Mexendo no cofre: em qual disco o jogador esta, e quando comecou (o E que abre nao pode fechar). */
+  discoEscolhido = 0;
+  private cofreDesde = 0;
+  private readonly elCofre = document.querySelector<HTMLElement>('#cofre-dica');
   private ultimaCena = '';
+  private ultimoCofre = '';
 
   constructor(
     private readonly bib: Biblioteca,
@@ -132,6 +143,10 @@ export class PartidaNaTela {
       pegar: (id) => this.receber(pegar(this.estado, this.bib, this.eu, id)),
       usar: (tipo) => this.receber(usar(this.estado, this.eu, tipo)),
       mostrar: (npc) => this.receber(mostrarCarta(this.estado, this.bib, this.eu, npc)),
+      anotar: (numero) => this.receber(anotarNumero(this.estado, this.eu, numero)),
+      disco: (disco, passo) => this.receber(girarDisco(this.estado, this.eu, disco, passo)),
+      alavanca: () => this.receber(puxarAlavanca(this.estado, this.bib, this.eu)),
+      entregar: () => this.receber(entregar(this.estado, this.bib, this.eu)),
       virar: () => {
         this.restante = SEGUNDOS_POR_RODADA;
         this.receber(passarRodada(this.estado, this.bib).estado);
@@ -308,6 +323,69 @@ export class PartidaNaTela {
     this.condutor.usar(tipo);
   }
 
+  // ---------- o cofre de ferro e o favor ----------
+
+  /** O jogador chegou perto da tabua de um numero do segredo. */
+  anotarNumero(numero: number): void {
+    const alvo = this.estado.cofre?.numeros[numero];
+    if (alvo && !alvo.vistoPor.includes(this.eu) && this.personagem.vivo) this.condutor.anotar(numero);
+  }
+
+  /** Da para mexer no cofre agora? So fechado, e com o jogador no lugar dele. */
+  get podeMexerNoCofre(): boolean {
+    const c = this.estado.cofre;
+    return !!c && !c.aberto && !this.estado.fim && this.personagem.vivo && this.personagem.lugar === c.lugar;
+  }
+
+  /** O jogador poe as maos no cofre: fica parado, e o teclado passa a girar os discos. */
+  mexerNoCofre(): void {
+    if (this.modo !== 'andando' || !this.podeMexerNoCofre) return;
+    this.modo = 'cofre';
+    this.discoEscolhido = 0;
+    this.cofreDesde = performance.now();
+    this.mundo.congelar(true);
+    this.mundo.sinal('cena');
+  }
+
+  private largarOCofre(): void {
+    if (this.modo !== 'cofre') return;
+    this.modo = 'andando';
+    this.mundo.congelar(false);
+  }
+
+  /** Este jogador esta com a caixa do favor na mao e pode entrega-la a este NPC? */
+  podeEntregarA(npc: string): boolean {
+    return this.modo === 'andando' && this.estado.favor?.npc === npc && levandoAEncomenda(this.estado) === this.eu;
+  }
+
+  entregarA(npc: string): void {
+    if (this.podeEntregarA(npc)) this.condutor.entregar();
+  }
+
+  /** O que o NPC do favor pede, enquanto a caixa dele ainda esta largada por ai. */
+  pedidoDe(npc: string): string | null {
+    const f = this.estado.favor;
+    if (!f || f.entregue || f.npc !== npc || levandoAEncomenda(this.estado) !== null) return null;
+    return this.bib.npcs.find((n) => n.id === npc)?.pedido?.pede ?? null;
+  }
+
+  /**
+   * So para os scripts de conferencia, e so sozinho: abre a cena de um fragmento no lugar em
+   * que o jogador esta, sem passar pelo diretor. Serve para ver cada adereco e cada gesto.
+   */
+  encenar(fragmento: string): boolean {
+    const lugar = this.personagem.lugar;
+    if (this.sala || this.modo !== 'andando' || !lugar || this.estado.fim) return false;
+    const e = structuredClone(this.estado);
+    e.cenas.push({ fragmento, lugar, quem: [this.eu], votos: {} });
+    // Como em `entrar`: o lugar fica investigado nesta hora, e a marca some.
+    const eu = e.personagens.find((p) => p.id === this.eu)!;
+    if (!eu.visitados.includes(lugar)) eu.visitados.push(lugar);
+    e.diario.push({ rodada: e.rodada, tipo: 'cena', texto: fragmentoDe(this.bib, fragmento).titulo, quem: [this.eu], lugar, fragmento });
+    this.receber(e);
+    return true;
+  }
+
   /** Outra noite. Sozinho comeca na hora. Numa sala, so vale para o dono, depois do fim. */
   outraNoite(): void {
     this.condutor.outra();
@@ -348,7 +426,9 @@ export class PartidaNaTela {
 
     // A hora virou (ou o ultimo sino bateu).
     const virou = novo.rodada !== antes.rodada || (novo.fim !== null && antes.fim === null && novos.some((r) => r.tipo === 'pressagio' || r.tipo === 'ameaca'));
+    if (virou || !souEu.vivo) this.largarOCofre();
     if (virou) this.aoVirar(antes, novo, novos);
+    this.reagirAsMissoes(antes, novo, eraEu, souEu);
 
     // A cena em que o jogador estava fechou: com resultado, ou perdida na virada.
     const cenaAntes = cenaDe(antes, this.eu);
@@ -404,11 +484,54 @@ export class PartidaNaTela {
     // Pista que o grupo ganhou sem este jogador estar la (outro investigou, outro leu um bilhete).
     if (!cenaAntes) {
       for (const id of novo.pistas.filter((p) => !antes.pistas.includes(p))) {
-        const minha = novo.achados.some((a) => a.pista === id && a.pegoPor === this.eu && !antes.achados.find((x) => x.id === a.id)?.pego);
+        const doCofre = !!novo.cofre?.aberto && !antes.cofre?.aberto && novo.cofre.abertoPor === this.eu;
+        const minha = doCofre || novo.achados.some((a) => a.pista === id && a.pegoPor === this.eu && !antes.achados.find((x) => x.id === a.id)?.pego);
         if (!minha) this.legendar(`O grupo descobriu: ${this.bib.pistas.find((p) => p.id === id)?.texto ?? ''}`, 'lugar');
       }
     }
     this.conferirObjetivos();
+  }
+
+  /** O que mudou no cofre e no favor: numero anotado, segredo errado, cofre aberto, caixa entregue. */
+  private reagirAsMissoes(antes: Estado, novo: Estado, eraEu: Personagem, souEu: Personagem): void {
+    const c = novo.cofre;
+    const era = antes.cofre;
+    if (c && era) {
+      c.numeros.forEach((n, i) => {
+        if (!n.vistoPor.includes(this.eu) || era.numeros[i]?.vistoPor.includes(this.eu)) return;
+        this.mundo.sinal('cena');
+        this.avisar(`Anotado: o ${i + 1}º número do cofre é ${c.segredo[i]}.`, 5000);
+      });
+      if (c.erros > era.erros && this.modo === 'cofre' && souEu.medo >= eraEu.medo) {
+        this.mundo.sinal('medo');
+        this.avisar('Segredo errado. O ferro range, e o susto fica.', 4000);
+      }
+      if (c.aberto && !era.aberto) {
+        this.largarOCofre();
+        this.mundo.sinal('pista');
+        if (c.abertoPor === this.eu) {
+          const novas = novo.pistas.filter((p) => !antes.pistas.includes(p));
+          const fichas = novas.map((p) => `<span class="pista">Pista: ${escapar(this.bib.pistas.find((x) => x.id === p)?.texto ?? '')}</span>`);
+          fichas.push('<span class="bom">Atadura na bolsa</span>');
+          if (souEu.medo < eraEu.medo) fichas.push(`<span class="bom">Medo −${eraEu.medo - souEu.medo}</span>`);
+          this.modo = 'resultado';
+          this.painel(`<h3>${escapar(lugarPorId(c.lugar)!.nome)}</h3><h2>O cofre abriu</h2><div class="efeitos">${fichas.join('')}</div><div class="seguir"><kbd>Espaço</kbd> continuar</div>`, 'cena curta depois-do-gesto');
+        } else {
+          this.legendar(`${this.nomeDe(c.abertoPor ?? '')} abriu o cofre de ferro.`, 'lugar');
+        }
+      }
+    }
+    const f = novo.favor;
+    if (f?.entregue && !antes.favor?.entregue) {
+      const npc = this.bib.npcs.find((n) => n.id === f.npc);
+      if (f.por === this.eu && npc?.pedido) {
+        this.mundo.sinal('alivio');
+        this.mundo.falar(npc.id, npc.pedido.agradece);
+        this.dizer(`${npc.nome}: “${npc.pedido.agradece}”`);
+      } else if (npc) {
+        this.legendar(`${this.nomeDe(f.por ?? '')} fez um favor a ${npc.nome}.`, 'lugar');
+      }
+    }
   }
 
   private aoPegar(achado: Achado): void {
@@ -422,6 +545,10 @@ export class PartidaNaTela {
     } else if (achado.tipo === 'tonico') {
       this.mundo.sinal('cena');
       this.avisar('Um frasco de tônico, guardado na bolsa. T bebe quando o medo apertar.', 5000);
+    } else if (achado.tipo === 'encomenda') {
+      this.mundo.sinal('cena');
+      const coisa = this.bib.npcs.find((n) => n.id === achado.npc)?.pedido?.coisa ?? 'a caixa';
+      this.avisar(`Você pegou ${coisa}. Leve ao dono: veja em Missões extras.`, 5500);
     } else if (achado.tipo === 'prova') {
       // A prova tambem para o jogo para ser lida. So quem pegou ve o que ela diz.
       this.mundo.sinal('pista');
@@ -573,10 +700,12 @@ export class PartidaNaTela {
     // Numa votacao com prazo, o painel mostra os segundos correndo.
     if (this.modo === 'cena' && this.votoRestante !== null) this.abrirCena();
     this.desenharHud();
+    this.desenharCofre();
   }
 
   /** Devolve true se a tecla foi usada pela partida. */
   tecla(codigo: string): boolean {
+    if (this.modo === 'cofre') return this.teclaNoCofre(codigo);
     const numero = /^(?:Digit|Numpad)([1-3])$/.exec(codigo)?.[1];
     if (this.modo === 'cena' && numero) {
       this.decidir(Number(numero) - 1);
@@ -604,6 +733,31 @@ export class PartidaNaTela {
       return true;
     }
     return false;
+  }
+
+  /** Mexendo no cofre: A e D escolhem o disco, W e S giram, Espaco puxa a alavanca, E larga. */
+  private teclaNoCofre(codigo: string): boolean {
+    const discos = this.estado.cofre?.discos.length ?? 1;
+    if (codigo === 'KeyA' || codigo === 'ArrowLeft') this.discoEscolhido = (this.discoEscolhido + discos - 1) % discos;
+    else if (codigo === 'KeyD' || codigo === 'ArrowRight') this.discoEscolhido = (this.discoEscolhido + 1) % discos;
+    else if (codigo === 'KeyW' || codigo === 'ArrowUp') this.condutor.disco(this.discoEscolhido, 1);
+    else if (codigo === 'KeyS' || codigo === 'ArrowDown') this.condutor.disco(this.discoEscolhido, -1);
+    else if (codigo === 'Space' || codigo === 'Enter') this.condutor.alavanca();
+    else if (codigo === 'KeyE' || codigo === 'Backspace') {
+      if (performance.now() - this.cofreDesde > 250) this.largarOCofre();
+    } else if (codigo === 'KeyJ') this.alternarDiario();
+    else return false;
+    return true;
+  }
+
+  /** A linha de ajuda do cofre, com o que este jogador ja anotou do segredo. */
+  private desenharCofre(): void {
+    if (!this.elCofre) return;
+    const mostra = this.modo === 'cofre';
+    this.elCofre.style.opacity = mostra ? '1' : '0';
+    if (!mostra) return;
+    const html = `<b>Anotado: ${segredoAnotado(this.estado, this.eu).map((n) => n ?? '?').join(' ')}</b><kbd>A</kbd><kbd>D</kbd>escolhe o disco <kbd>W</kbd><kbd>S</kbd>gira <kbd>Espaço</kbd>puxa a alavanca <kbd>E</kbd>larga`;
+    if (this.ultimoCofre !== html) this.elCofre.innerHTML = this.ultimoCofre = html;
   }
 
   // ---------- paineis ----------
@@ -688,10 +842,12 @@ export class PartidaNaTela {
       efeitos.push('<span class="pista">Alguma coisa vai mudar na cidade quando a hora virar.</span>');
     }
     this.modo = 'resultado';
+    // Com gesto, o painel espera um instante e vem menor: primeiro se ve a coisa acontecer.
+    const comGesto = !!escolha.gesto && !!fragmentoDe(this.bib, cena.fragmento).adereco;
     this.painel(
       `<h3>${escapar(lugarPorId(cena.lugar)!.nome)}</h3><p class="escolhida">${cena.quem.length > 1 ? 'O grupo decidiu: ' : ''}${escapar(escolha.texto)}</p><p>${escapar(escolha.resultado)}</p>` +
         `<div class="efeitos">${efeitos.join('')}</div><div class="seguir"><kbd>Espaço</kbd> continuar</div>`,
-      'cena',
+      comGesto ? 'cena curta depois-do-gesto' : 'cena curta',
     );
   }
 
@@ -729,6 +885,13 @@ export class PartidaNaTela {
       return `<li class="${classe}">${nome}</li>`;
     });
     return `<h2>Sua parte</h2><ul class="objetivos">${minhas.join('')}</ul><h2>Quem escreveu a carta?</h2><ul class="suspeitos">${suspeitos.join('')}</ul>`;
+  }
+
+  /** O cofre e o favor: o que fazer depois de achar a propria prova. */
+  private missoesExtras(): string {
+    const lista = missoes(this.estado, this.bib, this.eu).map((t) => `<li class="${t.feita ? 'feito' : ''}">${escapar(t.texto)}</li>`);
+    // Num bloco a parte, no canto direito: a coluna da esquerda ja esta cheia.
+    return lista.length ? `<div class="extras"><h2>Missões extras</h2><ul class="objetivos">${lista.join('')}</ul></div>` : '';
   }
 
   /** Avisa na hora em que um objetivo se cumpre. */
@@ -825,6 +988,7 @@ export class PartidaNaTela {
       (grupo.length ? `<h2>Grupo${this.sala ? ` · sala ${escapar(this.sala)}` : ''}</h2><ul class="grupo">${grupo.join('')}</ul>` : '') +
       `<h2>Objetivos</h2><ul class="objetivos">${this.listaDeObjetivos()}</ul>` +
       this.parteDeCadaUm() +
+      this.missoesExtras() +
       `<h2>Abertos esta hora</h2><p class="abertos">${lugares.join(' · ')}</p>`;
     if (html !== this.ultimoHud) {
       this.ultimoHud = html;

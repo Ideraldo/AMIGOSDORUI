@@ -27,6 +27,11 @@ export const EXEMPLO: Biblioteca = {
       id: 'coveiro',
       nome: 'Seu Honório',
       papel: 'coveiro',
+      pedido: {
+        coisa: 'a caixa de fumo',
+        pede: 'Larguei minha caixa de fumo por aí, numa dessas casas abertas. Sem ela a noite fica comprida. Se achar, traga.',
+        agradece: 'Minha caixa. Quem devolve o que é dos outros merece ouvir o que eu sei. Tome, leve este tônico.',
+      },
       carta: {
         alibis: [
           'Um recibo de enterro assinado por Seu Honório. A letra dele é grande e redonda, de quem aprendeu tarde. Não é a letra da carta.',
@@ -53,6 +58,11 @@ export const EXEMPLO: Biblioteca = {
       nome: 'Dona Carlota',
       papel: 'viúva do casarão',
       figura: 'mulher',
+      pedido: {
+        coisa: 'a caixa de costura',
+        pede: 'Minha caixa de costura ficou em alguma casa da cidade, e eu não saio a esta hora. Se a encontrar, traga, por favor.',
+        agradece: 'A minha caixa de costura. Ainda existe gente de bem. Fique com este tônico, e volte para conversar.',
+      },
       carta: {
         alibis: [
           'Um cartão de pêsames de Dona Carlota, em letra fina e inclinada, sem um borrão. A carta é toda borrada e tremida. Não é dela.',
@@ -77,6 +87,11 @@ export const EXEMPLO: Biblioteca = {
       id: 'xerife',
       nome: 'Xerife Brandão',
       papel: 'xerife',
+      pedido: {
+        coisa: 'a caixa de balas',
+        pede: 'Esqueci uma caixa de balas numa das casas abertas. Não posso largar o posto. Traga para mim.',
+        agradece: 'As minhas balas. Fico devendo. Leve este tônico, e pergunte o que quiser.',
+      },
       carta: {
         alibis: [
           'Um mandado assinado pelo Xerife Brandão. Ele escreve com a mão esquerda, e a letra cai para trás. A da carta cai para a frente.',
@@ -101,6 +116,11 @@ export const EXEMPLO: Biblioteca = {
       id: 'boticario',
       nome: 'Dr. Amâncio',
       papel: 'boticário',
+      pedido: {
+        coisa: 'a caixa de frascos',
+        pede: 'Uma caixa de frascos minha ficou esquecida pela cidade. Sem ela não preparo mais nada. Pode buscar?',
+        agradece: 'Os meus frascos, e inteiros. Tome um tônico, por conta da casa. E escute o que eu tenho para dizer.',
+      },
       carta: {
         alibis: [
           'Uma receita do Dr. Amâncio. A letra é um rabisco que só ele entende. A carta se lê do começo ao fim. Não é dele.',
@@ -127,6 +147,11 @@ export const EXEMPLO: Biblioteca = {
       nome: 'Lia',
       papel: 'órfã que dorme na escola',
       figura: 'crianca',
+      pedido: {
+        coisa: 'a caixa de giz',
+        pede: 'Perdi minha caixa de giz. Ficou numa casa que está aberta, mas eu tenho medo de ir lá. Pode buscar?',
+        agradece: 'Meu giz! Achei este vidrinho e guardei, pode levar. Agora eu conto um segredo.',
+      },
       carta: {
         alibis: [
           'O caderno de escola de Lia. Ela ainda copia o alfabeto, letra por letra. Não conseguiria escrever uma carta inteira.',
@@ -151,6 +176,11 @@ export const EXEMPLO: Biblioteca = {
       id: 'barman',
       nome: 'Tião',
       papel: 'dono do bar',
+      pedido: {
+        coisa: 'a caixa de charutos',
+        pede: 'Deixei uma caixa de charutos numa das casas abertas e não largo o balcão por nada. Se passar por ela, traga.',
+        agradece: 'Os meus charutos. Fico devendo essa. Leve este tônico, e chegue mais perto que eu conto uma coisa.',
+      },
       carta: {
         alibis: [
           'A lousa de fiados do bar, escrita por Tião, é toda em letra de forma, maiúscula. A carta é em letra de mão.',
@@ -253,20 +283,22 @@ export const EXEMPLO: Biblioteca = {
     {
       id: 'vela-acesa',
       lugares: 'qualquer',
+      adereco: 'vela',
       titulo: 'A vela acesa',
       texto: 'Uma vela queima sozinha em cima de um pires. A cera ainda nem escorreu: alguém a acendeu há poucos minutos.',
       escolhas: [
-        { texto: 'Levar a vela', resultado: 'A chama treme na mão, mas não apaga. Um pouco de luz a mais sempre ajuda.', efeitos: [{ tipo: 'medo', valor: -1 }, { tipo: 'marca', marca: 'tem-vela' }] },
-        { texto: 'Apagar e sair', resultado: 'O pavio fumega. No escuro, alguém solta o ar bem perto, e não foi ninguém do grupo.', efeitos: [{ tipo: 'medo', valor: 1 }] },
+        { texto: 'Levar a vela', gesto: 'pegar', resultado: 'A chama treme na mão, mas não apaga. Um pouco de luz a mais sempre ajuda.', efeitos: [{ tipo: 'medo', valor: -1 }, { tipo: 'marca', marca: 'tem-vela' }] },
+        { texto: 'Apagar e sair', gesto: 'apagar', resultado: 'O pavio fumega. No escuro, alguém solta o ar bem perto, e não foi ninguém do grupo.', efeitos: [{ tipo: 'medo', valor: 1 }] },
       ],
     },
     {
       id: 'retrato-virado',
       lugares: 'qualquer',
+      adereco: 'retrato',
       titulo: 'O retrato virado',
-      texto: 'Há um retrato pendurado de frente para a parede. O prego é novo e o papel de trás foi rasgado com pressa.',
+      texto: 'Há um retrato de costas, virado para a parede. O papel de trás foi rasgado com pressa.',
       escolhas: [
-        { texto: 'Desvirar o retrato', resultado: 'Uma família inteira, de pé, na frente desta mesma porta. Todos os rostos foram raspados com faca.', efeitos: [{ tipo: 'medo', valor: 1 }, { tipo: 'marca', marca: 'viu-retrato' }] },
+        { texto: 'Desvirar o retrato', gesto: 'virar', resultado: 'Uma família inteira, de pé, na frente desta mesma porta. Todos os rostos foram raspados com faca.', efeitos: [{ tipo: 'medo', valor: 1 }, { tipo: 'marca', marca: 'viu-retrato' }] },
         { texto: 'Deixar como está', resultado: 'Quem virou aquilo teve motivo. Dá para sair dali com a cabeça mais fria.', efeitos: [{ tipo: 'medo', valor: -1 }] },
       ],
     },
@@ -296,20 +328,22 @@ export const EXEMPLO: Biblioteca = {
     {
       id: 'armazem-prateleiras',
       lugares: ['armazem'],
+      adereco: 'lanterna',
       titulo: 'Prateleiras cheias',
       texto: 'Nada foi levado. Latas, querosene, munição, tudo no lugar. Só a gaveta do dinheiro está aberta e vazia.',
       escolhas: [
-        { texto: 'Encher o lampião de querosene', resultado: 'A chama cresce firme. Com luz boa, os cantos deixam de se mexer.', efeitos: [{ tipo: 'medo', valor: -1 }, { tipo: 'marca', marca: 'lampiao-cheio' }] },
+        { texto: 'Encher o lampião de querosene', gesto: 'acender', resultado: 'A chama cresce firme. Com luz boa, os cantos deixam de se mexer.', efeitos: [{ tipo: 'medo', valor: -1 }, { tipo: 'marca', marca: 'lampiao-cheio' }] },
         { texto: 'Ler o caderno de fiado', resultado: 'Os últimos dez nomes compraram a mesma coisa no mesmo dia: pregos, tábuas e velas. O último nome é o do próprio dono.', efeitos: [{ tipo: 'medo', valor: 1 }, { tipo: 'marca', marca: 'leu-fiado' }] },
       ],
     },
     {
       id: 'bar-ultima-rodada',
       lugares: ['bar'],
+      adereco: 'copo',
       titulo: 'A última rodada',
       texto: 'Seis copos servidos no balcão, nenhum bebido. O piano está aberto e uma das teclas ficou afundada.',
       escolhas: [
-        { texto: 'Beber um dos copos', resultado: 'Desce queimando. Por uns minutos, a cidade parece só uma cidade vazia.', efeitos: [{ tipo: 'medo', valor: -2 }] },
+        { texto: 'Beber um dos copos', gesto: 'beber', resultado: 'Desce queimando. Por uns minutos, a cidade parece só uma cidade vazia.', efeitos: [{ tipo: 'medo', valor: -2 }] },
         { texto: 'Soltar a tecla do piano', resultado: 'A nota soa alta demais. No andar de cima, uma porta se fecha com calma.', efeitos: [{ tipo: 'medo', valor: 1 }, { tipo: 'marca', marca: 'tocou-piano' }] },
         { texto: 'Perguntar ao Tião o que houve', resultado: 'Ele enxuga o mesmo copo sem parar. "Servi os seis. Nenhum voltou do quintal." E passa a garrafa por cima do balcão.', requer: { npcs: ['barman'] }, efeitos: [{ tipo: 'relacao', npc: 'barman', valor: 1 }, { tipo: 'medo', valor: -1 }] },
       ],
@@ -317,20 +351,22 @@ export const EXEMPLO: Biblioteca = {
     {
       id: 'banco-cofre',
       lugares: ['banco'],
+      adereco: 'cofre',
       titulo: 'O cofre aberto',
       texto: 'A porta do cofre está escancarada e o dinheiro continua lá dentro, empilhado. No chão, marcas de quem foi puxado para fora pelos pés.',
       escolhas: [
         { texto: 'Seguir as marcas', resultado: 'Elas atravessam a grade do caixa, que ninguém abriu, e somem na parede dos fundos.', efeitos: [{ tipo: 'medo', valor: 2 }, { tipo: 'marca', marca: 'marcas-do-banco' }] },
-        { texto: 'Fechar o cofre', resultado: 'A porta pesa. O estalo do trinco é o primeiro som normal da noite.', efeitos: [{ tipo: 'medo', valor: -1 }] },
+        { texto: 'Fechar o cofre', gesto: 'fechar', resultado: 'A porta pesa. O estalo do trinco é o primeiro som normal da noite.', efeitos: [{ tipo: 'medo', valor: -1 }] },
       ],
     },
     {
       id: 'delegacia-cela',
       lugares: ['delegacia'],
+      adereco: 'chave',
       titulo: 'A cela trancada',
       texto: 'A cela está trancada por dentro, com a chave caída do lado de dentro da grade. No catre, um cobertor ainda com a forma de alguém.',
       escolhas: [
-        { texto: 'Pescar a chave pela grade', resultado: 'A chave vem, junto com um molho inteiro. Uma delas tem a etiqueta "banco".', efeitos: [{ tipo: 'marca', marca: 'molho-de-chaves' }, { tipo: 'abrir', lugar: 'banco' }] },
+        { texto: 'Pescar a chave pela grade', gesto: 'pegar', resultado: 'A chave vem, junto com um molho inteiro. Uma delas tem a etiqueta "banco".', efeitos: [{ tipo: 'marca', marca: 'molho-de-chaves' }, { tipo: 'abrir', lugar: 'banco' }] },
         { texto: 'Ler o livro de ocorrências', resultado: 'A última linha, de ontem: "Tranquei a mim mesmo. Se eu pedir para sair, não abram." Quem leu sente que mexeu no que não devia.', efeitos: [{ tipo: 'medo', valor: 1 }, { tipo: 'marca', marca: 'livro-do-xerife' }, { tipo: 'relacao', npc: 'xerife', valor: -1, alvo: 'quem-escolheu' }] },
         { texto: 'Chamar pelo xerife', resultado: 'Brandão sai dos fundos de espingarda na mão e baixa o cano devagar. "Gente viva. Esta noite ninguém sai de perto de mim."', requer: { npcs: ['xerife'] }, efeitos: [{ tipo: 'relacao', npc: 'xerife', valor: 1, alvo: 'quem-escolheu' }, { tipo: 'medo', valor: -1 }] },
       ],
@@ -338,10 +374,11 @@ export const EXEMPLO: Biblioteca = {
     {
       id: 'casarao-jantar',
       lugares: ['casarao'],
+      adereco: 'papel',
       titulo: 'Jantar para doze',
       texto: 'A mesa comprida está posta para doze. Onze pratos têm comida fria. O décimo segundo está limpo, com um guardanapo dobrado e um cartão.',
       escolhas: [
-        { texto: 'Ler o cartão', resultado: 'Está escrito, com letra caprichada: "para a visita". A tinta ainda mancha o dedo.', efeitos: [{ tipo: 'medo', valor: 2 }, { tipo: 'marca', marca: 'cartao-da-visita' }] },
+        { texto: 'Ler o cartão', gesto: 'ler', resultado: 'Está escrito, com letra caprichada: "para a visita". A tinta ainda mancha o dedo.', efeitos: [{ tipo: 'medo', valor: 2 }, { tipo: 'marca', marca: 'cartao-da-visita' }] },
         { texto: 'Subir para ver os quartos', resultado: 'Uma tábua da escada cede. A queda é curta, mas o tornozelo vira.', efeitos: [{ tipo: 'ferimento', valor: 1, alvo: 'quem-escolheu' }] },
         { texto: 'Falar com Dona Carlota', resultado: 'Ela não levanta os olhos do bordado. "Meu marido convidou a cidade inteira. Aqui dentro ninguém mexe com visita até a sobremesa."', requer: { npcs: ['viuva'] }, efeitos: [{ tipo: 'relacao', npc: 'viuva', valor: 1 }, { tipo: 'medo', valor: -1 }] },
       ],
@@ -370,21 +407,23 @@ export const EXEMPLO: Biblioteca = {
     {
       id: 'mina-vagonete',
       lugares: ['mina'],
+      adereco: 'lanterna',
       titulo: 'O vagonete voltou',
       texto: 'Um vagonete sai devagar da boca da mina, sozinho, e para no fim do trilho. Vem cheio de lanternas apagadas.',
       escolhas: [
-        { texto: 'Contar as lanternas', resultado: 'Dezenove. Em cada uma, um nome riscado a prego. O último risco ainda brilha.', efeitos: [{ tipo: 'medo', valor: 1 }, { tipo: 'marca', marca: 'contou-lanternas' }] },
+        { texto: 'Contar as lanternas', gesto: 'erguer', resultado: 'Dezenove. Em cada uma, um nome riscado a prego. O último risco ainda brilha.', efeitos: [{ tipo: 'medo', valor: 1 }, { tipo: 'marca', marca: 'contou-lanternas' }] },
         { texto: 'Entrar alguns passos no túnel', resultado: 'O teto baixa de repente. A pedra abre o couro da cabeça antes de dar tempo de recuar.', efeitos: [{ tipo: 'ferimento', valor: 1, alvo: 'quem-escolheu' }, { tipo: 'medo', valor: 1 }] },
       ],
     },
     {
       id: 'funeraria-encomenda',
       lugares: ['funeraria'],
+      adereco: 'papel',
       titulo: 'A encomenda',
       texto: 'Há caixões novos enfileirados, ainda cheirando a verniz. Um papel pregado na parede lista as medidas de cada um.',
       escolhas: [
-        { texto: 'Conferir as medidas', resultado: 'São tantos caixões quantas pessoas chegaram hoje à cidade. As alturas batem.', efeitos: [{ tipo: 'medo', valor: 2 }, { tipo: 'marca', marca: 'medidas-dos-caixoes' }] },
-        { texto: 'Rasgar o papel', resultado: 'O papel queima bem na chama do lampião. É bobagem, e mesmo assim alivia.', efeitos: [{ tipo: 'medo', valor: -1 }] },
+        { texto: 'Conferir as medidas', gesto: 'ler', resultado: 'São tantos caixões quantas pessoas chegaram hoje à cidade. As alturas batem.', efeitos: [{ tipo: 'medo', valor: 2 }, { tipo: 'marca', marca: 'medidas-dos-caixoes' }] },
+        { texto: 'Rasgar o papel', gesto: 'rasgar', resultado: 'O papel queima bem na chama do lampião. É bobagem, e mesmo assim alivia.', efeitos: [{ tipo: 'medo', valor: -1 }] },
       ],
     },
     {
@@ -400,11 +439,12 @@ export const EXEMPLO: Biblioteca = {
     {
       id: 'pensao-livro',
       lugares: ['pensao'],
+      adereco: 'livro',
       titulo: 'O livro de hóspedes',
       texto: 'O livro está aberto no balcão. A última página foi preenchida hoje, com os nomes de quem acabou de chegar à cidade. A letra é de outra pessoa.',
       escolhas: [
         { texto: 'Pegar a chave do quarto 3', resultado: 'A cama está feita e a bacia tem água limpa. Dez minutos de olho fechado valem por uma hora.', efeitos: [{ tipo: 'medo', valor: -2 }] },
-        { texto: 'Arrancar a página', resultado: 'Na página de baixo, os mesmos nomes, com a data de amanhã e uma cruz ao lado de cada um.', efeitos: [{ tipo: 'medo', valor: 2 }, { tipo: 'marca', marca: 'pagina-da-pensao' }] },
+        { texto: 'Arrancar a página', gesto: 'rasgar', resultado: 'Na página de baixo, os mesmos nomes, com a data de amanhã e uma cruz ao lado de cada um.', efeitos: [{ tipo: 'medo', valor: 2 }, { tipo: 'marca', marca: 'pagina-da-pensao' }] },
       ],
     },
     {
@@ -420,10 +460,11 @@ export const EXEMPLO: Biblioteca = {
     {
       id: 'botica-frascos',
       lugares: ['botica'],
+      adereco: 'copo',
       titulo: 'Os frascos',
       texto: 'Alguém tirou todos os frascos de calmante da prateleira e os alinhou no balcão, vazios. Sobrou um, pela metade.',
       escolhas: [
-        { texto: 'Tomar um gole do que sobrou', resultado: 'Amargo. As mãos param de tremer e o coração baixa.', efeitos: [{ tipo: 'medo', valor: -2, alvo: 'quem-escolheu' }] },
+        { texto: 'Tomar um gole do que sobrou', gesto: 'beber', resultado: 'Amargo. As mãos param de tremer e o coração baixa.', efeitos: [{ tipo: 'medo', valor: -2, alvo: 'quem-escolheu' }] },
         { texto: 'Fazer um curativo com o que houver', resultado: 'Gaze, iodo e esparadrapo. Não é bonito, mas segura.', efeitos: [{ tipo: 'ferimento', valor: -1 }] },
         { texto: 'Pedir ajuda ao Dr. Amâncio', resultado: 'Ele limpa os óculos na barra do jaleco. "Uma ferida de cada vez." Trabalha rápido e sem perguntas.', requer: { npcs: ['boticario'] }, efeitos: [{ tipo: 'ferimento', valor: -1 }, { tipo: 'medo', valor: -1 }, { tipo: 'relacao', npc: 'boticario', valor: 1 }] },
       ],
@@ -442,11 +483,12 @@ export const EXEMPLO: Biblioteca = {
     {
       id: 'telegrafo-fita',
       lugares: ['telegrafo'],
+      adereco: 'papel',
       titulo: 'A fita no chão',
       texto: 'O aparelho bate sozinho, sem ninguém na cadeira. A fita já fez um monte no chão.',
       escolhas: [
-        { texto: 'Ler a ponta da fita', resultado: 'A mesma mensagem, repetida até o fim do rolo: "não mandem ninguém, não mandem ninguém".', efeitos: [{ tipo: 'medo', valor: 1 }, { tipo: 'marca', marca: 'fita-do-telegrafo' }] },
-        { texto: 'Cortar o fio', resultado: 'O aparelho para. Sem aquele estalo, dá para pensar.', efeitos: [{ tipo: 'medo', valor: -1 }] },
+        { texto: 'Ler a ponta da fita', gesto: 'ler', resultado: 'A mesma mensagem, repetida até o fim do rolo: "não mandem ninguém, não mandem ninguém".', efeitos: [{ tipo: 'medo', valor: 1 }, { tipo: 'marca', marca: 'fita-do-telegrafo' }] },
+        { texto: 'Cortar o fio', gesto: 'rasgar', resultado: 'O aparelho para. Sem aquele estalo, dá para pensar.', efeitos: [{ tipo: 'medo', valor: -1 }] },
       ],
     },
     {
@@ -462,11 +504,12 @@ export const EXEMPLO: Biblioteca = {
     {
       id: 'celeiro-alcapao',
       lugares: ['celeiro'],
+      adereco: 'alcapao',
       titulo: 'O alçapão',
       texto: 'Debaixo do palheiro há um alçapão com cadeado novo. Alguma coisa bate nele por baixo, três pancadas, e para.',
       escolhas: [
-        { texto: 'Bater de volta', resultado: 'Três pancadas respondem na mesma hora. Depois, unhas, raspando a madeira de ponta a ponta.', efeitos: [{ tipo: 'medo', valor: 2 }, { tipo: 'marca', marca: 'bateu-no-alcapao' }] },
-        { texto: 'Arrastar um fardo para cima', resultado: 'O fardo pesa mais do que parece e as costas reclamam, mas as pancadas param.', efeitos: [{ tipo: 'medo', valor: -1 }, { tipo: 'marca', marca: 'alcapao-calcado' }] },
+        { texto: 'Bater de volta', gesto: 'bater', resultado: 'Três pancadas respondem na mesma hora. Depois, unhas, raspando a madeira de ponta a ponta.', efeitos: [{ tipo: 'medo', valor: 2 }, { tipo: 'marca', marca: 'bateu-no-alcapao' }] },
+        { texto: 'Arrastar um fardo para cima', gesto: 'cobrir', resultado: 'O fardo pesa mais do que parece e as costas reclamam, mas as pancadas param.', efeitos: [{ tipo: 'medo', valor: -1 }, { tipo: 'marca', marca: 'alcapao-calcado' }] },
       ],
     },
 
@@ -475,11 +518,12 @@ export const EXEMPLO: Biblioteca = {
       id: 'consagrado-arranhoes',
       lugares: 'qualquer',
       regras: ['chao-consagrado'],
+      adereco: 'terco',
       titulo: 'O terço no batente',
       texto: 'A porta está arranhada de alto a baixo, pelo lado de fora. Os arranhões param todos na mesma altura, onde alguém pendurou um terço num prego.',
       escolhas: [
         { texto: 'Olhar os arranhões de perto', resultado: 'No verso da porta, a lápis: "o sino bateu e ela largou a porta. Toda vez que bate, ela recua."', efeitos: [{ tipo: 'pista', pista: 'sino' }, { tipo: 'medo', valor: 1 }] },
-        { texto: 'Levar o terço', resultado: 'O prego sai fácil. Pendurado no pulso, o terço bate de leve a cada passo, e isso acalma.', efeitos: [{ tipo: 'medo', valor: -1 }, { tipo: 'marca', marca: 'tem-terco' }] },
+        { texto: 'Levar o terço', gesto: 'pegar', resultado: 'O prego sai fácil. Pendurado no pulso, o terço bate de leve a cada passo, e isso acalma.', efeitos: [{ tipo: 'medo', valor: -1 }, { tipo: 'marca', marca: 'tem-terco' }] },
       ],
     },
     {
@@ -498,11 +542,12 @@ export const EXEMPLO: Biblioteca = {
       id: 'consagrado-telegrafo',
       lugares: ['telegrafo', 'estacao'],
       regras: ['chao-consagrado'],
+      adereco: 'papel',
       titulo: 'A mensagem que não saiu',
       texto: 'Há um telegrama escrito e nunca enviado, preso debaixo de um peso de papel.',
       escolhas: [
-        { texto: 'Ler o telegrama', resultado: '"Padre tocou o sino a noite toda. Enquanto tocou, ela não passou da cerca. Às quatro, o braço dele cansou."', efeitos: [{ tipo: 'pista', pista: 'sino', para: 'presentes' }, { tipo: 'medo', valor: 1 }] },
-        { texto: 'Guardar sem ler', resultado: 'O papel vai para o bolso. Algumas coisas é melhor ler de dia.', efeitos: [{ tipo: 'marca', marca: 'telegrama-no-bolso' }] },
+        { texto: 'Ler o telegrama', gesto: 'ler', resultado: '"Padre tocou o sino a noite toda. Enquanto tocou, ela não passou da cerca. Às quatro, o braço dele cansou."', efeitos: [{ tipo: 'pista', pista: 'sino', para: 'presentes' }, { tipo: 'medo', valor: 1 }] },
+        { texto: 'Guardar sem ler', gesto: 'pegar', resultado: 'O papel vai para o bolso. Algumas coisas é melhor ler de dia.', efeitos: [{ tipo: 'marca', marca: 'telegrama-no-bolso' }] },
       ],
     },
     {
@@ -535,11 +580,12 @@ export const EXEMPLO: Biblioteca = {
       lugares: 'qualquer',
       regras: ['fareja-o-medo'],
       requer: { atos: [2, 3] },
+      adereco: 'livro',
       titulo: 'O caderno de capa preta',
       texto: 'Alguém esqueceu um caderno de capa preta, com uma lista de nomes. Alguns estão riscados e têm uma anotação ao lado.',
       escolhas: [
-        { texto: 'Ler as anotações', resultado: 'Ao lado de cada nome riscado: "chorou", "correu", "gritou". Ao lado dos que sobraram: "dormia", "bêbado", "rezava calmo". Na última página: "ela vem atrás de quem treme".', efeitos: [{ tipo: 'pista', pista: 'anotacao-do-medo' }] },
-        { texto: 'Procurar o próprio nome', resultado: 'Está lá, na última linha, ainda sem risco e sem anotação. A tinta é fresca.', efeitos: [{ tipo: 'medo', valor: 2 }] },
+        { texto: 'Ler as anotações', gesto: 'ler', resultado: 'Ao lado de cada nome riscado: "chorou", "correu", "gritou". Ao lado dos que sobraram: "dormia", "bêbado", "rezava calmo". Na última página: "ela vem atrás de quem treme".', efeitos: [{ tipo: 'pista', pista: 'anotacao-do-medo' }] },
+        { texto: 'Procurar o próprio nome', gesto: 'ler', resultado: 'Está lá, na última linha, ainda sem risco e sem anotação. A tinta é fresca.', efeitos: [{ tipo: 'medo', valor: 2 }] },
       ],
     },
     {
@@ -558,10 +604,11 @@ export const EXEMPLO: Biblioteca = {
       lugares: ['botica', 'pensao'],
       regras: ['fareja-o-medo'],
       requer: { npcs: ['boticario'] },
+      adereco: 'copo',
       titulo: 'A receita do doutor',
       texto: 'O Dr. Amâncio está contando gotas num copo, com a mão mais firme da cidade.',
       escolhas: [
-        { texto: 'Perguntar para quem é o remédio', resultado: '"Para mim. Calmante, toda noite, desde que entendi. Ela vem atrás de quem treme. Eu não tremo há seis meses." E oferece o copo.', efeitos: [{ tipo: 'pista', pista: 'anotacao-do-medo', para: 'presentes' }, { tipo: 'medo', valor: -1 }, { tipo: 'relacao', npc: 'boticario', valor: 1 }] },
+        { texto: 'Perguntar para quem é o remédio', gesto: 'beber', resultado: '"Para mim. Calmante, toda noite, desde que entendi. Ela vem atrás de quem treme. Eu não tremo há seis meses." E oferece o copo.', efeitos: [{ tipo: 'pista', pista: 'anotacao-do-medo', para: 'presentes' }, { tipo: 'medo', valor: -1 }, { tipo: 'relacao', npc: 'boticario', valor: 1 }] },
         { texto: 'Recusar e sair', resultado: 'Ele dá de ombros e bebe sozinho. Da porta, dá para ver que ele não olha para trás nem uma vez.', efeitos: [{ tipo: 'medo', valor: 1 }] },
       ],
     },
@@ -583,22 +630,24 @@ export const EXEMPLO: Biblioteca = {
       lugares: 'qualquer',
       regras: ['caca-o-sozinho'],
       requer: { atos: [2, 3] },
+      adereco: 'papel',
       titulo: 'A lista dos sumidos',
       texto: 'Pregada na parede, uma lista de desaparecidos, com a data e o lugar de cada um.',
       escolhas: [
-        { texto: 'Ler a lista inteira', resultado: 'Nunca dois na mesma noite. E em todas as linhas a mesma observação: "tinha saído sozinho", "ficou para trás", "foi buscar lenha".', efeitos: [{ tipo: 'pista', pista: 'nunca-dois' }] },
-        { texto: 'Procurar nomes conhecidos', resultado: 'O cocheiro da diligência é o último da lista. A data é de hoje.', efeitos: [{ tipo: 'medo', valor: 2 }, { tipo: 'marca', marca: 'cocheiro-na-lista' }] },
+        { texto: 'Ler a lista inteira', gesto: 'ler', resultado: 'Nunca dois na mesma noite. E em todas as linhas a mesma observação: "tinha saído sozinho", "ficou para trás", "foi buscar lenha".', efeitos: [{ tipo: 'pista', pista: 'nunca-dois' }] },
+        { texto: 'Procurar nomes conhecidos', gesto: 'ler', resultado: 'O cocheiro da diligência é o último da lista. A data é de hoje.', efeitos: [{ tipo: 'medo', valor: 2 }, { tipo: 'marca', marca: 'cocheiro-na-lista' }] },
       ],
     },
     {
       id: 'sozinho-xerife',
       lugares: ['delegacia', 'banco'],
       regras: ['caca-o-sozinho'],
+      adereco: 'gaveta',
       titulo: 'O diário do xerife',
       texto: 'Há um diário de capa de couro numa gaveta sem tranca.',
       escolhas: [
-        { texto: 'Ler as últimas páginas', resultado: '"Mandei os homens andarem em dupla e não perdi mais nenhum. Ela nunca levou dois de uma vez. Ontem o Vicente foi sozinho ao poço."', efeitos: [{ tipo: 'pista', pista: 'nunca-dois', para: 'presentes' }, { tipo: 'medo', valor: 1 }] },
-        { texto: 'Devolver à gaveta', resultado: 'Diário alheio não se lê. A gaveta fecha com um estalo que parece alto demais.', efeitos: [{ tipo: 'medo', valor: 1 }] },
+        { texto: 'Ler as últimas páginas', gesto: 'abrir', resultado: '"Mandei os homens andarem em dupla e não perdi mais nenhum. Ela nunca levou dois de uma vez. Ontem o Vicente foi sozinho ao poço."', efeitos: [{ tipo: 'pista', pista: 'nunca-dois', para: 'presentes' }, { tipo: 'medo', valor: 1 }] },
+        { texto: 'Devolver à gaveta', gesto: 'fechar', resultado: 'Diário alheio não se lê. A gaveta fecha com um estalo que parece alto demais.', efeitos: [{ tipo: 'medo', valor: 1 }] },
       ],
     },
     {
@@ -643,11 +692,12 @@ export const EXEMPLO: Biblioteca = {
       id: 'ato3-botas',
       lugares: 'qualquer',
       requer: { atos: [3], marcas: ['botas-na-cova'] },
+      adereco: 'botas',
       titulo: 'As botas de novo',
       texto: 'Em cima da mesa, um par de botas de viagem, limpas, com terra do cemitério na sola. São as mesmas que estavam no fundo da cova.',
       escolhas: [
-        { texto: 'Jogar as botas pela janela', resultado: 'Elas caem de pé na rua, viradas para a porta.', efeitos: [{ tipo: 'medo', valor: 2 }] },
-        { texto: 'Calçar para ver se servem', resultado: 'Servem. Quem calçou fica um tempo parado e depois ri, um riso curto, de quem desistiu de ter medo.', efeitos: [{ tipo: 'medo', valor: -2, alvo: 'quem-escolheu' }] },
+        { texto: 'Jogar as botas pela janela', gesto: 'jogar', resultado: 'Elas caem de pé na rua, viradas para a porta.', efeitos: [{ tipo: 'medo', valor: 2 }] },
+        { texto: 'Calçar para ver se servem', gesto: 'pegar', resultado: 'Servem. Quem calçou fica um tempo parado e depois ri, um riso curto, de quem desistiu de ter medo.', efeitos: [{ tipo: 'medo', valor: -2, alvo: 'quem-escolheu' }] },
       ],
     },
     {

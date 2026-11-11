@@ -59,8 +59,19 @@ export interface Condicao {
   medoMinimo?: number;
 }
 
+/**
+ * O objeto que aparece no ponto de investigacao enquanto a cena esta aberta.
+ * A tela sabe montar cada um (src/mundo/aderecos.ts).
+ */
+export type Adereco = 'retrato' | 'vela' | 'lanterna' | 'gaveta' | 'cofre' | 'alcapao' | 'livro' | 'papel' | 'copo' | 'chave' | 'terco' | 'botas';
+
+/** O que se ve acontecer com o adereco da cena quando uma escolha vence. */
+export type Gesto = 'virar' | 'abrir' | 'fechar' | 'acender' | 'apagar' | 'erguer' | 'bater' | 'cobrir' | 'pegar' | 'jogar' | 'ler' | 'rasgar' | 'beber';
+
 export interface Escolha {
   texto: string;
+  /** O que se ve no mundo quando esta escolha vence. Precisa de `adereco` no fragmento. */
+  gesto?: Gesto;
   /** O que acontece, mostrado depois da escolha. */
   resultado: string;
   /** Toda escolha precisa mexer em alguma coisa. */
@@ -73,6 +84,8 @@ export interface Fragmento {
   lugares: LugarId[] | 'qualquer';
   titulo: string;
   texto: string;
+  /** O objeto da cena, que aparece no ponto de investigacao e reage a escolha (ver `Escolha.gesto`). */
+  adereco?: Adereco;
   requer?: Condicao;
   /** Se informado, so entra quando a regra secreta da noite e uma destas. */
   regras?: string[];
@@ -134,6 +147,11 @@ export interface Npc {
   figura?: 'homem' | 'mulher' | 'crianca';
   /** O que ele diz quando falam com ele (E na pessoa). */
   falas?: Fala[];
+  /**
+   * O favor que ele pode pedir numa noite: uma caixa dele que ficou em outro lugar.
+   * `coisa` vem com artigo ("a caixa de costura"). As duas falas sao ditas em voz.
+   */
+  pedido?: { coisa: string; pede: string; agradece: string };
   /** O papel dele na historia da carta: ver `Carta`, no estado. */
   carta: {
     /** Provas de que NAO foi ele quem escreveu. Cada uma diz o nome dele e a razao. */
@@ -193,7 +211,7 @@ export interface Cena {
 
 export interface Registro {
   rodada: number;
-  tipo: 'gancho' | 'cena' | 'escolha' | 'pista' | 'pressagio' | 'ameaca' | 'lugar' | 'carta' | 'fim';
+  tipo: 'gancho' | 'cena' | 'escolha' | 'pista' | 'pressagio' | 'ameaca' | 'lugar' | 'carta' | 'cofre' | 'favor' | 'fim';
   texto: string;
   quem?: string[];
   lugar?: LugarId;
@@ -203,10 +221,10 @@ export interface Registro {
   privada?: boolean;
 }
 
-export type TipoDeAchado = 'querosene' | 'bilhete' | 'atadura' | 'tonico' | 'prova';
+export type TipoDeAchado = 'querosene' | 'bilhete' | 'atadura' | 'tonico' | 'prova' | 'encomenda';
 
-/** Quantos de cada coisa a noite espalha pelos lugares abertos. As provas dependem de quantos jogam. */
-export const ACHADOS_POR_NOITE: Record<Exclude<TipoDeAchado, 'prova'>, number> = { querosene: 3, bilhete: 1, atadura: 1, tonico: 2 };
+/** Quantos de cada coisa a noite espalha pelos lugares abertos. As provas dependem de quantos jogam, e a encomenda e do favor. */
+export const ACHADOS_POR_NOITE: Record<Exclude<TipoDeAchado, 'prova' | 'encomenda'>, number> = { querosene: 3, bilhete: 1, atadura: 1, tonico: 2 };
 /** Quanto de medo um tonico tira. */
 export const ALIVIO_DO_TONICO = 2;
 
@@ -216,6 +234,7 @@ export const ALIVIO_DO_TONICO = 2;
  * - bilhete: traz escrita uma pista da regra da noite, que vai para o grupo.
  * - atadura e tonico: vao para a bolsa de quem pegou, para usar quando quiser.
  * - prova: mostra que um dos suspeitos nao escreveu a carta. So quem pegou fica sabendo.
+ * - encomenda: a caixa que um NPC pediu de favor. Quem pegou leva ate ele (ver `Favor`).
  */
 export interface Achado {
   id: string;
@@ -230,7 +249,7 @@ export interface Achado {
   pista?: string;
   /** So na prova: o jogador encarregado de busca-la (qualquer um pode pegar). */
   dono?: string;
-  /** So na prova: o NPC que ela inocenta, e qual dos alibis dele ela e. */
+  /** Na prova: o NPC que ela inocenta, e qual dos alibis dele ela e. Na encomenda: o dono dela. */
   npc?: string;
   variante?: number;
 }
@@ -246,6 +265,36 @@ export interface Carta {
   suspeitos: string[];
   /** A quem cada jogador ja mostrou a carta. Cada um so mostra uma vez. */
   mostradas: { quem: string; npc: string }[];
+}
+
+/**
+ * O cofre de ferro da noite: um quebra-cabeca para o grupo. O segredo tem tres numeros, cada um
+ * riscado numa tabua em um lugar diferente. Quem chega perto de uma tabua anota o numero dela
+ * (so para si: o grupo junta os tres conversando). Os discos sao de todos: quem esta no lugar
+ * do cofre ve os outros girando.
+ */
+export interface Cofre {
+  lugar: LugarId;
+  /** Em qual movel do lugar o cofre esta. A tela escolhe entre os moveis que existem. */
+  vaga: number;
+  /** Os tres numeros, de 1 a 9. */
+  segredo: number[];
+  /** Onde os discos estao agora, de 0 a 9. */
+  discos: number[];
+  /** Onde cada numero do segredo esta riscado, e quem ja anotou. */
+  numeros: { lugar: LugarId; vaga: number; vistoPor: string[] }[];
+  aberto: boolean;
+  abertoPor?: string;
+  /** Quantas vezes puxaram a alavanca com o segredo errado. */
+  erros: number;
+}
+
+/** O favor da noite: alguem da cidade pede uma caixa que ficou em outro lugar (o achado `encomenda`). */
+export interface Favor {
+  npc: string;
+  entregue: boolean;
+  /** Quem entregou. */
+  por?: string;
 }
 
 /** Uma tarefa de um jogador nesta noite, do jeito que a tela mostra. Sai do estado. */
@@ -294,6 +343,10 @@ export interface Estado extends ComRng {
   /** As coisas espalhadas pela cidade nesta noite. */
   achados: Achado[];
   carta: Carta;
+  /** null: a noite nao tem lugares abertos bastantes para o quebra-cabeca. */
+  cofre: Cofre | null;
+  /** null: ninguem do elenco tem favor a pedir nesta noite. */
+  favor: Favor | null;
   diario: Registro[];
   fim: Fim | null;
 }

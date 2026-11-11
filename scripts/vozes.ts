@@ -59,7 +59,7 @@ function todasAsFalas(): Fala[] {
     if (!falas.some((f) => f.arquivo === arquivo)) falas.push({ quem, texto, arquivo });
   };
   for (const texto of pedacosDaNarracao(EXEMPLO)) por(NARRADOR, texto);
-  for (const npc of EXEMPLO.npcs) for (const texto of [...(npc.falas ?? []).map((f) => f.texto), npc.carta.confessa, npc.carta.nega]) por(npc.id, texto);
+  for (const npc of EXEMPLO.npcs) for (const texto of [...(npc.falas ?? []).map((f) => f.texto), npc.carta.confessa, npc.carta.nega, ...(npc.pedido ? [npc.pedido.pede, npc.pedido.agradece] : [])]) por(npc.id, texto);
   return falas;
 }
 
