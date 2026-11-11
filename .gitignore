@@ -5,3 +5,6 @@ capturas
 # Chaves e segredos locais
 .env
 .env.*
+
+# Copias de trabalho dos agentes
+.claude/worktrees/
