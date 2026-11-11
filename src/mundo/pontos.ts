@@ -14,6 +14,8 @@ export interface Ponto {
   z: number;
   /** Onde o jogador fica de pe para alcancar. */
   pe: [number, number];
+  /** Nao ha movel embaixo: o ponto flutua no corredor da porta (lugar sem nada que sirva de mesa). */
+  solto?: boolean;
 }
 
 const encolher = (r: Retangulo, m: number): Retangulo => ({ minX: r.minX + m, maxX: r.maxX - m, minZ: r.minZ + m, maxZ: r.maxZ - m });
@@ -70,9 +72,9 @@ export function pontosDoLugar(l: Lugar, solidos: readonly Solido[]): Ponto[] {
   for (const d of [3.5, 3, 2.5, 4.5, 2, 6, 1.5]) {
     const x = l.x - dx * d;
     const z = l.z - dz * d;
-    if (contem(dentro, x, z) && livre(x, z, 0, perto)) return [{ lugar: l.id, x, y: 1.15, z, pe: [x + dx * 0.9, z + dz * 0.9] }];
+    if (contem(dentro, x, z) && livre(x, z, 0, perto)) return [{ lugar: l.id, x, y: 1.15, z, pe: [x + dx * 0.9, z + dz * 0.9], solto: true }];
   }
-  return [{ lugar: l.id, x: porta[0], y: 1.15, z: porta[1], pe: porta }];
+  return [{ lugar: l.id, x: porta[0], y: 1.15, z: porta[1], pe: porta, solto: true }];
 }
 
 /** Qual ponto vale nesta hora. Muda a cada hora e a cada noite, e e sempre o mesmo para a mesma semente. */

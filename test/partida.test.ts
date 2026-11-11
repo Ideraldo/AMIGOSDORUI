@@ -342,8 +342,8 @@ test('a noite espalha as coisas pelos lugares abertos, sempre do mesmo jeito par
     }
     assert.ok(e.achados.every((a) => e.abertos.includes(a.lugar) && !a.pego));
     assert.equal(new Set(e.achados.map((a) => a.id)).size, e.achados.length);
-    // Com nove lugares abertos, cada coisa fica num lugar diferente (as provas tem a propria conta).
-    const coisas = e.achados.filter((a) => a.tipo !== 'prova');
+    // Com nove lugares abertos, cada coisa fica num lugar diferente (as provas e a caixa do favor tem a propria conta).
+    const coisas = e.achados.filter((a) => a.tipo !== 'prova' && a.tipo !== 'encomenda');
     assert.equal(new Set(coisas.map((a) => a.lugar)).size, coisas.length);
     const bilhete = e.achados.find((a) => a.tipo === 'bilhete')!;
     assert.ok(regraDe(e, EXEMPLO).pistas.includes(bilhete.pista!), 'o bilhete traz pista de outra regra');

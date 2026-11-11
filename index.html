@@ -781,6 +781,62 @@
       .painel.cena {
         bottom: 7vh;
       }
+      /* Resultado de escolha: menor e mais baixo, para o que acontece no mundo ficar a vista. */
+      .painel.cena.curta {
+        bottom: 4vh;
+        width: min(540px, 92vw);
+        padding: 12px 20px 10px;
+        font-size: 15px;
+        line-height: 1.4;
+      }
+      .painel.cena.curta p {
+        margin-bottom: 6px;
+      }
+      .painel.cena.curta .efeitos {
+        margin-top: 8px;
+      }
+      .painel.cena.curta .seguir {
+        margin-top: 8px;
+      }
+      /* Com gesto, o painel espera o gesto comecar antes de aparecer. */
+      .painel.depois-do-gesto {
+        animation: depois-do-gesto 0.5s ease-out 1.1s backwards;
+      }
+      @keyframes depois-do-gesto {
+        from {
+          opacity: 0;
+          transform: translateX(-50%) translateY(12px);
+        }
+      }
+      /* As missoes extras ficam no canto direito, abaixo da linha do "Agora". */
+      #noite .extras {
+        position: fixed;
+        top: 84px;
+        right: 20px;
+        width: 250px;
+      }
+      /* A linha de ajuda de quem esta mexendo no cofre de ferro. */
+      #cofre-dica {
+        bottom: 9vh;
+        left: 0;
+        right: 0;
+        text-align: center;
+        font-size: 16px;
+        opacity: 0;
+        transition: opacity 0.2s;
+      }
+      #cofre-dica b {
+        display: block;
+        margin-bottom: 8px;
+        font-size: 20px;
+        font-weight: normal;
+        letter-spacing: 0.12em;
+        color: var(--brasa);
+      }
+      #cofre-dica kbd {
+        margin-left: 10px;
+        margin-right: 6px;
+      }
       .painel.virada,
       .painel.fim {
         top: 50%;
@@ -928,6 +984,7 @@
     <div class="hud" id="lugar"></div>
     <div class="hud" id="agir"></div>
     <div class="hud" id="aviso"></div>
+    <div class="hud" id="cofre-dica"></div>
     <div class="hud" id="passo"></div>
     <div class="hud" id="titulo"></div>
     <div class="hud" id="legenda"></div>

@@ -20,7 +20,8 @@
     "sons": "tsx scripts/sons.ts",
     "vozes": "tsx scripts/vozes.ts",
     "sala": "tsx scripts/sala.ts",
-    "abertura": "tsx scripts/abertura.ts"
+    "abertura": "tsx scripts/abertura.ts",
+    "gestos": "tsx scripts/gestos.ts"
   },
   "dependencies": {
     "three": "^0.187.0"

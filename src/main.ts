@@ -16,6 +16,8 @@ import { ambiente } from './mundo/cenario.ts';
 import { construirCidade, descartarCidade, type Cidade } from './mundo/cidade.ts';
 import { Efeitos, type Sinal } from './interface/efeitos.ts';
 import { PartidaNaTela } from './interface/partidaNaTela.ts';
+import { Palco } from './interface/palco.ts';
+import { criarCaixa } from './mundo/cofreDeFerro.ts';
 import { FIGURANTES, LIMITES, LUGARES, contem, direcao, lugarPorId, pegada, type LugarId } from './mundo/planta.ts';
 import { Voz } from './som/voz.ts';
 import { MISSAO, NARRADOR, QUEM_FICOU, narrar, narrarGancho } from './nucleo/narracao.ts';
@@ -105,6 +107,15 @@ declare global {
       /** Comeca a abertura sem esperar o mouse preso, e fala com um NPC. Para os scripts. */
       abrir: () => void;
       falar: (npc: string) => string;
+      /** O que o palco pos no mundo: aderecos das cenas, o cofre de ferro, as tabuas e a caixa entregue. */
+      palco: () => ReturnType<Palco['depurar']>;
+      /** Poe as maos no cofre e entrega a caixa do favor, sem depender da mira. */
+      mexerNoCofre: () => void;
+      entregar: () => void;
+      /** O ponto de investigacao de um lugar aberto nesta hora, mesmo ja investigado. */
+      pontoDaCena: (lugar: LugarId) => Ponto | null;
+      /** Abre a cena de um fragmento no lugar em que o jogador esta (so sozinho). */
+      encenar: (fragmento: string) => boolean;
     };
   }
 }
@@ -202,7 +213,8 @@ const olhar = new THREE.Vector3();
 
 /** O ponto que vale agora num lugar, se ainda ha o que investigar la. */
 function pontoAtual(id: LugarId, pendentes: readonly LugarId[]): Ponto | null {
-  const pontos = pontosPorLugar.get(id);
+  // O movel em que o cofre ou uma tabua estao nao serve para investigar.
+  const pontos = palco.pontosDeInvestigar(id);
   if (!pontos || !pendentes.includes(id)) return null;
   return pontoDaHora(pontos, partida.estado.semente, partida.estado.rodada, LUGARES.findIndex((l) => l.id === id));
 }
@@ -240,7 +252,7 @@ function atualizarMarcas(t: number): void {
 }
 
 // As coisas da noite: objetos pequenos em cima dos moveis, cada um com um reflexo frio para chamar o olho.
-const NOME_DO_ACHADO: Record<Achado['tipo'], string> = { querosene: 'pegar o querosene', bilhete: 'ler o bilhete', atadura: 'pegar a atadura', tonico: 'pegar o tônico', prova: 'examinar a prova' };
+const NOME_DO_ACHADO: Record<Achado['tipo'], string> = { querosene: 'pegar o querosene', bilhete: 'ler o bilhete', atadura: 'pegar a atadura', tonico: 'pegar o tônico', prova: 'examinar a prova', encomenda: 'pegar a caixa' };
 const materialDoReflexo = new THREE.SpriteMaterial({ map: materialDaMarca.map, color: 0xbfd8ff, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.8 });
 const objetos = new Map<string, THREE.Group>();
 
@@ -265,6 +277,9 @@ function modeloDoAchado(tipo: Achado['tipo']): THREE.Group {
     // Papel dobrado com um lacre vermelho, para nao se confundir com o bilhete.
     peca(new THREE.BoxGeometry(0.24, 0.012, 0.16), 0xd9c9a0, 0, 0.006, 0).rotation.y = -0.3;
     peca(new THREE.CylinderGeometry(0.028, 0.028, 0.012, 10), 0xb3261e, 0, 0.018, 0);
+  } else if (tipo === 'encomenda') {
+    // A caixa do favor, amarrada com fita.
+    g.add(criarCaixa());
   } else if (tipo === 'atadura') {
     // Rolo de pano deitado, com a ponta solta.
     peca(new THREE.CylinderGeometry(0.045, 0.045, 0.08, 12), 0xf1ede2, 0, 0.045, 0).rotation.x = Math.PI / 2;
@@ -321,7 +336,7 @@ function atualizarAchados(t: number): void {
 
   // Um aviso so para as tres coisas: pegar vem antes de investigar, e investigar antes de conversar.
   const pegavel = aoAlcance as Achado | null;
-  const texto = pegavel ? NOME_DO_ACHADO[pegavel.tipo] : alvo ? 'investigar' : interlocutor ? `falar com ${interlocutor.nome}${podeMostrarA(interlocutor.id) ? ' <kbd>V</kbd>mostrar a carta' : ''}` : '';
+  const texto = pegavel ? NOME_DO_ACHADO[pegavel.tipo] : alvo ? 'investigar' : palco.cofreAoAlcance ? 'mexer no cofre' : interlocutor && partida.podeEntregarA(interlocutor.id) ? `entregar a caixa a ${interlocutor.nome}` : interlocutor ? `falar com ${interlocutor.nome}${podeMostrarA(interlocutor.id) ? ' <kbd>V</kbd>mostrar a carta' : ''}` : '';
   if (texto !== textoDoAgir) {
     textoDoAgir = texto;
     if (texto) elAgir.innerHTML = `<kbd>E</kbd>${texto}`;
@@ -363,6 +378,18 @@ const partida = new PartidaNaTela(EXEMPLO, semente, { abertos: abertosForcados, 
 });
 montarCidade(partida.estado.abertos);
 partidaPronta = true;
+// O que a partida tem para ser visto: aderecos das cenas, cofre de ferro, tabuas e a caixa do favor.
+const palco = new Palco({
+  cena,
+  camera,
+  jogador,
+  partida,
+  bib: EXEMPLO,
+  pontos: (lugar) => pontosPorLugar.get(lugar),
+  livre: (x, z) => !!cidade && livre(x, z, 0, cidade.solidos, 0.75),
+  tocar: (nome, op) => som.tocar(nome, op),
+  npc: (id) => (gente.get(id)?.visible ? gente.get(id)! : null),
+});
 
 function novaNoite(): void {
   // Numa sala, quem decide outra noite e o dono, pelo servidor.
@@ -538,6 +565,10 @@ rede.aoAviso = (aviso) => {
           pegar: (id) => rede.enviar({ t: 'pegar', id }),
           usar: (tipo) => rede.enviar({ t: 'usar', tipo }),
           mostrar: (npc) => rede.enviar({ t: 'mostrar', npc }),
+          anotar: (numero) => rede.enviar({ t: 'anotar', numero }),
+          disco: (disco, passo) => rede.enviar({ t: 'disco', disco, passo }),
+          alavanca: () => rede.enviar({ t: 'alavanca' }),
+          entregar: () => rede.enviar({ t: 'entregar' }),
           virar: () => rede.enviar({ t: 'virar' }),
           outra: () => rede.enviar({ t: 'outra' }),
         });
@@ -744,6 +775,8 @@ document.addEventListener('keydown', (e) => {
   else if (e.code === 'KeyG') guiasLigadas = !guiasLigadas;
   else if (e.code === 'KeyE' && aoAlcance) partida.pegar(aoAlcance.id);
   else if (e.code === 'KeyE' && alvo) partida.investigar(alvo.lugar);
+  else if (e.code === 'KeyE' && palco.cofreAoAlcance && !e.repeat) partida.mexerNoCofre();
+  else if (e.code === 'KeyE' && interlocutor && !e.repeat && partida.podeEntregarA(interlocutor.id)) partida.entregarA(interlocutor.id);
   else if (e.code === 'KeyE' && interlocutor && !e.repeat) falarCom(interlocutor.id);
   else if (e.code === 'KeyV' && interlocutor && !e.repeat && !aoAlcance && !alvo) mostrarCartaA(interlocutor.id);
   if (e.code === 'KeyF' && !e.repeat && partida.semQuerosene) partida.avisar('O lampião está seco. Há latas de querosene pelos lugares abertos.', 4500);
@@ -843,6 +876,11 @@ window.__depurar = {
   abrir: () => comecarAbertura(),
   falar: (npc) => falarCom(npc),
   mostrarCarta: (npc) => partida.mostrarCarta(npc),
+  palco: () => palco.depurar(),
+  mexerNoCofre: () => partida.mexerNoCofre(),
+  pontoDaCena: (lugar) => palco.pontoDaCena(lugar),
+  encenar: (fragmento) => partida.encenar(fragmento),
+  entregar: () => partida.entregarA(partida.estado.favor?.npc ?? ''),
 };
 
 // ---------- conversa com a gente da cidade ----------
@@ -851,7 +889,9 @@ window.__depurar = {
 function falarCom(id: string): string {
   const npc = EXEMPLO.npcs.find((n) => n.id === id);
   if (!npc) return '';
-  const falas = falasDoNpc(partida.estado, EXEMPLO, id, partida.eu);
+  // Quem tem um favor a pedir pede antes de qualquer outra conversa.
+  const pedido = partida.pedidoDe(id);
+  const falas = [...(pedido ? [{ texto: pedido }] : []), ...falasDoNpc(partida.estado, EXEMPLO, id, partida.eu)];
   let jaDisse = ditas.get(id);
   if (!jaDisse) ditas.set(id, (jaDisse = new Set()));
   // Disse tudo o que tinha: comeca de novo.
@@ -1020,8 +1060,12 @@ function atualizarGente(t: number): void {
     const pontos = casa ? pontosPorLugar.get(casa) : undefined;
     let pessoa = gente.get(npc.id);
     // Fica num movel do lugar que nao tenha nada para o jogador mexer nesta hora.
-    const ocupados = new Set<Ponto | null>([casa ? pontoAtual(casa, pendentes) : null, ...partida.estado.achados.filter((a) => !a.pego && a.lugar === casa).map(vagaDoAchado)]);
-    const livres = pontos?.filter((p) => !ocupados.has(p)) ?? [];
+    // O ponto da hora continua contando depois de investigado: e la que o adereco da cena fica.
+    const ocupados = new Set<Ponto | null>([casa ? pontoAtual(casa, pendentes) : null, casa ? palco.pontoDaCena(casa) : null, ...partida.estado.achados.filter((a) => !a.pego && a.lugar === casa).map(vagaDoAchado)]);
+    const semCoisa = pontos?.filter((p) => !ocupados.has(p)) ?? [];
+    // De preferencia longe do cofre e das tabuas, se sobrar onde ficar.
+    const longe = casa ? semCoisa.filter((p) => !palco.ocupados(casa).includes(p)) : [];
+    const livres = longe.length ? longe : semCoisa;
     if (!casa || !partida.estado.elenco.includes(npc.id) || livres.length === 0 || partida.estado.fim) {
       if (pessoa) pessoa.visible = false;
       return;
@@ -1141,6 +1185,7 @@ function quadro(): void {
   // O relogio da noite so anda com o jogo em foco e depois da abertura. Camera presa (capturas) nao joga.
   // Na plataforma de espera nao ha noite nenhuma: nem relogio, nem lugares, nem ameaca.
   if (!cam && !emEspera) partida.atualizar(dt, jogador.posicao.x, jogador.posicao.z, jogador.travado && !abertura);
+  palco.atualizar(dt, t);
   // O que a partida faz sentir: luzes que falham, lampiao nervoso, tranco, neblina e amanhecer.
   const eu = medidoresForcados ?? partida.personagem;
   const fx = efeitos.atualizar(dt, eu.medo, eu.ferimento);

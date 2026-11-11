@@ -7,6 +7,8 @@
 //   novaPartida -> (entrar -> escolher)* -> passarRodada -> ... -> estado.fim preenchido
 
 import { LUGARES, LUGARES_ABERTOS_POR_NOITE, type LugarId } from '../mundo/planta.ts';
+import { validarGestos } from './gestos.ts';
+import { prepararMissoes, validarPedidos } from './missoes.ts';
 import { embaralhar, escolher as sortear, ponderado, proximo, type ComRng } from './rng.ts';
 import {
   ACHADOS_POR_NOITE,
@@ -73,6 +75,8 @@ export function novaPartida(bib: Biblioteca, semente: number, jogadores: readonl
     aFechar: [],
     achados: [],
     carta: { autor: '', suspeitos: [], mostradas: [] },
+    cofre: null,
+    favor: null,
     diario: [],
     fim: null,
   };
@@ -107,6 +111,7 @@ export function novaPartida(bib: Biblioteca, semente: number, jogadores: readonl
   }
   e.achados = espalharAchados(e, regra);
   prepararCarta(e, bib);
+  prepararMissoes(e, bib);
   e.diario.push({ rodada: 1, tipo: 'gancho', texto: `${gancho.titulo}. ${gancho.texto}` });
   return e;
 }
@@ -776,6 +781,7 @@ export function validarBiblioteca(bib: Biblioteca): string[] {
       if (f.regras && f.para !== 'bem') erros.push(`npc ${n.id}: fala de regra precisa de para: 'bem'`);
     }
   }
+  erros.push(...validarGestos(bib), ...validarPedidos(bib));
   for (const g of bib.ganchos) if ([g.titulo, g.texto, ...(g.abertura ?? [])].join('').includes('—')) erros.push(`gancho ${g.id}: texto com travessao`);
   // Toda noite precisa de cena em qualquer lugar: fragmentos sem lugar, sem regra e sem requisito.
   const coringas = bib.fragmentos.filter((f) => f.lugares === 'qualquer' && !f.regras && !f.ganchos && !f.requer);
