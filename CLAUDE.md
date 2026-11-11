@@ -22,6 +22,7 @@ npm run simular    # bots jogam centenas de noites: sobrevivencia, descoberta e 
 npm run partida    # joga uma noite inteira pelo teclado num Chrome sem janela (leva minutos)
 npm run sala       # poe dois navegadores na mesma sala e confere o jogo em grupo
 npm run abertura   # confere a abertura narrada da noite e a conversa com um NPC
+npm run gestos     # confere aderecos e gestos das cenas, o cofre de ferro e o favor (uns 12 minutos; aceita filtro: npm run gestos -- retrato cofre)
 npm run dev:rede   # como o dev, mas aberto para quem esta na mesma rede
 npm run planta     # regenera docs/planta.*
 npm run sons       # gera na ElevenLabs os sons que faltam em public/sons/ (gasta credito da conta dele)
@@ -98,7 +99,7 @@ No fim de `construirCidade`, `fundir` troca as milhares de caixas e cilindros de
 - Pista pode ser do grupo (padrão) ou só de quem estava na cena (`para: 'presentes'`). A pista privada fica em `personagem.pistas` até a pessoa usar `contar`. `sabeARegra` é por personagem, e o epílogo de cada um depende disso.
 - O núcleo aceita vários personagens e várias cenas ao mesmo tempo. A tela mostra um deles (`partida.eu`), sozinho ou numa sala.
 - A regra secreta é dado: `alvo` diz quem a ameaça alcança na virada (`sozinho`, `fora-de-abrigo`, `mais-medo`). Tipo novo de regra entra em `AlvoDaAmeaca`, em `naMira` e em `comoEscapar`.
-- Objetivos (`objetivos` em `partida.ts`) saem do estado, não são guardados: investigar `LUGARES_PARA_EXPLORAR` lugares, juntar as pistas da regra e ver o sol nascer. O terceiro só diz como escapar (`comoEscapar`) depois que o personagem entendeu a regra. Missões próprias de cada história ainda não existem.
+- Objetivos (`objetivos` em `partida.ts`) saem do estado, não são guardados: achar quem escreveu a carta, juntar as pistas da regra e ver o sol nascer. O terceiro só diz como escapar (`comoEscapar`) depois que o personagem entendeu a regra. As missões extras (cofre e favor) estão em `missoes.ts`.
 - O último sino: na virada da última rodada a ameaça ataca sempre e o golpe vale `DANO_DO_ULTIMO_SINO` (2). É o confronto final decidido em 10/11/2026. Quem segue a regra não é tocado. Depois de mexer nisso, olhe o `npm run simular`: ao acaso sobrevive-se de 10% a 33%, conhecendo a regra, 100%.
 - Lugares abrem e fecham só na virada da rodada (`aAbrir`, `aFechar`). A tela refaz a cidade e tira o jogador de dentro de um lugar que fechou.
 - Toda biblioteca tem de passar em `validarBiblioteca`: escolha sem efeito, pista sem cena que a entregue em qualquer noite, id solto e travessão no texto são reprovados.
@@ -118,9 +119,36 @@ No fim de `construirCidade`, `fundir` troca as milhares de caixas e cilindros de
 - `partidaNaTela.ts` não aplica regra direto: pede a um `Condutor` (o local, com as regras ali mesmo, ou o da sala, que manda pela rede) e depois **reage** ao estado novo em `reagir(antes, novo)`, comparando os dois. Efeito novo de tela entra em `reagir`, nunca no ponto em que o jogador pediu, senão não acontece para quem está na sala.
 - Numa sala o relógio é do servidor e não para em painel. Sozinho, continua parando.
 - O id do jogador é `partida.eu` (sozinho, `'voce'`). Não use `personagens[0]`: use `partida.personagem`.
-- Os outros jogadores são figuras de `gente.ts` criadas em `main.ts` (`outros`), fora da cidade fundida, com uma luz pontual que vale zero quando o lampião está apagado.
+- Os outros jogadores e o próprio são `Personagem` (`src/mundo/personagem.ts`, figura articulada), criados em `main.ts` fora da cidade fundida. `gente.ts` ficou só para os NPCs. A figura dos outros tem uma luz pontual que vale zero com o lampião apagado. A do próprio jogador não tem luz (`eu.luz.removeFromParent()`): luz que aparece e some faz o Three.js recompilar os shaders.
+- `Presenca.aparencia` é a aparência criada na tela de entrada (`src/interface/criador.ts`, guardada em `sessionStorage` e `localStorage`). `Pose` leva também `gesto` e `espia`, e `giro` é o do corpo. O servidor limpa o que recebe com `limparAparencia` e `limparPose` (`src/rede/aparencia.ts`). Opção nova de aparência entra nas listas de `aparencia.ts` e em `criarPersonagem`. Gesto novo de jogador entra em `GESTOS`, `NOME_DO_GESTO` e `poseDoGesto`.
+- Sala de espera (pedido do Ideraldo em 11/11/2026): antes de a noite começar, todos ficam na plataforma, ao lado do trem (`src/mundo/espera.ts`). É um cenário à parte, que só existe durante a espera: fica fora da fusão e do `npm run colisao`, com sólidos escritos à mão. Durante a espera (`emEspera`) `partida.atualizar` não roda e a posição já é repassada. O dono começa com Enter duas vezes. Mexeu ali: `npm run sala` e olhar as capturas.
+- `npm run sala` roda com `?abertura=0` e aceita `PORTA=` no ambiente. Dois scripts de Chrome ao mesmo tempo derrubam um ao outro.
 - O `npm run sala` depende de tempo. Não confira coisa que some sozinha da tela (legenda, aviso): confira o estado ou o texto que fica.
 - No Windows os scripts que abrem o Chrome precisam de `CHROME` apontando para o `chrome.exe`.
+
+## Movimento e gestos do jogador
+
+- Pedido do Ideraldo em 11/11/2026: mais mecânicas de movimento, danças. Existem: oito gestos e danças (segurar B e apertar 1 a 8, na espera os números valem direto), terceira pessoa (P, e sozinha durante um gesto), espiar pelo canto (Z e X, a meia velocidade e sem som de passo) e fôlego na corrida (constantes no topo de `jogador.ts`, chute a calibrar com ele).
+- Terceira pessoa: `jogador.vistoDeFora` e `recuo` (`src/jogador/terceira.ts`, puro e testado), que para a câmera antes da parede. A mira e o E continuam valendo pela câmera recuada: é para se ver, não para jogar o tempo todo.
+- Gesto de jogador não vale em cena, no cofre nem na abertura (`fazerGesto` em `main.ts`). Não confundir com o gesto das escolhas, abaixo.
+
+## Escolhas que se veem: adereços e gestos das cenas
+
+- O Ideraldo reclamou, em 11/11/2026, que escolhia "virar o retrato" e não via retrato nenhum virando. Toda escolha que mexe numa coisa tem de mostrar a coisa se mexendo.
+- `Fragmento.adereco` diz que objeto aparece no ponto de investigação e `Escolha.gesto` diz o que acontece com ele. São dado da biblioteca. `GESTOS_DO_ADERECO` (`src/nucleo/gestos.ts`) diz o que cada adereço sabe fazer, e `validarBiblioteca` reprova gesto sem adereço, gesto que o adereço não sabe e adereço sem escolha com gesto.
+- Adereço novo: `Adereco`, `GESTOS_DO_ADERECO` e `MONTAR` (`src/mundo/aderecos.ts`). Gesto novo: `Gesto`, `SOM_DO_GESTO` (`palco.ts`) e `posar`.
+- Regra do palco: `src/interface/palco.ts` não recebe evento. Lê o estado a cada quadro (`cenasNoMundo`, `estado.cofre`, `estado.favor`) e só anima o que é novo. Coisa nova que precise ser vista no mundo entra ali, derivada do estado, senão não aparece para os outros na sala nem para quem chega depois.
+- O adereço fica no ponto de investigação da hora (`palco.pontoDaCena`) e continua lá, como ficou, até a hora virar. Com gesto, o painel de resultado é curto (`.painel.cena.curta`) e espera 1,1 s.
+- `npm run gestos` confere tudo isso e guarda `capturas/gestos-*.png`. `__depurar`: `palco()`, `pontoDaCena(lugar)`, `encenar(fragmento)` (só sozinho), `mexerNoCofre()`, `entregar()`.
+
+## Missões extras: o cofre de ferro e o favor
+
+- Regras em `src/nucleo/missoes.ts`, estado em `Estado.cofre` e `Estado.favor`, intenções `anotar`, `disco`, `alavanca` e `entregar`. Aparecem no bloco "Missões extras", no canto direito.
+- Cofre: num lugar aberto, com segredo de 3 números, cada um riscado numa tábua em outro lugar. Chegar perto da tábua anota o número só para aquele jogador, de propósito, para o grupo conversar. Os discos são estado da sala. Segredo errado dá medo +1 a quem puxou. Certo: pista da regra para o grupo e uma atadura.
+- Favor: um NPC do elenco perdeu uma caixa (`Npc.pedido`), que é o achado `encomenda`. Devolver dá confiança +2 (destrava as falas `para: 'bem'`, inclusive a dica da regra), um tônico e medo -1.
+- Esses números foram decididos sem o Ideraldo. Se ele pedir, mude ali.
+- `POUCO_MOVEL` (`banco`, `mina`) lista os lugares com um móvel só, que não recebem cofre nem tábua. Se um interior mudar, reveja a lista. O ponto de investigar pula os móveis do cofre e das tábuas (`palco.pontosDeInvestigar`).
+- Os bots do `simular` não usam cofre nem favor.
 
 ## Investigar (tecla E)
 
@@ -204,7 +232,7 @@ No fim de `construirCidade`, `fundir` troca as milhares de caixas e cilindros de
 - Nenhum modelo de IA gera texto durante a partida. A história vem de uma biblioteca pronta, feita antes.
 - Não troque de motor, não acrescente framework de interface e não traga modelos 3D prontos sem combinar com o Ideraldo.
 - Pulo e agachar existem desde 10/11/2026, a pedido do Ideraldo. Agachar ainda não tem uso na história: a ideia é servir para se esconder da ameaça.
-- Ainda faltam, na ordem de `docs/plano.md`: o resto do multiplayer (contar pista, chamados, assombração, reentrada e hospedagem, que o Ideraldo quer online), conversa com os NPCs, chaves e quartos trancados, missões da história, ameaça que se move e menu.
+- Ainda faltam, na ordem de `docs/plano.md`: o resto do multiplayer (contar pista, chamados, assombração, reentrada e hospedagem, que o Ideraldo quer online), chaves e quartos trancados, ameaça que se move e menu.
 - O Ideraldo cogita virar executável de PC se o navegador pesar. Em 10/11/2026 não pesava: 60 FPS travados na RTX 2060, com folga de 98 a 230 FPS sem limite (ver `docs/teste-2026-11-10.md`). Se um dia for preciso, empacotar com Electron ou Tauri aproveita o mesmo código.
 - Quartos trancados dos sobrados (2, 4 e 6 do bar, 2 da pensão, dois do casarão) estão vazios por dentro. São reserva para a história abrir depois.
 - Os textos de cartazes e placas (avisos, quadro da escola, linhas do telégrafo) são ambientação inventada no cenário, não história oficial. Quando o roteiro existir, eles devem passar a vir dele.

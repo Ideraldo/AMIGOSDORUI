@@ -30,9 +30,10 @@ Abra o endereço que aparecer no terminal (normalmente http://localhost:5173) e 
 
 O servidor de salas roda junto com o `npm run dev`, na mesma porta. Para testar sozinho, abra o jogo em duas janelas. Para jogar com quem está na mesma rede, rode `npm run dev:rede` e passe o endereço de rede que aparecer no terminal.
 
-1. Na tela de entrada, escreva o nome e clique em **Criar sala**. Aparece um código de 4 letras.
-2. Os outros escrevem o nome, o código e clicam em **Entrar na sala** (até 6 pessoas).
-3. Quem criou clica em **Começar a noite**. Depois disso ninguém mais entra.
+1. Na tela de entrada, monte o seu personagem (corpo, chapéu, rosto, pele, casaco e lenço, com a prévia girando ao lado), escreva o nome e clique em **Criar sala**. Aparece um código de 4 letras.
+2. Os outros montam o personagem deles, escrevem o nome, o código e clicam em **Entrar na sala** (até 6 pessoas).
+3. Todos esperam juntos na plataforma, ao lado do trem de socorro. Dá para andar, acenar e dançar enquanto a turma chega. O código fica no alto da tela.
+4. Quem criou aperta **Enter** duas vezes (a segunda confirma) para começar a noite. Depois disso ninguém mais entra.
 
 Na sala o relógio é de todos e não para durante as cenas. Quem aperta E chama a cena para todos que estão no lugar, e o voto fecha em 30 segundos. Só quem criou a sala adianta a hora (N) e pede outra noite (R). Ainda não há hospedagem na internet: por enquanto é mesma máquina ou mesma rede.
 
@@ -40,10 +41,14 @@ Na sala o relógio é de todos e não para durante as cenas. Quem aperta E chama
 | --- | --- |
 | WASD ou setas | andar |
 | Mouse | olhar |
-| Shift | correr |
+| Shift | correr (gasta fôlego, que volta sozinho) |
 | Espaço | pular (sobe em mesa, caixote e cama) |
 | C (segurando) | agachar |
-| E | investigar o que brilha dentro dos lugares e pegar o que achar |
+| Z / X (segurando) | espiar pelo canto, à esquerda e à direita, sem fazer barulho |
+| B (segurando) + 1 a 8 | gestos e danças: acenar, apontar, chamar, sentar, tirar o chapéu, sapateado, quadrilha, comemorar. Na sala de espera, 1 a 8 direto |
+| P | ver o personagem de fora (terceira pessoa) |
+| E | investigar o que brilha dentro dos lugares, pegar o que achar, falar com quem está na frente, mexer no cofre de ferro e entregar a caixa do favor |
+| No cofre: A / D, W / S, Espaço, E | escolher o disco, girar, puxar a alavanca, largar |
 | Q | usar a atadura da bolsa |
 | T | beber o tônico da bolsa |
 | F | acender ou apagar o lampião |
