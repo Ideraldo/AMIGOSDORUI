@@ -291,7 +291,7 @@
         inset: 0;
         display: grid;
         place-items: center;
-        background: radial-gradient(ellipse at center, rgba(10, 8, 6, 0.55), rgba(3, 3, 5, 0.92));
+        background: radial-gradient(ellipse at center, rgba(10, 8, 6, 0.86), rgba(3, 3, 5, 0.95));
         cursor: pointer;
         text-align: center;
         /* Em tela baixa a entrada rola, para a sala nunca ficar cortada. */
@@ -300,7 +300,7 @@
       }
       #entrada h1 {
         margin: 0;
-        font-size: clamp(34px, 6vw, 68px);
+        font-size: clamp(30px, 5vw, 56px);
         letter-spacing: 0.08em;
         font-weight: normal;
       }
@@ -310,14 +310,14 @@
         opacity: 0.85;
       }
       #entrada .entrar {
-        margin-top: 34px;
+        margin-top: 20px;
         color: var(--brasa);
         letter-spacing: 0.2em;
         text-transform: uppercase;
         font-size: 14px;
       }
       #sala {
-        margin: 28px auto 0;
+        margin: 16px auto 0;
         width: fit-content;
         cursor: default;
         font-size: 14px;
@@ -349,6 +349,190 @@
         text-transform: uppercase;
         font-size: 12px;
         opacity: 0.7;
+      }
+      /* Criar o personagem: a previa em 3D de um lado, as escolhas do outro. */
+      #criador {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 18px;
+        margin: 12px auto 0;
+        width: fit-content;
+        padding: 8px 18px;
+        border: 1px solid #5a4a36;
+        background: rgba(8, 6, 5, 0.55);
+        cursor: default;
+        font-size: 14px;
+        text-align: left;
+      }
+      #criador canvas {
+        width: 190px;
+        height: 250px;
+        display: block;
+      }
+      #criador .titulo-da-sala {
+        letter-spacing: 0.25em;
+        text-transform: uppercase;
+        font-size: 12px;
+        opacity: 0.7;
+        margin-bottom: 4px;
+      }
+      #criador .opcao {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-top: 6px;
+      }
+      #criador .opcao > span {
+        width: 104px;
+        opacity: 0.8;
+      }
+      #criador .opcao b {
+        min-width: 92px;
+        text-align: center;
+        font-weight: normal;
+        color: var(--brasa);
+      }
+      #criador input,
+      #criador button {
+        padding: 5px 10px;
+        border: 1px solid #5a4a36;
+        background: rgba(8, 6, 5, 0.7);
+        color: var(--papel);
+        font: inherit;
+      }
+      #criador button {
+        cursor: pointer;
+      }
+      #criador button:hover {
+        border-color: var(--brasa);
+      }
+      #criador #sala-nome {
+        width: 168px;
+      }
+      #criador #sala-nome.falta {
+        border-color: #e2553f;
+      }
+      #criador .cores {
+        display: flex;
+        gap: 4px;
+      }
+      #criador .cores button {
+        width: 21px;
+        height: 21px;
+        padding: 0;
+        border-radius: 50%;
+        border: 2px solid rgba(0, 0, 0, 0.6);
+      }
+      #criador .cores button.escolhida {
+        border-color: var(--papel);
+        box-shadow: 0 0 0 2px var(--brasa);
+      }
+      /* A sala de espera: o codigo bem a vista, quem chegou e como comecar. */
+      #espera-hud {
+        display: none;
+        top: 14px;
+        left: 0;
+        right: 0;
+        text-align: center;
+        font-size: 15px;
+      }
+      .em-espera #espera-hud {
+        display: block;
+      }
+      #espera-hud .rotulo {
+        font-size: 11px;
+        letter-spacing: 0.3em;
+        text-transform: uppercase;
+        opacity: 0.8;
+      }
+      #espera-hud .codigo {
+        font-size: 54px;
+        line-height: 1.05;
+        letter-spacing: 0.3em;
+        margin-right: -0.3em;
+        color: var(--brasa);
+      }
+      #espera-hud ul {
+        margin: 6px 0;
+        padding: 0;
+        list-style: none;
+        font-size: 16px;
+      }
+      #espera-hud li {
+        display: inline-block;
+        margin: 0 8px;
+      }
+      #espera-hud li i {
+        display: inline-block;
+        width: 10px;
+        height: 10px;
+        margin-right: 6px;
+        border-radius: 50%;
+      }
+      #espera-hud .comecar {
+        color: var(--brasa);
+        font-size: 17px;
+      }
+      #espera-hud .teclas-da-espera {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 16px;
+        font-size: 13px;
+        opacity: 0.8;
+      }
+      .em-espera #noite,
+      .em-espera #passo,
+      .em-espera #lugar,
+      .em-espera #agir,
+      .em-espera #aviso,
+      .em-espera #titulo,
+      .em-espera #legenda,
+      .em-espera #teclas,
+      .em-espera #mapa,
+      .em-espera .painel,
+      .em-espera #diario {
+        display: none !important;
+      }
+      /* A roda de gestos (segurar B) e o folego de quem corre. */
+      #gestos {
+        display: none;
+        left: 50%;
+        bottom: 17%;
+        transform: translateX(-50%);
+        padding: 10px 16px;
+        background: rgba(6, 5, 4, 0.72);
+        border: 1px solid #5a4a36;
+        font-size: 15px;
+        white-space: nowrap;
+      }
+      #gestos span {
+        margin: 0 8px;
+      }
+      #gestos kbd {
+        margin-right: 6px;
+      }
+      #folego {
+        left: 50%;
+        bottom: 9%;
+        width: 160px;
+        height: 4px;
+        margin-left: -80px;
+        background: rgba(232, 217, 176, 0.18);
+        opacity: 0;
+        transition: opacity 0.4s;
+      }
+      #folego i {
+        display: block;
+        height: 100%;
+        background: var(--papel);
+      }
+      #folego.exausto i {
+        background: #e2553f;
+      }
+      .em-abertura #gestos {
+        display: none !important;
       }
       /* A abertura da noite: faixas de cinema, titulo e narracao. */
       #abertura {
@@ -491,12 +675,12 @@
         color: var(--brasa);
       }
       #entrada dl {
-        margin: 26px auto 0;
+        margin: 18px auto 0;
         display: grid;
         grid-template-columns: auto auto auto auto;
-        gap: 6px 18px;
+        gap: 4px 18px;
         width: fit-content;
-        font-size: 14px;
+        font-size: 13px;
         text-align: left;
         opacity: 0.8;
       }
@@ -748,7 +932,10 @@
     <div class="hud" id="titulo"></div>
     <div class="hud" id="legenda"></div>
     <div class="hud" id="guias"></div>
-    <div class="hud" id="teclas">WASD anda · Shift corre · Espaço pula · C agacha · E investiga, pega e conversa · V mostra a carta · Q atadura · T tônico · F lampião · G nomes · M mapa · J diário · N passar a hora · R outra noite</div>
+    <div class="hud" id="espera-hud"></div>
+    <div class="hud" id="gestos"></div>
+    <div class="hud" id="folego"><i></i></div>
+    <div class="hud" id="teclas">WASD anda · Shift corre · Espaço pula · C agacha · Z e X espiam · B gestos · P ver-se de fora · E investiga, pega e conversa · V mostra a carta · Q atadura · T tônico · F lampião · G nomes · M mapa · J diário · N passar a hora · R outra noite</div>
     <div id="abertura">
       <div class="escuro"></div>
       <div id="abertura-plano"></div>
@@ -761,11 +948,18 @@
       <div>
         <h1>Amigos do Rui</h1>
         <p id="gancho" style="max-width: 560px; margin-left: auto; margin-right: auto"></p>
-        <div class="entrar" id="entrar">Clique para entrar na cidade</div>
+        <div id="criador">
+          <canvas id="criador-previa" width="190" height="250"></canvas>
+          <div>
+            <div class="titulo-da-sala">Seu personagem</div>
+            <label class="opcao"><span>Nome</span><input id="sala-nome" placeholder="como os outros vão ver" maxlength="16" autocomplete="off" /></label>
+            <div class="opcoes"></div>
+          </div>
+        </div>
+        <div class="entrar" id="entrar">Jogar sozinho: clique para entrar na cidade</div>
         <div id="sala">
           <div id="sala-porta">
             <div class="titulo-da-sala">Jogar em grupo</div>
-            <label class="linha">Seu nome <input id="sala-nome" placeholder="como os outros vão ver" maxlength="16" autocomplete="off" /></label>
             <div class="linha">
               <button id="sala-criar">Criar sala</button>
               <span class="ou">ou</span>
@@ -793,6 +987,12 @@
           <dd>pular</dd>
           <dt>C</dt>
           <dd>agachar</dd>
+          <dt>Z, X</dt>
+          <dd>espiar pelo canto, para a esquerda e a direita</dd>
+          <dt>B + 1 a 8</dt>
+          <dd>gestos e danças (segure B e escolha)</dd>
+          <dt>P</dt>
+          <dd>ver o personagem de fora</dd>
           <dt>E</dt>
           <dd>investigar o que brilha e pegar o que achar</dd>
           <dt>Q, T</dt>

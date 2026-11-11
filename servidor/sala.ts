@@ -4,6 +4,7 @@
 
 import { apurar, cenaDe, chegar, contar, entrar, mostrarCarta, novaPartida, passarRodada, pegar, sair, usar, votar } from '../src/nucleo/partida.ts';
 import { SEGUNDOS_POR_RODADA, type Biblioteca, type Cena, type Estado } from '../src/nucleo/tipos.ts';
+import { limparAparencia } from '../src/rede/aparencia.ts';
 import { MAXIMO_DE_JOGADORES, SEGUNDOS_DE_VOTO, type Intencao, type Presenca } from '../src/rede/protocolo.ts';
 
 const chaveDaCena = (c: Cena) => `${c.lugar}|${c.quem.join(',')}`;
@@ -32,12 +33,13 @@ export class Sala {
   }
 
   /** Poe alguem na sala. Devolve o id novo, ou a razao de nao ter dado. */
-  entrar(nome: string): { id: string } | { erro: string } {
+  entrar(nome: string, aparencia?: unknown): { id: string } | { erro: string } {
     if (this.estado) return { erro: 'A noite desta sala já começou.' };
     if (this.jogadores.length >= MAXIMO_DE_JOGADORES) return { erro: 'A sala está cheia.' };
     const limpo = nome.trim().slice(0, 16) || `Viajante ${this.proximoId}`;
     const id = `j${this.proximoId++}`;
-    this.jogadores.push({ id, nome: limpo });
+    // Quem nao mandou aparencia (ou mandou lixo) ganha uma, diferente da de quem ja esta.
+    this.jogadores.push({ id, nome: limpo, aparencia: limparAparencia(aparencia, this.proximoId - 2) });
     return { id };
   }
 

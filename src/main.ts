@@ -31,6 +31,12 @@ import { figura } from './mundo/gente.ts';
 import { casaDoNpc, falasDoNpc } from './nucleo/partida.ts';
 import { EXEMPLO } from './nucleo/historias/exemplo.ts';
 import type { Achado, Estado } from './nucleo/tipos.ts';
+import type { Solido } from './jogador/colisao.ts';
+import { Criador } from './interface/criador.ts';
+import { desenharEspera, desenharFolego, desenharRoda, gestoDaTecla, listaDaEspera, viajantes, type TelaDeEspera } from './interface/turma.ts';
+import { chegadaNaEspera, construirEspera, type SalaDeEspera } from './mundo/espera.ts';
+import { animar, criarPersonagem, descartarPersonagem, type Personagem } from './mundo/personagem.ts';
+import { ehGesto, limparAparencia, type Aparencia, type Gesto } from './rede/aparencia.ts';
 
 declare global {
   interface Window {
@@ -81,7 +87,17 @@ declare global {
       /** Estado da partida e em que tela ela esta. */
       partida: () => { estado: Estado; modo: string; restante: number; eu: string; sala: string | null };
       /** Os outros jogadores da sala que estao visiveis, e onde. */
-      outros: () => { id: string; nome: string; x: number; y: number; z: number }[];
+      outros: () => { id: string; nome: string; x: number; y: number; z: number; gesto: string | null; aparencia: Aparencia; pernas: number }[];
+      /** Faz um gesto (ou para, com null), como as teclas 1 a 8. Devolve o que ficou valendo. */
+      gesto: (gesto: string | null) => string | null;
+      /** Liga ou desliga a camera em terceira pessoa (tecla P). */
+      terceira: (sim: boolean) => void;
+      /** O personagem do proprio jogador: se esta a vista, o gesto, a distancia da camera e o folego. */
+      eu: () => { visivel: boolean; gesto: string | null; camera: number; folego: number; espia: number; aparencia: Aparencia };
+      /** Troca a aparencia, como a tela de criar o personagem. */
+      aparencia: (aparencia: Partial<Aparencia>) => Aparencia;
+      /** A sala de espera: se o jogador esta nela, o codigo e quem chegou. */
+      espera: () => { ativa: boolean; codigo: string; jogadores: string[]; dono: boolean };
       /** A abertura da noite: se esta passando, em que plano, e o que a voz disse por ultimo. */
       /** Mostra a carta a um NPC, sem a confirmacao do teclado. */
       mostrarCarta: (npc: string) => void;
@@ -373,9 +389,10 @@ const rede = new Rede();
 interface Outro {
   id: string;
   nome: string;
-  grupo: THREE.Group;
-  luz: THREE.PointLight;
+  figura: Personagem;
   pose: Pose | null;
+  /** Velocidade com que a figura esta de fato andando na tela, para mexer as pernas. */
+  velocidade: number;
 }
 const outros = new Map<string, Outro>();
 let presencas: Presenca[] = [];
@@ -383,6 +400,93 @@ let donoDaSala = '';
 /** Na sala, esperando o dono comecar a noite: o clique ainda nao entra na cidade. */
 let emEspera = false;
 let desdeAPose = 0;
+let codigoDaSala = '';
+/** O cenario da espera (o trem na plataforma). So existe enquanto se espera. */
+let espera: SalaDeEspera | null = null;
+/** Os solidos da cidade somados aos da espera, refeitos quando a cidade muda. */
+let solidosNaEspera: { cidade: Cidade; todos: Solido[] } | null = null;
+/** O dono apertou Enter uma vez: ate quando vale a confirmacao. */
+let confirmarComeco = 0;
+/** O B esta apertado: a roda de gestos esta na tela e os numeros escolhem. */
+let rodaAberta = false;
+const elEsperaHud = document.querySelector<HTMLElement>('#espera-hud')!;
+const elGestos = document.querySelector<HTMLElement>('#gestos')!;
+const elFolego = document.querySelector<HTMLElement>('#folego')!;
+const elCriador = document.querySelector<HTMLElement>('#criador')!;
+
+// O personagem do proprio jogador: so aparece quando a camera sai do corpo (gesto ou tecla P).
+const criador = new Criador(elCriador);
+let eu: Personagem = criarPersonagem(criador.aparencia);
+function vestir(aparencia: Aparencia): void {
+  descartarPersonagem(eu);
+  eu = criarPersonagem(aparencia);
+  // A luz do proprio jogador e a do lampiao dele (jogador.lampiao). A da figura sai: uma luz que
+  // aparece e some com a figura faria o Three.js recompilar tudo a cada gesto.
+  eu.luz.removeFromParent();
+  eu.grupo.visible = false;
+  cena.add(eu.grupo);
+}
+vestir(criador.aparencia);
+criador.aoMudar = vestir;
+elCriador.addEventListener('click', (e) => e.stopPropagation());
+
+/** Com que paredes o jogador colide agora: as da cidade e, na espera, tambem as da plataforma. */
+function solidosAgora(): readonly Solido[] {
+  if (!emEspera || !espera) return cidade!.solidos;
+  if (solidosNaEspera?.cidade !== cidade) solidosNaEspera = { cidade: cidade!, todos: [...cidade!.solidos, ...espera.solidos] };
+  return solidosNaEspera.todos;
+}
+
+/** O que a tela da espera mostra agora. */
+function telaDeEspera(): TelaDeEspera {
+  return { codigo: codigoDaSala, jogadores: presencas, eu: partida.idNaSala, dono: donoDaSala, confirmando: performance.now() < confirmarComeco };
+}
+
+/** Poe o jogador na plataforma, junto do trem, para esperar a turma. */
+function entrarNaEspera(): void {
+  if (emEspera) return;
+  emEspera = true;
+  espera ??= construirEspera();
+  cena.add(espera.grupo);
+  renderizador.shadowMap.needsUpdate = true;
+  document.body.classList.add('em-espera');
+  const i = Math.max(0, presencas.findIndex((p) => p.id === partida.idNaSala));
+  const lugar = chegadaNaEspera(i);
+  jogador.reiniciar();
+  // Quem estava com um painel da noite local aberto nao fica preso no lugar.
+  jogador.congelado = false;
+  jogador.teleportar(lugar.x, 0, lugar.z);
+  jogador.giro = lugar.giro;
+  jogador.lampiao.visible = true;
+}
+
+/** A noite comecou (ou a sala caiu): o trem vai embora. */
+function sairDaEspera(): void {
+  if (!emEspera) return;
+  emEspera = false;
+  confirmarComeco = 0;
+  espera?.grupo.removeFromParent();
+  renderizador.shadowMap.needsUpdate = true;
+  document.body.classList.remove('em-espera');
+  jogador.fazer(null);
+}
+
+/** O dono comeca a noite. Pelo teclado, o primeiro Enter pergunta e o segundo confirma. */
+function comecarANoite(semPerguntar: boolean): void {
+  if (!emEspera || partida.idNaSala !== donoDaSala) return;
+  if (semPerguntar || performance.now() < confirmarComeco) {
+    confirmarComeco = 0;
+    rede.enviar({ t: 'comecar' });
+  } else {
+    confirmarComeco = performance.now() + 8000;
+  }
+}
+
+/** Faz um gesto, se o jogador esta andando livre (ou esperando na plataforma). */
+function fazerGesto(gesto: Gesto | null): Gesto | null {
+  if (gesto && !emEspera && (partida.modo !== 'andando' || !partida.personagem.vivo || abertura)) return jogador.gesto;
+  return jogador.fazer(gesto);
+}
 
 const elSala = document.querySelector<HTMLElement>('#sala')!;
 const elPorta = document.querySelector<HTMLElement>('#sala-porta')!;
@@ -398,16 +502,23 @@ try {
 }
 
 function desenharSala(codigo: string, comecou: boolean): void {
+  codigoDaSala = codigo;
   elPorta.hidden = true;
   elEspera.hidden = comecou;
+  // Dentro da sala a aparencia ja foi mandada: nao da mais para trocar.
+  elCriador.style.display = 'none';
   elErro.textContent = '';
+  // Isto e a tela de entrada, para quando o mouse esta solto. Com ele preso vale o painel da espera.
   document.querySelector<HTMLElement>('#sala-codigo-da-sala')!.textContent = codigo;
-  document.querySelector<HTMLElement>('#sala-lista')!.innerHTML = presencas.map((p) => `<li>${p.nome.replace(/&/g, '&amp;').replace(/</g, '&lt;')}${p.id === donoDaSala ? ' · criou a sala' : ''}${p.id === partida.idNaSala ? ' · você' : ''}</li>`).join('');
+  document.querySelector<HTMLElement>('#sala-lista')!.innerHTML = listaDaEspera(telaDeEspera());
   const souDono = partida.idNaSala === donoDaSala;
-  document.querySelector<HTMLElement>('#sala-comecar')!.hidden = !souDono;
-  document.querySelector<HTMLElement>('#sala-nota')!.textContent = souDono ? 'Passe o código para os outros e comece quando todos entrarem.' : 'Esperando quem criou a sala começar a noite.';
-  elEntrar.textContent = comecou ? `Sala ${codigo}. A noite começou: clique para entrar na cidade` : '';
-  emEspera = !comecou;
+  const botao = document.querySelector<HTMLElement>('#sala-comecar')!;
+  botao.hidden = !souDono;
+  botao.textContent = `Começar a noite com ${viajantes(presencas.length)}`;
+  document.querySelector<HTMLElement>('#sala-nota')!.textContent = souDono ? 'Dite o código para os amigos e comece quando todos estiverem na plataforma.' : 'Esperando quem criou a sala começar a noite.';
+  elEntrar.textContent = comecou ? `Sala ${codigo}. A noite começou: clique para entrar na cidade` : 'Clique para andar pela plataforma enquanto a turma chega';
+  if (comecou) sairDaEspera();
+  else entrarNaEspera();
   // Na espera, a lista de teclas sai para a sala caber em qualquer tela.
   document.querySelector<HTMLElement>('#entrada dl')!.style.display = comecou ? '' : 'none';
 }
@@ -417,6 +528,7 @@ rede.aoAviso = (aviso) => {
     case 'sala': {
       presencas = aviso.jogadores;
       donoDaSala = aviso.dono;
+      const chegando = !partida.idNaSala;
       if (!partida.idNaSala) {
         partida.entrarNaSala(aviso.codigo, aviso.voce, {
           chegar: (lugar) => rede.enviar({ t: 'chegar', lugar }),
@@ -433,13 +545,17 @@ rede.aoAviso = (aviso) => {
       // Quem saiu da sala some da cidade.
       for (const [id, outro] of outros) {
         if (presencas.some((p) => p.id === id)) continue;
-        outro.grupo.removeFromParent();
+        descartarPersonagem(outro.figura);
         outros.delete(id);
       }
       desenharSala(aviso.codigo, aviso.comecou);
+      // Entrou agora: tenta prender o mouse de uma vez (vale o clique no botao da sala).
+      if (chegando && !aviso.comecou) void Promise.resolve(canvas.requestPointerLock()).catch(() => {});
       break;
     }
     case 'estado':
+      // A noite comecou: sai da plataforma antes de a partida por cada um na chegada.
+      sairDaEspera();
       partida.adotar(aviso.estado, aviso.restante, aviso.voto);
       break;
     case 'relogio':
@@ -450,15 +566,12 @@ rede.aoAviso = (aviso) => {
       if (!presenca) break;
       let outro = outros.get(aviso.de);
       if (!outro) {
-        // Cada jogador e uma figura com o lampiao na mao. A luz fica sempre na cena (apagada
-        // vale zero), para o Three.js nao recompilar tudo cada vez que alguem aperta F.
-        const grupo = figura('homem', outros.size + 1);
-        const luz = new THREE.PointLight(0xffb066, 0, 14, 1.5);
-        luz.position.set(0.3, 1.35, 0.3);
-        grupo.add(luz);
-        grupo.position.set(aviso.x, aviso.y, aviso.z);
-        cena.add(grupo);
-        outro = { id: aviso.de, nome: presenca.nome, grupo, luz, pose: null };
+        // Cada jogador e o personagem que ele criou, com o lampiao na mao. A luz fica sempre na
+        // cena (apagada vale zero), para o Three.js nao recompilar tudo cada vez que alguem aperta F.
+        const boneco = criarPersonagem(limparAparencia(presenca.aparencia));
+        boneco.grupo.position.set(aviso.x, aviso.y, aviso.z);
+        cena.add(boneco.grupo);
+        outro = { id: aviso.de, nome: presenca.nome, figura: boneco, pose: null, velocidade: 0 };
         outros.set(aviso.de, outro);
       }
       outro.pose = aviso;
@@ -471,14 +584,19 @@ rede.aoAviso = (aviso) => {
 };
 rede.aoCair = () => {
   if (!partida.idNaSala) return;
-  for (const outro of outros.values()) outro.grupo.removeFromParent();
+  for (const outro of outros.values()) descartarPersonagem(outro.figura);
   outros.clear();
+  const esperava = emEspera;
+  sairDaEspera();
   partida.sairDaSala();
+  // Quem estava na plataforma volta para a chegada da noite de um jogador.
+  if (esperava) jogador.reiniciar();
   elPorta.hidden = false;
   elEspera.hidden = true;
-  elEntrar.textContent = 'Clique para entrar na cidade';
+  elCriador.style.display = '';
+  document.querySelector<HTMLElement>('#entrada dl')!.style.display = '';
+  elEntrar.textContent = 'Jogar sozinho: clique para entrar na cidade';
   elErro.textContent = 'A ligação com a sala caiu. O jogo voltou para um jogador.';
-  emEspera = false;
 };
 
 async function pedirSala(pedido: 'criar' | 'entrar'): Promise<void> {
@@ -506,13 +624,18 @@ async function pedirSala(pedido: 'criar' | 'entrar'): Promise<void> {
     elErro.textContent = erro instanceof Error ? erro.message : 'Não deu para ligar.';
     return;
   }
-  rede.enviar(pedido === 'criar' ? { t: 'criar', nome } : { t: 'entrar', codigo, nome });
+  const aparencia = criador.aparencia;
+  rede.enviar(pedido === 'criar' ? { t: 'criar', nome, aparencia } : { t: 'entrar', codigo, nome, aparencia });
 }
 // Clique dentro do bloco da sala nao e "entrar na cidade".
 elSala.addEventListener('click', (e) => e.stopPropagation());
 document.querySelector('#sala-criar')!.addEventListener('click', () => void pedirSala('criar'));
 document.querySelector('#sala-juntar')!.addEventListener('click', () => void pedirSala('entrar'));
-document.querySelector('#sala-comecar')!.addEventListener('click', () => rede.enviar({ t: 'comecar' }));
+// O botao ja diz com quantos comeca: o clique e a confirmacao.
+document.querySelector('#sala-comecar')!.addEventListener('click', () => comecarANoite(true));
+elNome.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') elNome.blur();
+});
 elCodigo.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') void pedirSala('entrar');
 });
@@ -522,27 +645,52 @@ function atualizarOutros(dt: number): void {
   for (const outro of outros.values()) {
     const p = outro.pose;
     const personagem = partida.estado.personagens.find((x) => x.id === outro.id);
-    outro.grupo.visible = !!p && !!personagem?.vivo;
-    if (!p || !outro.grupo.visible) continue;
+    const grupo = outro.figura.grupo;
+    // Na espera ainda nao ha noite: todo mundo que mandou posicao aparece.
+    grupo.visible = !!p && (emEspera || !!personagem?.vivo);
+    if (!p || !grupo.visible) continue;
     const k = Math.min(1, 12 * dt);
-    outro.grupo.position.x += (p.x - outro.grupo.position.x) * k;
-    outro.grupo.position.y += (p.y - outro.grupo.position.y) * k;
-    outro.grupo.position.z += (p.z - outro.grupo.position.z) * k;
+    const [x0, z0] = [grupo.position.x, grupo.position.z];
+    grupo.position.x += (p.x - grupo.position.x) * k;
+    grupo.position.y += (p.y - grupo.position.y) * k;
+    grupo.position.z += (p.z - grupo.position.z) * k;
     // A figura olha para +Z. O giro do jogador em zero olha para -Z.
-    let giro = p.giro + Math.PI - outro.grupo.rotation.y;
+    let giro = p.giro + Math.PI - grupo.rotation.y;
     giro = Math.atan2(Math.sin(giro), Math.cos(giro));
-    outro.grupo.rotation.y += giro * k;
-    outro.grupo.scale.y += ((p.agachado ? 0.62 : 1) - outro.grupo.scale.y) * k;
-    outro.luz.intensity = p.lampiao ? 11 : 0;
+    grupo.rotation.y += giro * k;
+    // As pernas andam com o que a figura andou de fato na tela, suavizado entre uma posicao e outra.
+    const andou = dt > 0 ? Math.hypot(grupo.position.x - x0, grupo.position.z - z0) / dt : 0;
+    outro.velocidade += (andou - outro.velocidade) * Math.min(1, 10 * dt);
+    animar(outro.figura, { velocidade: outro.velocidade, gesto: p.gesto, agachado: p.agachado, espia: p.espia, lampiao: p.lampiao }, dt);
+    outro.figura.luz.intensity = p.lampiao ? 11 : 0;
     const d = Math.hypot(p.x - jogador.posicao.x, p.z - jogador.posicao.z);
-    guiar(`jogador:${outro.id}`, 'pessoa', outro.grupo.position.x, outro.grupo.position.y + 1.95, outro.grupo.position.z, d < 45 && partida.modo === 'andando' ? outro.nome : '', 1);
+    guiar(`jogador:${outro.id}`, 'pessoa', grupo.position.x, grupo.position.y + outro.figura.altura, grupo.position.z, d < 45 && partida.modo === 'andando' ? outro.nome : '', 1);
   }
-  for (const [chave, g] of guias) if (chave.startsWith('jogador:') && !outros.get(chave.slice(8))?.grupo.visible) g.el.style.display = 'none';
-  if (!partida.sala || emEspera || !rede.ligada) return;
+  for (const [chave, g] of guias) if (chave.startsWith('jogador:') && !outros.get(chave.slice(8))?.figura.grupo.visible) g.el.style.display = 'none';
+  // A posicao vai para os outros desde a sala de espera, antes de a noite comecar.
+  if (!partida.idNaSala || !rede.ligada) return;
   desdeAPose += dt;
   if (desdeAPose < 1 / POSICOES_POR_SEGUNDO) return;
   desdeAPose = 0;
-  rede.enviar({ t: 'pos', x: jogador.posicao.x, y: jogador.posicao.y, z: jogador.posicao.z, giro: jogador.giro, lampiao: jogador.lampiao.visible, agachado: jogador.agachado });
+  rede.enviar({ t: 'pos', x: jogador.posicao.x, y: jogador.posicao.y, z: jogador.posicao.z, giro: jogador.giroDoCorpo, lampiao: jogador.lampiao.visible, agachado: jogador.agachado, gesto: jogador.gesto, espia: jogador.espia });
+}
+
+/** O personagem do proprio jogador, quando a camera esta fora do corpo, a roda de gestos e o folego. */
+function atualizarEu(dt: number, t: number): void {
+  // Colada numa parede, a camera fica dentro da cabeca: ai o personagem some.
+  eu.grupo.visible = jogador.vistoDeFora && jogador.distanciaDaCamera > 0.9;
+  if (eu.grupo.visible) {
+    eu.grupo.position.copy(jogador.posicao);
+    eu.grupo.rotation.y = jogador.giroDoCorpo + Math.PI;
+    animar(eu, { velocidade: jogador.velocidade, gesto: jogador.gesto, agachado: jogador.agachado, espia: jogador.espia, lampiao: jogador.lampiao.visible }, dt);
+  }
+  desenharRoda(elGestos, rodaAberta && !cam && document.pointerLockElement === canvas, jogador.gesto);
+  desenharFolego(elFolego, jogador.folego, jogador.exausto);
+  if (emEspera && espera) {
+    espera.atualizar(t);
+    desenharEspera(elEsperaHud, telaDeEspera());
+  }
+  criador.atualizar(dt);
 }
 
 function ajustarTamanho(): void {
@@ -573,6 +721,21 @@ document.addEventListener('keydown', (e) => {
     e.preventDefault();
     return;
   }
+  // Gestos e dancas: segurar B e apertar de 1 a 8. Na espera, os numeros valem direto.
+  if (e.code === 'KeyB') rodaAberta = true;
+  const gesto = rodaAberta || emEspera ? gestoDaTecla(e.code) : null;
+  if (gesto && !e.repeat) {
+    fazerGesto(gesto);
+    e.preventDefault();
+    return;
+  }
+  if (e.code === 'KeyP' && !e.repeat) jogador.terceira = !jogador.terceira;
+  // Na plataforma nao ha noite: so valem o lampiao, os gestos e, para o dono, o Enter.
+  if (emEspera) {
+    if (e.code === 'KeyF' && !e.repeat) som.tocar('lampiao', { volume: 0.5 });
+    if (e.code === 'Enter' && !e.repeat) comecarANoite(false);
+    return;
+  }
   if (e.code === 'KeyF' && !e.repeat) {
     som.tocar('lampiao', { volume: 0.5 });
     segredos.lampiao();
@@ -587,12 +750,18 @@ document.addEventListener('keydown', (e) => {
   else if (partida.tecla(e.code)) e.preventDefault();
   if (e.code === 'KeyM') elMapa.style.display = elMapa.style.display === 'block' ? 'none' : 'block';
 });
+document.addEventListener('keyup', (e) => {
+  if (e.code === 'KeyB') rodaAberta = false;
+});
 document.addEventListener('pointerlockchange', () => {
   elEntrada.style.display = document.pointerLockElement === canvas ? 'none' : 'grid';
+  if (document.pointerLockElement !== canvas) rodaAberta = false;
+  // Botao que ficou com o foco na tela de entrada nao pode ser apertado pelo Espaco do pulo.
+  else (document.activeElement as HTMLElement | null)?.blur();
 });
 elEntrada.addEventListener('click', () => {
-  // Na sala de espera o clique nao entra na cidade: a noite ainda nao comecou.
-  if (!emEspera) void canvas.requestPointerLock();
+  // Na sala de espera o clique entra na plataforma. Depois que a noite comeca, na cidade.
+  void canvas.requestPointerLock();
 });
 
 // Modo de captura: camera presa e sem interface.
@@ -657,7 +826,18 @@ window.__depurar = {
   },
   jogador: () => ({ x: jogador.posicao.x, y: jogador.posicao.y, z: jogador.posicao.z, agachado: jogador.agachado }),
   partida: () => ({ estado: partida.estado, modo: partida.modo, restante: partida.restante, eu: partida.eu, sala: partida.sala }),
-  outros: () => [...outros.values()].filter((o) => o.grupo.visible).map((o) => ({ id: o.id, nome: o.nome, x: o.grupo.position.x, y: o.grupo.position.y, z: o.grupo.position.z })),
+  outros: () =>
+    [...outros.values()]
+      .filter((o) => o.figura.grupo.visible)
+      .map((o) => ({ id: o.id, nome: o.nome, x: o.figura.grupo.position.x, y: o.figura.grupo.position.y, z: o.figura.grupo.position.z, gesto: o.figura.gesto, aparencia: o.figura.aparencia, pernas: Math.abs(o.figura.juntas.pDx - o.figura.juntas.pEx) })),
+  gesto: (gesto) => fazerGesto(ehGesto(gesto) ? gesto : null),
+  terceira: (sim) => (jogador.terceira = sim),
+  eu: () => ({ visivel: eu.grupo.visible, gesto: jogador.gesto, camera: jogador.distanciaDaCamera, folego: jogador.folego, espia: jogador.espia, aparencia: eu.aparencia }),
+  aparencia: (a) => {
+    criador.mudar({ ...criador.aparencia, ...a });
+    return criador.aparencia;
+  },
+  espera: () => ({ ativa: emEspera, codigo: codigoDaSala, jogadores: presencas.map((p) => p.nome), dono: partida.idNaSala === donoDaSala }),
   desenho: () => ({ chamadas: renderizador.info.render.calls, triangulos: renderizador.info.render.triangles }),
   abertura: () => ({ ativa: abertura !== null, plano: abertura?.i ?? -1, planos: abertura?.planos.length ?? 0, voz: voz.ultima, falando: voz.falando }),
   abrir: () => comecarAbertura(),
@@ -805,7 +985,7 @@ function fecharAbertura(): void {
 function atualizarAbertura(dt: number): void {
   if (!abertura) {
     // Espera o jogador entrar de fato na cidade (mouse preso) para comecar.
-    if (aberturaPendente && jogador.travado && partidaPronta) comecarAbertura();
+    if (aberturaPendente && jogador.travado && partidaPronta && !emEspera) comecarAbertura();
     return;
   }
   abertura.t += dt;
@@ -956,9 +1136,11 @@ function quadro(): void {
   const t = relogio.elapsedTime;
   if (!cidade) return;
   atualizarAbertura(dt);
-  jogador.atualizar(dt, cidade.solidos);
+  jogador.atualizar(dt, solidosAgora());
+  atualizarEu(dt, t);
   // O relogio da noite so anda com o jogo em foco e depois da abertura. Camera presa (capturas) nao joga.
-  if (!cam) partida.atualizar(dt, jogador.posicao.x, jogador.posicao.z, jogador.travado && !abertura);
+  // Na plataforma de espera nao ha noite nenhuma: nem relogio, nem lugares, nem ameaca.
+  if (!cam && !emEspera) partida.atualizar(dt, jogador.posicao.x, jogador.posicao.z, jogador.travado && !abertura);
   // O que a partida faz sentir: luzes que falham, lampiao nervoso, tranco, neblina e amanhecer.
   const eu = medidoresForcados ?? partida.personagem;
   const fx = efeitos.atualizar(dt, eu.medo, eu.ferimento);
@@ -967,7 +1149,7 @@ function quadro(): void {
   clima.neblina(fx.neblina);
   clima.amanhecer(fx.amanhecer);
   som.atualizar(dt, eu.medo, partida.dentro !== null, partida.personagem.vivo);
-  if (!cam && partida.modo === 'andando') {
+  if (!cam && !emEspera && partida.modo === 'andando') {
     if (aparicao) {
       invocarVulto(aparicao);
       aparicao = null;

@@ -5,6 +5,7 @@
 
 import type { LugarId } from '../mundo/planta.ts';
 import type { Estado } from '../nucleo/tipos.ts';
+import type { Aparencia, Gesto } from './aparencia.ts';
 
 /** Onde, na mesma porta do jogo, o servidor de salas atende. */
 export const CAMINHO_DA_SALA = '/sala';
@@ -22,12 +23,16 @@ export interface Pose {
   giro: number;
   lampiao: boolean;
   agachado: boolean;
+  /** O gesto ou a danca que o jogador esta fazendo. Durante ele, `giro` e para onde o corpo esta virado. */
+  gesto: Gesto | null;
+  /** Espiando pelo canto: -1 inclinado para a esquerda, 1 para a direita. */
+  espia: number;
 }
 
 /** Do jogo para o servidor. */
 export type Intencao =
-  | { t: 'criar'; nome: string }
-  | { t: 'entrar'; codigo: string; nome: string }
+  | { t: 'criar'; nome: string; aparencia?: Aparencia }
+  | { t: 'entrar'; codigo: string; nome: string; aparencia?: Aparencia }
   /** So o dono da sala: comeca a noite com quem estiver nela. */
   | { t: 'comecar' }
   | ({ t: 'pos' } & Pose)
@@ -48,6 +53,8 @@ export type Intencao =
 export interface Presenca {
   id: string;
   nome: string;
+  /** Como o personagem e. Escolhida antes de entrar na sala, nao muda depois. */
+  aparencia: Aparencia;
 }
 
 /** Do servidor para o jogo. */
