@@ -153,15 +153,29 @@ try {
       await pagina.waitForFunction(() => window.__depurar!.partida().modo !== 'resultado', { timeout: 60000 });
     }
     if ((await partida()).modo === 'fim') break;
+    // A virada nao abre painel: a hora anda, o sino bate e o que aconteceu passa em legenda.
+    const horaAntes = (await partida()).estado.rodada;
     await pagina.keyboard.press('KeyN');
-    await esperar('virada');
+    await pagina.waitForFunction(
+      (hora) => {
+        const p = window.__depurar!.partida();
+        return p.estado.rodada !== hora || p.estado.fim !== null;
+      },
+      { timeout: 60000 },
+      horaAntes,
+    );
     if (!fotografouVirada) {
+      await pagina.waitForFunction(() => document.querySelector<HTMLElement>('#legenda')!.style.opacity === '1', { timeout: 60000 });
       await foto('4-virada');
+      conferir((await partida()).modo === 'andando', 'a virada da hora nao para o jogo: mostra titulo e legenda');
       fotografouVirada = true;
     }
-    await pagina.keyboard.press('Space');
-    await pagina.waitForFunction(() => window.__depurar!.partida().modo !== 'virada', { timeout: 60000 });
-    if ((await partida()).modo === 'fim') break;
+    if ((await partida()).estado.fim) {
+      // Depois do ultimo sino o fim espera uns segundos. O Espaco adianta.
+      await pagina.keyboard.press('Space');
+      await esperar('fim');
+      break;
+    }
     // Na hora nova, o lugar em que o jogador ficou tem coisa nova para investigar.
     await pagina.waitForFunction((id) => window.__depurar!.partida().estado.personagens[0]!.lugar === id, { timeout: 60000 }, lugar);
     if (await investigar(lugar)) {

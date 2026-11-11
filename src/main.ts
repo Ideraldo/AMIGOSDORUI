@@ -21,6 +21,8 @@ import { plantaSvg } from './mundo/plantaSvg.ts';
 import { Som } from './som/som.ts';
 import { Segredos } from './interface/segredos.ts';
 import { Vulto } from './mundo/vulto.ts';
+import { figura } from './mundo/gente.ts';
+import { casaDoNpc } from './nucleo/partida.ts';
 import { EXEMPLO } from './nucleo/historias/exemplo.ts';
 import type { Achado, Estado } from './nucleo/tipos.ts';
 
@@ -56,6 +58,10 @@ declare global {
       ponto: (lugar: LugarId) => Ponto | null;
       /** As coisas da noite, com o lugar de ficar de pe para pegar cada uma (null: lugar fechado). */
       achados: () => { id: string; tipo: string; lugar: LugarId; pego: boolean; pe: [number, number] | null }[];
+      /** Os NPCs que estao de pe na cidade agora, e onde. */
+      gente: () => { id: string; lugar: LugarId; x: number; z: number }[];
+      /** As guias que estao na tela agora (texto de cada uma). */
+      guias: () => string[];
       /** O vulto: se esta na cena e onde. */
       vulto: () => { ativo: boolean; x: number; z: number };
       /** Como o som esta: contexto, arquivos carregados e os ultimos sons tocados. */
@@ -333,6 +339,7 @@ document.addEventListener('keydown', (e) => {
     segredos.lampiao();
   }
   if (e.code === 'KeyR') novaNoite();
+  else if (e.code === 'KeyG') guiasLigadas = !guiasLigadas;
   else if (e.code === 'KeyE' && aoAlcance) partida.pegar(aoAlcance.id);
   else if (e.code === 'KeyE' && alvo) partida.investigar(alvo.lugar);
   if (e.code === 'KeyF' && !e.repeat && partida.semQuerosene) partida.avisar('O lampião está seco. Há latas de querosene pelos lugares abertos.', 4500);
@@ -397,6 +404,8 @@ window.__depurar = {
   pontos: (lugar) => pontosPorLugar.get(lugar) ?? [],
   som: () => som.estado(),
   vulto: () => ({ ativo: vulto.ativo, x: vulto.grupo.position.x, z: vulto.grupo.position.z }),
+  gente: () => presentes.map((p) => ({ id: p.id, lugar: p.lugar, x: p.x, z: p.z })),
+  guias: () => [...guias.values()].filter((g) => g.el.style.display === 'block').map((g) => g.el.textContent ?? ''),
   achados: () => partida.estado.achados.map((a) => ({ id: a.id, tipo: a.tipo, lugar: a.lugar, pego: a.pego, pe: vagaDoAchado(a)?.pe ?? null })),
   olhar: (giro, inclinacao) => {
     jogador.giro = giro;
@@ -408,6 +417,109 @@ window.__depurar = {
 };
 
 const construcoes = [...LUGARES, ...FIGURANTES].map(pegada);
+// Gente da cidade: quem esta no elenco da noite fica de pe no lugar em que a historia o poe.
+const casas = new Map(EXEMPLO.npcs.map((n) => [n.id, casaDoNpc(EXEMPLO, n.id)] as const));
+const gente = new Map<string, THREE.Group>();
+/** Quem esta visivel agora, para as guias e para os scripts. */
+let presentes: { id: string; nome: string; papel: string; lugar: LugarId; x: number; z: number }[] = [];
+
+function atualizarGente(t: number): void {
+  presentes = [];
+  const pendentes = partida.pendentes();
+  EXEMPLO.npcs.forEach((npc, i) => {
+    const casa = casas.get(npc.id) ?? null;
+    const pontos = casa ? pontosPorLugar.get(casa) : undefined;
+    let pessoa = gente.get(npc.id);
+    // Fica num movel do lugar que nao tenha nada para o jogador mexer nesta hora.
+    const ocupados = new Set<Ponto | null>([casa ? pontoAtual(casa, pendentes) : null, ...partida.estado.achados.filter((a) => !a.pego && a.lugar === casa).map(vagaDoAchado)]);
+    const livres = pontos?.filter((p) => !ocupados.has(p)) ?? [];
+    if (!casa || !partida.estado.elenco.includes(npc.id) || livres.length === 0 || partida.estado.fim) {
+      if (pessoa) pessoa.visible = false;
+      return;
+    }
+    if (!pessoa) {
+      pessoa = figura(npc.figura ?? 'homem', i);
+      gente.set(npc.id, pessoa);
+      cena.add(pessoa);
+    }
+    const ponto = livres[(partida.estado.rodada + i) % livres.length]!;
+    pessoa.visible = true;
+    pessoa.position.set(ponto.pe[0], 0, ponto.pe[1]);
+    // De longe olha para o que esta fazendo. De perto, vira para o jogador. Respira devagar.
+    const dx = jogador.posicao.x - ponto.pe[0];
+    const dz = jogador.posicao.z - ponto.pe[1];
+    const perto = Math.hypot(dx, dz) < 5;
+    const alvoDoOlhar = perto ? Math.atan2(dx, dz) : Math.atan2(ponto.x - ponto.pe[0], ponto.z - ponto.pe[1]);
+    let giro = alvoDoOlhar - pessoa.rotation.y;
+    giro = Math.atan2(Math.sin(giro), Math.cos(giro));
+    pessoa.rotation.y += giro * 0.08;
+    pessoa.scale.y = (npc.figura === 'crianca' ? 0.72 : 1) * (1 + Math.sin(t * 1.3 + i) * 0.006);
+    presentes.push({ id: npc.id, nome: npc.nome, papel: npc.papel, lugar: casa, x: ponto.pe[0], z: ponto.pe[1] });
+  });
+}
+
+// Guias: marcas na tela por cima das portas dos lugares que ainda tem o que investigar,
+// dos abrigos (para quem ja entendeu a regra) e o nome de quem esta por perto. A tecla G esconde.
+const elGuias = document.querySelector<HTMLElement>('#guias')!;
+const guias = new Map<string, { el: HTMLElement; texto: string }>();
+let guiasLigadas = true;
+const naTela = new THREE.Vector3();
+
+/** Poe (ou esconde) uma guia sobre um ponto do mundo. Devolve se ela ficou visivel. */
+function guiar(chave: string, classe: string, x: number, y: number, z: number, texto: string, opacidade: number): void {
+  let g = guias.get(chave);
+  if (!g) {
+    const el = document.createElement('div');
+    elGuias.append(el);
+    g = { el, texto: '' };
+    guias.set(chave, g);
+  }
+  naTela.set(x, y, z).project(camera);
+  // Atras da camera ou fora da tela: some.
+  if (!texto || naTela.z > 1 || Math.abs(naTela.x) > 1.05 || Math.abs(naTela.y) > 1.05) {
+    g.el.style.display = 'none';
+    return;
+  }
+  if (g.texto !== texto + classe) {
+    g.texto = texto + classe;
+    g.el.className = `guia ${classe}`;
+    g.el.innerHTML = texto;
+  }
+  g.el.style.display = 'block';
+  g.el.style.opacity = String(opacidade);
+  g.el.style.transform = `translate(${((naTela.x * 0.5 + 0.5) * window.innerWidth).toFixed(1)}px, ${((-naTela.y * 0.5 + 0.5) * window.innerHeight).toFixed(1)}px) translate(-50%, -100%)`;
+}
+
+function atualizarGuias(): void {
+  const mostrar = guiasLigadas && partida.modo === 'andando' && !cam;
+  const pendentes = partida.pendentes();
+  const abrigos = partida.abrigosConhecidos();
+  const dentro = partida.dentro;
+  // De longe as guias se amontoam: so os tres lugares mais perto e os abrigos levam nome.
+  const distancia = (l: { x: number; z: number }) => Math.hypot(l.x - jogador.posicao.x, l.z - jogador.posicao.z);
+  const comNome = new Set(
+    LUGARES.filter((l) => pendentes.includes(l.id))
+      .sort((a, b) => distancia(a) - distancia(b))
+      .slice(0, 3)
+      .map((l) => l.id),
+  );
+  for (const l of LUGARES) {
+    const abrigo = abrigos.includes(l.id);
+    const d = distancia(l);
+    // Dentro de um lugar as guias dos outros atrapalham mais do que ajudam.
+    const vale = mostrar && dentro === null && d > 6 && (abrigo || pendentes.includes(l.id));
+    const nome = abrigo || comNome.has(l.id) ? `${abrigo ? 'abrigo · ' : ''}${l.nome}<small>${Math.round(d)} m</small>` : '&nbsp;';
+    guiar(`lugar:${l.id}`, abrigo ? 'abrigo' : '', l.x, 4, l.z, vale ? nome : '', Math.max(0.4, Math.min(1, 1.15 - d / 120)));
+  }
+  for (const npc of EXEMPLO.npcs) {
+    const p = presentes.find((x) => x.id === npc.id);
+    const d = p ? Math.hypot(p.x - jogador.posicao.x, p.z - jogador.posicao.z) : Infinity;
+    const relacao = partida.estado.personagens[0]!.relacoes[npc.id] ?? 0;
+    const humor = relacao > 0 ? 'confia em você' : relacao < 0 ? 'desconfia de você' : npc.papel;
+    guiar(`npc:${npc.id}`, 'pessoa', p?.x ?? 0, npc.figura === 'crianca' ? 1.45 : 2.0, p?.z ?? 0, p && mostrar && d < 6 ? `${npc.nome}<small>${humor}</small>` : '', 1);
+  }
+}
+
 /** Poe o vulto de pe na rua, na direcao em que o jogador esta olhando. */
 function invocarVulto(tipo: 'longe' | 'perto'): void {
   if (!cidade) return;
@@ -471,6 +583,14 @@ function quadro(): void {
   }
   atualizarMarcas(t);
   atualizarAchados(t);
+  atualizarGente(t);
+  atualizarGuias();
+  // Numa cena a vista fecha um pouco sobre o que esta sendo investigado.
+  const foco = partida.modo === 'cena' || partida.modo === 'resultado' ? 62 : 72;
+  if (Math.abs(camera.fov - foco) > 0.05) {
+    camera.fov += (foco - camera.fov) * Math.min(1, 6 * dt);
+    camera.updateProjectionMatrix();
+  }
   jogador.seco = partida.semQuerosene;
   atualizarInterface();
   renderizador.render(cena, camera);

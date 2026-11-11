@@ -146,6 +146,123 @@
         font-style: italic;
         transition: opacity 0.6s;
       }
+      #passo {
+        top: 16px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: min(620px, 60vw);
+        text-align: center;
+        font-size: 16px;
+      }
+      #passo b {
+        display: block;
+        font-size: 11px;
+        font-weight: normal;
+        letter-spacing: 0.24em;
+        text-transform: uppercase;
+        color: var(--brasa);
+      }
+      #passo .relogio {
+        height: 3px;
+        margin-top: 8px;
+        background: rgba(232, 217, 176, 0.18);
+      }
+      #passo .relogio i {
+        display: block;
+        height: 100%;
+        background: var(--brasa);
+        transition: width 0.4s linear;
+      }
+      #passo .relogio.acabando i {
+        background: #e2553f;
+      }
+      #titulo {
+        top: 26%;
+        left: 0;
+        right: 0;
+        text-align: center;
+        font-size: clamp(34px, 5vw, 60px);
+        letter-spacing: 0.1em;
+        opacity: 0;
+        transition: opacity 0.9s;
+      }
+      #titulo small {
+        display: block;
+        margin-top: 6px;
+        font-size: 15px;
+        letter-spacing: 0.3em;
+        text-transform: uppercase;
+        color: var(--brasa);
+      }
+      #legenda {
+        bottom: 25%;
+        left: 50%;
+        transform: translateX(-50%);
+        max-width: min(760px, 86vw);
+        padding: 8px 18px;
+        background: rgba(6, 5, 4, 0.62);
+        text-align: center;
+        font-size: 19px;
+        line-height: 1.4;
+        font-style: italic;
+        opacity: 0;
+        transition: opacity 0.5s;
+      }
+      #legenda.ataque {
+        color: #f08672;
+        font-style: normal;
+      }
+      #legenda.lugar {
+        color: var(--brasa);
+        font-style: normal;
+      }
+      .guia {
+        position: fixed;
+        left: 0;
+        top: 0;
+        display: none;
+        pointer-events: none;
+        white-space: nowrap;
+        font-size: 13px;
+        letter-spacing: 0.04em;
+        text-align: center;
+        text-shadow: 0 1px 3px #000, 0 0 6px #000;
+        color: var(--brasa);
+        will-change: transform;
+      }
+      .guia::before {
+        content: '◆';
+        display: block;
+        font-size: 15px;
+      }
+      .guia.abrigo {
+        color: #9fd6ff;
+      }
+      .guia.pessoa {
+        color: var(--papel);
+      }
+      .guia.pessoa::before {
+        content: '';
+      }
+      .guia small {
+        display: block;
+        font-style: italic;
+        opacity: 0.8;
+      }
+      .medidor.mudou {
+        animation: mudou 0.5s ease-in-out 3;
+      }
+      @keyframes mudou {
+        50% {
+          color: var(--brasa);
+          transform: translateX(6px);
+        }
+      }
+      .medidor .limite {
+        font-style: normal;
+        color: #e2553f;
+        margin: 0 2px;
+      }
       #teclas {
         bottom: 16px;
         left: 20px;
@@ -332,9 +449,30 @@
         font-style: italic;
         opacity: 0.7;
       }
+      .painel .efeitos {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 12px;
+      }
       .painel .efeitos span {
-        display: block;
+        padding: 4px 12px;
+        border: 1px solid currentColor;
+        border-radius: 3px;
         font-size: 15px;
+        animation: chegou 0.45s ease-out backwards;
+      }
+      .painel .efeitos span:nth-child(2) {
+        animation-delay: 0.15s;
+      }
+      .painel .efeitos span:nth-child(3) {
+        animation-delay: 0.3s;
+      }
+      @keyframes chegou {
+        from {
+          opacity: 0;
+          transform: translateY(8px) scale(1.15);
+        }
       }
       .painel .efeitos .pista,
       .painel p.lugar {
@@ -407,7 +545,11 @@
     <div class="hud" id="lugar"></div>
     <div class="hud" id="agir"></div>
     <div class="hud" id="aviso"></div>
-    <div class="hud" id="teclas">WASD anda · Shift corre · Espaço pula · C agacha · E investiga e pega · Q atadura · T tônico · F lampião · M mapa · J diário · N passar a hora · R outra noite · Esc solta o mouse</div>
+    <div class="hud" id="passo"></div>
+    <div class="hud" id="titulo"></div>
+    <div class="hud" id="legenda"></div>
+    <div class="hud" id="guias"></div>
+    <div class="hud" id="teclas">WASD anda · Shift corre · Espaço pula · C agacha · E investiga e pega · Q atadura · T tônico · F lampião · G guias · M mapa · J diário · N passar a hora · R outra noite</div>
     <div id="mapa"></div>
     <div id="cena" class="painel"></div>
     <div id="diario"></div>

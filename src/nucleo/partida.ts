@@ -409,6 +409,30 @@ export function descobriuARegra(e: Estado, bib: Biblioteca): boolean {
   return e.personagens.some((p) => sabeARegra(e, bib, p.id));
 }
 
+/**
+ * O lugar de um NPC: aquele em que a historia mais fala dele (cena ou escolha que exige o NPC).
+ * null se nenhuma cena de lugar certo o menciona.
+ */
+export function casaDoNpc(bib: Biblioteca, npc: string): LugarId | null {
+  const votos = new Map<LugarId, number>();
+  for (const f of bib.fragmentos) {
+    if (f.lugares === 'qualquer') continue;
+    const vezes = (f.requer?.npcs?.includes(npc) ? 1 : 0) + f.escolhas.filter((escolha) => escolha.requer?.npcs?.includes(npc)).length;
+    if (vezes === 0) continue;
+    // Cena de um lugar so pesa mais que cena que serve a varios.
+    for (const lugar of f.lugares) votos.set(lugar, (votos.get(lugar) ?? 0) + vezes / f.lugares.length);
+  }
+  let casa: LugarId | null = null;
+  let maior = 0;
+  for (const [lugar, v] of votos) {
+    if (v > maior) {
+      maior = v;
+      casa = lugar;
+    }
+  }
+  return casa;
+}
+
 /** O que fazer para a ameaca nao alcancar ninguem, dito a quem ja entendeu a regra. */
 export function comoEscapar(regra: RegraSecreta): string {
   switch (regra.alvo.tipo) {

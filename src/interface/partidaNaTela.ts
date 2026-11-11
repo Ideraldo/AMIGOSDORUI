@@ -4,7 +4,7 @@
 // E DOM puro, sem framework. O Three.js nao aparece aqui.
 
 import { LUGARES, contem, direcao, lugarPorId, pegada, type LugarId } from '../mundo/planta.ts';
-import { cenaDe, chegar, entrar, escolher, escolhasDisponiveis, fragmentoDe, novaPartida, objetivos, passarRodada, pegar, regraDe, sabeARegra, sair, usar, type OpcoesDePartida } from '../nucleo/partida.ts';
+import { cenaDe, chegar, comoEscapar, entrar, escolher, escolhasDisponiveis, fragmentoDe, novaPartida, objetivos, passarRodada, pegar, regraDe, sabeARegra, sair, usar, type OpcoesDePartida } from '../nucleo/partida.ts';
 import { FERIMENTO_FATAL, MEDO_MAXIMO, PISTAS_PARA_DESCOBRIR, RODADAS, SEGUNDOS_POR_RODADA, atoDaRodada, type Biblioteca, type Estado, type Registro } from '../nucleo/tipos.ts';
 import type { Sinal } from './efeitos.ts';
 
@@ -43,6 +43,19 @@ export class PartidaNaTela {
   private readonly elGancho = document.querySelector<HTMLElement>('#gancho');
   private readonly elAviso = document.querySelector<HTMLElement>('#aviso');
   private avisoAte = 0;
+  private readonly elLegenda = document.querySelector<HTMLElement>('#legenda');
+  private readonly elTitulo = document.querySelector<HTMLElement>('#titulo');
+  private readonly elPasso = document.querySelector<HTMLElement>('#passo');
+  /** Legendas esperando a vez: o que a virada da hora conta, uma linha de cada vez. */
+  private legendas: { texto: string; classe: string }[] = [];
+  private legendaAte = 0;
+  private tituloAte = 0;
+  /** Depois do ultimo sino, o fim espera o mundo acabar de reagir. */
+  private fimEm = 0;
+  private ultimoPasso = '';
+  /** Ate quando cada medidor fica piscando, depois de mudar. */
+  private piscando: Record<string, number> = {};
+  private medidoresAntes: Record<string, number> = {};
   /** Quanto querosene resta no lampiao, de 0 a 1. E da tela: as regras nao conhecem o lampiao. */
   querosene = 1;
   /** Objetivos ja cumpridos, para avisar so na hora em que cada um se cumpre. */
@@ -65,6 +78,12 @@ export class PartidaNaTela {
     this.restante = SEGUNDOS_POR_RODADA;
     this.lugarAtual = null;
     this.querosene = 1;
+    this.legendas = [];
+    this.legendaAte = 0;
+    this.fimEm = 0;
+    this.piscando = {};
+    this.medidoresAntes = {};
+    if (this.elLegenda) this.elLegenda.style.opacity = '0';
     this.cumpridos = new Set();
     this.fecharPainel();
     this.mundo.sinal('noite');
@@ -95,6 +114,24 @@ export class PartidaNaTela {
   /** Lugar aberto em que o jogador esta agora. null e a rua. */
   get dentro(): LugarId | null {
     return this.aqui;
+  }
+
+  /** Os abrigos da regra da noite, mas so depois que o jogador entendeu a regra. */
+  abrigosConhecidos(): LugarId[] {
+    const regra = regraDe(this.estado, this.bib);
+    if (regra.alvo.tipo !== 'fora-de-abrigo' || !sabeARegra(this.estado, this.bib, EU)) return [];
+    return regra.alvo.abrigos.filter((id) => this.estado.abertos.includes(id));
+  }
+
+  /** O que fazer agora, numa linha, para o topo da tela. */
+  proximoPasso(): string {
+    if (this.estado.fim || !this.eu.vivo) return '';
+    const [explorar, entender] = objetivos(this.estado, this.bib, EU);
+    const regra = regraDe(this.estado, this.bib);
+    if (entender!.feito) return comoEscapar(regra);
+    if (this.estado.rodada === RODADAS) return 'Última hora: ache um lugar que pareça seguro antes do sino.';
+    if (!explorar!.feito) return 'Entre num lugar marcado com ◆ e investigue o que brilha lá dentro.';
+    return 'Procure pistas: investigue mais lugares e leia o que achar.';
   }
 
   /** Lugares abertos em que ainda ha o que investigar nesta hora. */
@@ -169,12 +206,54 @@ export class PartidaNaTela {
     this.avisoAte = performance.now() + ms;
   }
 
+  /** Poe uma legenda na fila. Cada uma fica na tela o tempo de ser lida. */
+  private legendar(texto: string, classe = ''): void {
+    this.legendas.push({ texto, classe });
+  }
+
+  /** Um titulo grande que aparece e some: a hora que comecou. */
+  private titular(texto: string, sub: string): void {
+    if (!this.elTitulo) return;
+    this.elTitulo.innerHTML = `${escapar(texto)}<small>${escapar(sub)}</small>`;
+    this.elTitulo.style.opacity = '1';
+    this.tituloAte = performance.now() + 3200;
+  }
+
+  private atualizarLegendas(): void {
+    const agora = performance.now();
+    if (this.elTitulo && this.tituloAte && agora > this.tituloAte) {
+      this.elTitulo.style.opacity = '0';
+      this.tituloAte = 0;
+    }
+    if (!this.elLegenda) return;
+    // Com um painel aberto a legenda espera: duas coisas para ler ao mesmo tempo ninguem le.
+    if (this.modo === 'cena' || this.modo === 'resultado' || this.modo === 'fim') {
+      this.elLegenda.style.opacity = '0';
+      this.legendaAte = 0;
+      return;
+    }
+    if (agora < this.legendaAte) return;
+    const proxima = this.legendas.shift();
+    if (!proxima) {
+      if (this.legendaAte) this.elLegenda.style.opacity = '0';
+      this.legendaAte = 0;
+      return;
+    }
+    this.elLegenda.textContent = proxima.texto;
+    this.elLegenda.className = `hud ${proxima.classe}`;
+    this.elLegenda.style.opacity = '1';
+    // Tempo de leitura: dois segundos e meio, mais um pouco por letra.
+    this.legendaAte = agora + 2500 + proxima.texto.length * 45;
+  }
+
   /** Chamado a cada quadro. O relogio so anda quando `tempoCorre` (jogo em foco e sem painel aberto). */
   atualizar(dt: number, x: number, z: number, tempoCorre: boolean): void {
     if (this.elAviso && this.avisoAte && performance.now() > this.avisoAte) {
       this.elAviso.style.opacity = '0';
       this.avisoAte = 0;
     }
+    this.atualizarLegendas();
+    if (this.fimEm && performance.now() > this.fimEm) this.mostrarFim();
     this.aqui = this.lugarEm(x, z);
     if (this.modo === 'andando') {
       const lugar = this.aqui;
@@ -206,8 +285,13 @@ export class PartidaNaTela {
       this.decidir(Number(numero) - 1);
       return true;
     }
-    if ((this.modo === 'resultado' || this.modo === 'virada') && (codigo === 'Space' || codigo === 'Enter')) {
+    if (this.modo === 'resultado' && (codigo === 'Space' || codigo === 'Enter')) {
       this.continuar();
+      return true;
+    }
+    // Depois do ultimo sino, o Espaco pula a espera e mostra o fim.
+    if (this.modo === 'virada' && (codigo === 'Space' || codigo === 'Enter')) {
+      this.mostrarFim();
       return true;
     }
     if (codigo === 'KeyN' && this.modo === 'andando') {
@@ -322,37 +406,40 @@ export class PartidaNaTela {
       }
       this.mundo.reconstruir(estado.abertos);
     }
+    // A virada nao para o jogo: o sino bate, as luzes reagem, o vulto aparece e o que
+    // aconteceu passa em legendas. O texto inteiro continua no diario (J).
     this.mundo.sinal('hora');
     const classe = (r: Registro) => (r.tipo === 'ameaca' && r.quem ? 'ataque' : r.tipo);
-    const linhas = eventos.filter((r) => r.tipo !== 'fim').map((r) => `<p class="${classe(r)}">${escapar(r.texto)}</p>`);
+    this.legendas = [];
+    this.legendaAte = 0;
     for (const r of eventos) {
       if (r.tipo === 'pressagio') this.mundo.sinal('pressagio');
       else if (r.tipo === 'ameaca') this.mundo.sinal(r.quem?.includes(EU) ? 'ataque' : 'ronda');
+      if (r.tipo !== 'fim') this.legendar(r.texto, classe(r));
     }
-    this.modo = 'virada';
-    this.painel(
-      `<h3>Fim da ${horaQueAcabou}ª hora</h3>${linhas.join('')}<div class="seguir"><kbd>Espaço</kbd> ${estado.fim ? 'ver como a noite acabou' : 'continuar'}</div>`,
-      'virada',
-    );
+    if (estado.fim) {
+      // O ultimo sino: o jogador fica parado vendo o mundo reagir, e o fim vem em seguida.
+      this.modo = 'virada';
+      this.mundo.congelar(true);
+      this.titular('O último sino', `fim da ${horaQueAcabou}ª hora`);
+      this.fimEm = performance.now() + 5500;
+      return;
+    }
+    const rodada = estado.rodada;
+    this.titular(`${rodada}ª hora`, rodada === RODADAS ? 'a última' : `ato ${atoDaRodada(rodada)}`);
+    if (rodada === RODADAS) this.legendar('Última hora. Quando o sino bater de novo, a coisa vem buscar quem estiver ao alcance.', 'ataque');
+    else if (rodada === 3) this.legendar('Ato 2. A coisa começou a caçar.');
+    else if (rodada === 7) this.legendar('Ato 3. Falta pouco para amanhecer, e ela sabe.');
   }
 
   private continuar(): void {
+    // Uma escolha pode matar: ai o fim vem direto, sem esperar o sino.
     if (this.estado.fim) {
       this.mostrarFim();
       return;
     }
-    const vinhaDaVirada = this.modo === 'virada';
     this.modo = 'andando';
     this.fecharPainel();
-    if (vinhaDaVirada) this.anunciarHora();
-  }
-
-  /** Ao voltar para a rua depois do sino: diz em que pe a noite esta. */
-  private anunciarHora(): void {
-    const rodada = this.estado.rodada;
-    if (rodada === RODADAS) this.avisar('Última hora. Quando o sino bater de novo, a coisa vem buscar quem estiver ao alcance.', 8000);
-    else if (rodada === 3) this.avisar('Ato 2. A coisa começou a caçar.', 6000);
-    else if (rodada === 7) this.avisar('Ato 3. Falta pouco para amanhecer, e ela sabe.', 6000);
   }
 
   /** Lista de objetivos em HTML, para o canto da tela e para o fim. */
@@ -374,6 +461,10 @@ export class PartidaNaTela {
   }
 
   private mostrarFim(): void {
+    this.fimEm = 0;
+    this.legendas = [];
+    if (this.elLegenda) this.elLegenda.style.opacity = '0';
+    if (this.elTitulo) this.elTitulo.style.opacity = '0';
     const fim = this.estado.fim!;
     const meu = fim.epilogos.find((ep) => ep.id === EU)!;
     const regra = regraDe(this.estado, this.bib);
@@ -414,12 +505,25 @@ export class PartidaNaTela {
     const s = Math.max(0, Math.ceil(this.restante));
     const relogio = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
     const lugares = LUGARES.filter((l) => e.abertos.includes(l.id)).map((l) => `<li class="${eu.visitados.includes(l.id) ? 'visto' : ''}${eu.lugar === l.id ? ' aqui' : ''}">${l.nome}</li>`);
+    // Medidor que mudou pisca por um instante, para o olho ir ate ele.
+    const agora = performance.now();
+    const pistas = new Set([...e.pistas, ...eu.pistas]).size;
+    const valores: Record<string, number> = { medo: eu.medo, ferimento: eu.ferimento, pistas, lampiao: Math.ceil(this.querosene * 5) };
+    for (const [nome, valor] of Object.entries(valores)) {
+      if (this.medidoresAntes[nome] !== undefined && this.medidoresAntes[nome] !== valor) this.piscando[nome] = agora + 1600;
+      this.medidoresAntes[nome] = valor;
+    }
+    const pisca = (nome: string) => ((this.piscando[nome] ?? 0) > agora ? ' mudou' : '');
+    // Quem ja sabe que a coisa fareja o medo ve no medidor ate onde pode ir.
+    const regra = regraDe(e, this.bib);
+    const limite = regra.alvo.tipo === 'mais-medo' && sabeARegra(e, this.bib, EU) ? regra.alvo.limiar - 1 : null;
+    const medo = limite === null ? bolinhas(eu.medo, MEDO_MAXIMO) : `${bolinhas(Math.min(eu.medo, limite), limite)}<i class="limite">┃</i>${bolinhas(Math.max(0, eu.medo - limite), MEDO_MAXIMO - limite)}`;
     const html =
       `<h2>${e.rodada}ª hora de ${RODADAS} · ato ${atoDaRodada(e.rodada)} · <span class="${s <= 20 ? 'ruim' : ''}">${relogio}</span></h2>` +
-      `<div class="medidor">Medo <span>${bolinhas(eu.medo, MEDO_MAXIMO)}</span></div>` +
-      `<div class="medidor">Ferimento <span class="${eu.ferimento > 0 ? 'ruim' : ''}">${bolinhas(eu.ferimento, FERIMENTO_FATAL)}</span></div>` +
-      `<div class="medidor">Pistas <span>${new Set([...e.pistas, ...eu.pistas]).size}${sabeARegra(e, this.bib, EU) ? ' · dá para entender a regra' : ''}</span></div>` +
-      `<div class="medidor">Lampião <span class="${this.querosene <= 0.2 ? 'ruim' : ''}">${bolinhas(Math.ceil(this.querosene * 5), 5)}</span></div>` +
+      `<div class="medidor${pisca('medo')}">Medo <span class="${limite !== null && eu.medo > limite ? 'ruim' : ''}">${medo}</span></div>` +
+      `<div class="medidor${pisca('ferimento')}">Ferimento <span class="${eu.ferimento > 0 ? 'ruim' : ''}">${bolinhas(eu.ferimento, FERIMENTO_FATAL)}</span></div>` +
+      `<div class="medidor${pisca('pistas')}">Pistas <span>${pistas}${sabeARegra(e, this.bib, EU) ? ' · dá para entender a regra' : ''}</span></div>` +
+      `<div class="medidor${pisca('lampiao')}">Lampião <span class="${this.querosene <= 0.2 ? 'ruim' : ''}">${bolinhas(Math.ceil(this.querosene * 5), 5)}</span></div>` +
       (eu.bolsa.atadura + eu.bolsa.tonico > 0
         ? `<div class="medidor">Bolsa <span class="bolsa">${[eu.bolsa.atadura ? `atadura ${eu.bolsa.atadura} (Q)` : '', eu.bolsa.tonico ? `tônico ${eu.bolsa.tonico} (T)` : ''].filter(Boolean).join(' · ')}</span></div>`
         : '') +
@@ -428,6 +532,16 @@ export class PartidaNaTela {
     if (html !== this.ultimoHud) {
       this.ultimoHud = html;
       this.elHud.innerHTML = html;
+    }
+    // No topo: o que fazer agora e quanto falta para o sino, em barra.
+    if (this.elPasso) {
+      const fracao = Math.max(0, Math.min(1, this.restante / SEGUNDOS_POR_RODADA));
+      const passo = `${this.proximoPasso()}|${Math.round(fracao * 200)}|${s <= 20}`;
+      if (passo !== this.ultimoPasso) {
+        this.ultimoPasso = passo;
+        const texto = this.proximoPasso();
+        this.elPasso.innerHTML = texto ? `<b>Agora</b>${escapar(texto)}<div class="relogio${s <= 20 ? ' acabando' : ''}"><i style="width:${(fracao * 100).toFixed(1)}%"></i></div>` : '';
+      }
     }
   }
 }

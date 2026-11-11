@@ -37,8 +37,9 @@ Abra o endereço que aparecer no terminal (normalmente http://localhost:5173) e 
 | Q | usar a atadura da bolsa |
 | T | beber o tônico da bolsa |
 | F | acender ou apagar o lampião |
+| G | mostrar ou esconder as guias sobre as portas |
 | 1, 2, 3 | escolher numa cena |
-| Espaço | continuar depois de uma cena ou da virada da hora |
+| Espaço | pular. Com um painel aberto, continuar |
 | J | diário e pistas |
 | N | passar a hora sem esperar o relógio |
 | M | abrir o mapa |
@@ -86,6 +87,9 @@ A planta inteira está em dados em `src/mundo/planta.ts`. O mapa do jogo, a coli
 - A noite tem 8 horas (rodadas) de 2 minutos e meio, em 3 atos. O relógio só anda com o jogo em foco e para durante as cenas.
 - Entrar num lugar não abre nada sozinho. Lá dentro, um brilho flutua sobre um móvel: chegar perto e apertar E abre a cena. O brilho muda de móvel a cada hora.
 - Cada hora, cada lugar aberto rende no máximo uma cena. Toda escolha mexe em medo, ferimento, pistas, relações ou lugares, e o painel sempre diz o que mudou.
+- **O que fazer agora** fica escrito no topo da tela, com o tempo que falta para o sino numa barra. Sobre as portas dos lugares que ainda têm o que investigar aparece uma guia (◆) com a distância.
+- **A virada da hora não para o jogo**: o sino bate, o número da hora aparece grande, as luzes reagem e o que aconteceu passa em legenda. O texto inteiro fica no diário (J).
+- **Gente da cidade**: quem está no elenco da noite fica de pé no lugar em que a história o põe, com o nome por cima e o que acha de você.
 - **Objetivos**, sempre no canto da tela: investigar 3 lugares, juntar 2 pistas sobre a ameaça e ver o sol nascer. Quando a regra é entendida, o terceiro passa a dizer o que fazer.
 - Na virada de cada hora a ameaça age conforme a **regra secreta** da noite. No ato 1 só há presságios. Depois ela ataca cada vez mais.
 - **O último sino**: na virada da 8ª hora ela vem com certeza, e o golpe vale por dois. Quem entendeu a regra sabe onde estar. Quem não entendeu depende de ter chegado inteiro.
@@ -152,6 +156,7 @@ src/mundo/planta.ts       planta da cidade em dados puros
 src/mundo/noite.ts        sorteio dos lugares abertos
 src/mundo/pontos.ts       onde fica, em cada lugar, o que o jogador investiga
 src/mundo/vulto.ts        a ameaça vista de longe
+src/mundo/gente.ts        as figuras dos NPCs
 src/interface/segredos.ts coisas escondidas que não mudam as regras
 src/som/som.ts            efeitos gravados, vento e coração (Web Audio)
 public/sons/              efeitos de som gerados por `npm run sons`

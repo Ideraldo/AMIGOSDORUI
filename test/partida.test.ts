@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { LUGARES } from '../src/mundo/planta.ts';
 import { jogar } from '../src/nucleo/bot.ts';
 import { EXEMPLO } from '../src/nucleo/historias/exemplo.ts';
-import { apurar, candidatos, cenaDe, chegar, comoEscapar, contar, descobriuARegra, entrar, escolher, escolhasDisponiveis, novaPartida, objetivos, passarRodada, pegar, regraDe, sabeARegra, usar, validarBiblioteca, votar } from '../src/nucleo/partida.ts';
+import { apurar, candidatos, casaDoNpc, cenaDe, chegar, comoEscapar, contar, descobriuARegra, entrar, escolher, escolhasDisponiveis, novaPartida, objetivos, passarRodada, pegar, regraDe, sabeARegra, usar, validarBiblioteca, votar } from '../src/nucleo/partida.ts';
 import { ACHADOS_POR_NOITE, ALIVIO_DO_TONICO, DANO_DO_ULTIMO_SINO, FERIMENTO_FATAL, LUGARES_PARA_EXPLORAR, MEDO_MAXIMO, RODADAS, type Biblioteca, type Estado } from '../src/nucleo/tipos.ts';
 
 const UM = [{ id: 'a', nome: 'Ana' }];
@@ -392,4 +392,10 @@ test('usar: a atadura tira um ferimento, o tonico tira medo, e nada se gasta a t
   assert.equal(calmo.personagens[0]!.bolsa.tonico, ACHADOS_POR_NOITE.tonico - 1);
   // O tonico nao leva o medo abaixo de zero.
   assert.equal(usar(calmo, 'a', 'tonico').personagens[0]!.medo, 0);
+});
+
+test('cada NPC da historia tem um lugar na cidade, tirado das cenas em que aparece', () => {
+  const casas = Object.fromEntries(EXEMPLO.npcs.map((n) => [n.id, casaDoNpc(EXEMPLO, n.id)]));
+  assert.deepEqual(casas, { coveiro: 'cemiterio', viuva: 'casarao', xerife: 'delegacia', boticario: 'botica', menina: 'escola', barman: 'bar' });
+  assert.equal(casaDoNpc(EXEMPLO, 'ninguem'), null);
 });

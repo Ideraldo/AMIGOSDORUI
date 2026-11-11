@@ -114,6 +114,21 @@ No fim de `construirCidade`, `fundir` troca as milhares de caixas e cilindros de
 - Interior novo: confira com `npm run colisao`, que reprova lugar sem ponto, ponto que não se alcança a pé e marca a mais de 1,2 m de quem investiga.
 - Toda escolha mostra o que mudou. Além de medo, ferimento e pista, o painel diz quando um NPC mudou de opinião e quando uma marca nova entrou.
 
+## Clareza: guias, próximo passo e virada sem painel
+
+- O Ideraldo pediu, em 11/11/2026: clareza do que fazer, retorno visual, menos texto e mais coisa acontecendo no mundo. Antes de acrescentar um painel de texto, procure outro jeito de mostrar.
+- `proximoPasso` (`partidaNaTela.ts`) dá a linha "Agora" do topo, tirada dos objetivos. A barra embaixo dela é o relógio da hora.
+- Guias (`atualizarGuias` em `main.ts`): elementos de tela projetados sobre as portas dos lugares com algo a investigar, sobre os abrigos (só para quem entendeu a regra) e sobre os NPCs por perto. Só os três lugares mais próximos levam nome. A tecla G esconde.
+- A virada da hora não abre painel nem congela o jogador: `virar` dispara os sinais, mostra o título da hora (`titular`) e põe o texto dos acontecimentos na fila de legendas (`legendar`). Só o último sino segura o jogador, por 5,5 segundos, antes da tela do fim.
+- Legenda espera enquanto houver painel aberto. Aviso (`avisar`) é para recado curto do jogo, legenda é para o que a história conta.
+- Medidor que muda pisca (`.medidor.mudou`). Efeito de escolha aparece em ficha, não em linha de texto.
+
+## Gente da cidade
+
+- `casaDoNpc` (núcleo) tira das cenas o lugar de cada NPC. `Npc.figura` (`homem`, `mulher`, `crianca`) diz como ele aparece, e é o único campo de aparência da biblioteca.
+- `atualizarGente` em `main.ts` põe quem está no elenco da noite de pé num móvel do próprio lugar que não tenha nada para o jogador mexer naquela hora. As figuras (`src/mundo/gente.ts`) não têm colisão.
+- Ainda não dá para falar com eles: a conversa continua sendo a escolha da cena que exige o NPC.
+
 ## Coisas para pegar
 
 - `Estado.achados` guarda as coisas da noite (`Achado` em `tipos.ts`): querosene, bilhete, atadura e tônico, nas quantidades de `ACHADOS_POR_NOITE`. `novaPartida` espalha com um sorteio próprio, para não mudar as cenas de cada semente. `pegar` e `usar` são as regras.
@@ -151,7 +166,7 @@ No fim de `construirCidade`, `fundir` troca as milhares de caixas e cilindros de
 - Nenhum modelo de IA gera texto durante a partida. A história vem de uma biblioteca pronta, feita antes.
 - Não troque de motor, não acrescente framework de interface e não traga modelos 3D prontos sem combinar com o Ideraldo.
 - Pulo e agachar existem desde 10/11/2026, a pedido do Ideraldo. Agachar ainda não tem uso na história: a ideia é servir para se esconder da ameaça.
-- Ainda faltam, na ordem de `docs/plano.md`: chaves e quartos trancados, missões da história, ameaça que se move, NPCs visíveis, menu e multiplayer.
+- Ainda faltam, na ordem de `docs/plano.md`: multiplayer (o Ideraldo quer o jogo online), conversa com os NPCs, chaves e quartos trancados, missões da história, ameaça que se move e menu.
 - O Ideraldo cogita virar executável de PC se o navegador pesar. Em 10/11/2026 não pesava: 60 FPS travados na RTX 2060, com folga de 98 a 230 FPS sem limite (ver `docs/teste-2026-11-10.md`). Se um dia for preciso, empacotar com Electron ou Tauri aproveita o mesmo código.
 - Quartos trancados dos sobrados (2, 4 e 6 do bar, 2 da pensão, dois do casarão) estão vazios por dentro. São reserva para a história abrir depois.
 - Os textos de cartazes e placas (avisos, quadro da escola, linhas do telégrafo) são ambientação inventada no cenário, não história oficial. Quando o roteiro existir, eles devem passar a vir dele.

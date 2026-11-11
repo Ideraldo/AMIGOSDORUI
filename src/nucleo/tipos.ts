@@ -118,6 +118,8 @@ export interface Npc {
   id: string;
   nome: string;
   papel: string;
+  /** Como a pessoa aparece na cidade. Sem valor, e um homem de chapeu. */
+  figura?: 'homem' | 'mulher' | 'crianca';
 }
 
 export interface Pista {

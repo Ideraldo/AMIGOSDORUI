@@ -24,10 +24,10 @@ export const EXEMPLO: Biblioteca = {
 
   npcs: [
     { id: 'coveiro', nome: 'Seu Honório', papel: 'coveiro' },
-    { id: 'viuva', nome: 'Dona Carlota', papel: 'viúva do casarão' },
+    { id: 'viuva', nome: 'Dona Carlota', papel: 'viúva do casarão', figura: 'mulher' },
     { id: 'xerife', nome: 'Xerife Brandão', papel: 'xerife' },
     { id: 'boticario', nome: 'Dr. Amâncio', papel: 'boticário' },
-    { id: 'menina', nome: 'Lia', papel: 'órfã que dorme na escola' },
+    { id: 'menina', nome: 'Lia', papel: 'órfã que dorme na escola', figura: 'crianca' },
     { id: 'barman', nome: 'Tião', papel: 'dono do bar' },
   ],
 
