@@ -109,12 +109,16 @@ export function girarDisco(estado: Estado, quem: string, disco: number, passo: n
 export function puxarAlavanca(estado: Estado, bib: Biblioteca, quem: string): Estado {
   const c = estado.cofre;
   const atual = vivoEm(estado, quem);
-  if (!c || c.aberto || !atual || atual.lugar !== c.lugar) return estado;
+  if (!c || c.aberto || !atual || atual.lugar !== c.lugar || cofreEmperrado(estado)) return estado;
+  // Com o medo no maximo as maos nao obedecem: primeiro um tonico.
+  if (atual.medo >= MEDO_MAXIMO) return estado;
   const e = copiar(estado);
   const p = e.personagens.find((x) => x.id === quem)!;
   if (c.discos.some((d, i) => d !== c.segredo[i])) {
     e.cofre!.erros += 1;
     p.medo = Math.min(MEDO_MAXIMO, p.medo + 1);
+    // No terceiro erro a alavanca emperra ate o sino: nao da para abrir no chute.
+    if (e.cofre!.erros % ERROS_PARA_EMPERRAR === 0) e.cofre!.emperrado = e.rodada;
     return e;
   }
   e.cofre!.aberto = true;
@@ -133,7 +137,24 @@ export function puxarAlavanca(estado: Estado, bib: Biblioteca, quem: string): Es
   return e;
 }
 
+/** Quantos erros seguidos emperram a alavanca ate a hora virar. */
+export const ERROS_PARA_EMPERRAR = 3;
+
+/** O cofre esta emperrado nesta hora? */
+export const cofreEmperrado = (e: Estado): boolean => !!e.cofre && !e.cofre.aberto && e.cofre.emperrado === e.rodada;
+
 // ---------- o favor ----------
+
+/** Quem sai da sala (ou morre) levando a caixa larga a caixa onde a achou. */
+export function largarCaixa(estado: Estado, quem: string): Estado {
+  if (!estado.favor || estado.favor.entregue) return estado;
+  const i = estado.achados.findIndex((a) => a.tipo === 'encomenda' && a.pego && a.pegoPor === quem);
+  if (i < 0) return estado;
+  const e = copiar(estado);
+  e.achados[i]!.pego = false;
+  delete e.achados[i]!.pegoPor;
+  return e;
+}
 
 /** Quem esta com a caixa do favor na mao agora. null: ninguem pegou, ou ja foi entregue. */
 export function levandoAEncomenda(e: Estado): string | null {
@@ -172,7 +193,7 @@ export function missoes(e: Estado, bib: Biblioteca, quem: string): Tarefa[] {
       lista.push({ texto: `Cofre de ferro aberto (${nomeDoLugar(c.lugar)})`, feita: true });
     } else {
       const meu = segredoAnotado(e, quem);
-      lista.push({ texto: `Abrir o cofre de ferro: ${nomeDoLugar(c.lugar)}. Segredo: ${meu.map((n) => n ?? '?').join(' ')}`, feita: false });
+      lista.push({ texto: `Abrir o cofre de ferro: ${nomeDoLugar(c.lugar)}. Segredo: ${meu.map((n) => n ?? '?').join(' ')}${cofreEmperrado(e) ? '. Emperrado até o sino' : ''}`, feita: false });
       const faltam = c.numeros.map((n, i) => (meu[i] === null ? `${i + 1}º: ${nomeDoLugar(n.lugar)}` : '')).filter(Boolean);
       if (faltam.length) lista.push({ texto: `Números riscados em tábuas. ${faltam.join(' · ')}`, feita: false });
     }

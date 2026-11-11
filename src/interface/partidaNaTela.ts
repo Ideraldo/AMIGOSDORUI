@@ -32,7 +32,8 @@ import {
   usar,
   type OpcoesDePartida,
 } from '../nucleo/partida.ts';
-import { anotarNumero, entregar, girarDisco, levandoAEncomenda, missoes, puxarAlavanca, segredoAnotado } from '../nucleo/missoes.ts';
+import { anotarNumero, cofreEmperrado, entregar, girarDisco, levandoAEncomenda, missoes, puxarAlavanca, segredoAnotado } from '../nucleo/missoes.ts';
+import { chancesRestantes, oQueImpedeMostrar, ouvirDica, temChance } from '../nucleo/partida.ts';
 import { FERIMENTO_FATAL, MEDO_MAXIMO, PISTAS_PARA_DESCOBRIR, RODADAS, SEGUNDOS_POR_RODADA, atoDaRodada, type Achado, type Biblioteca, type Cena, type Estado, type Personagem, type Registro } from '../nucleo/tipos.ts';
 import type { Sinal } from './efeitos.ts';
 
@@ -50,7 +51,7 @@ export interface Mundo {
   /** Algo aconteceu que o jogador deve sentir, alem de ler (ver efeitos.ts). */
   sinal(sinal: Sinal): void;
   /** Um NPC diz uma coisa em voz alta. */
-  falar(npc: string, texto: string): void;
+  falar(npc: string, texto: string | string[]): void;
   lampiaoAceso(): boolean;
   apagarLampiao(): void;
 }
@@ -64,6 +65,7 @@ export interface Condutor {
   pegar(id: string): void;
   usar(tipo: 'atadura' | 'tonico'): void;
   mostrar(npc: string): void;
+  ouvir(npc: string): void;
   /** O cofre de ferro e o favor (src/nucleo/missoes.ts). */
   anotar(numero: number): void;
   disco(disco: number, passo: number): void;
@@ -143,6 +145,7 @@ export class PartidaNaTela {
       pegar: (id) => this.receber(pegar(this.estado, this.bib, this.eu, id)),
       usar: (tipo) => this.receber(usar(this.estado, this.eu, tipo)),
       mostrar: (npc) => this.receber(mostrarCarta(this.estado, this.bib, this.eu, npc)),
+      ouvir: (npc) => this.receber(ouvirDica(this.estado, this.bib, this.eu, npc)),
       anotar: (numero) => this.receber(anotarNumero(this.estado, this.eu, numero)),
       disco: (disco, passo) => this.receber(girarDisco(this.estado, this.eu, disco, passo)),
       alavanca: () => this.receber(puxarAlavanca(this.estado, this.bib, this.eu)),
@@ -284,6 +287,34 @@ export class PartidaNaTela {
   /** Este jogador ainda tem a chance de mostrar a carta? */
   get podeMostrarCarta(): boolean {
     return podeMostrar(this.estado, this.eu);
+  }
+
+  /** Ainda ha chance de mostrar a carta nesta noite, mesmo que agora falte prova? */
+  get temChanceDeMostrar(): boolean {
+    return temChance(this.estado, this.eu);
+  }
+
+  /** Por que a carta nao sai do bolso agora. null: pode mostrar. */
+  get oQueImpedeACarta(): string | null {
+    return oQueImpedeMostrar(this.estado, this.eu);
+  }
+
+  get chancesDeMostrar(): number {
+    return chancesRestantes(this.estado, this.eu);
+  }
+
+  /** O jogador ouviu de um NPC a dica da regra da noite. */
+  ouvir(npc: string): void {
+    this.condutor.ouvir(npc);
+  }
+
+  /** Larga o que estiver aberto (cena, cofre, diario) e volta a andar: usado ao ir para a sala de espera. */
+  suspender(): void {
+    if (this.modo === 'fim') return;
+    this.modo = 'andando';
+    this.aqui = null;
+    this.lugarAtual = null;
+    this.fecharPainel();
   }
 
   /** O jogador mostra a carta a alguem da cidade. So ha uma chance. */
@@ -464,9 +495,15 @@ export class PartidaNaTela {
       const certo = m.npc === novo.carta.autor;
       if (m.quem === this.eu) {
         const texto = certo ? npc.carta.confessa : npc.carta.nega;
-        this.mundo.falar(npc.id, texto);
+        // Quem confessa promete contar o que sabe: em seguida vem, na voz dela, a dica da regra da noite.
+        const dica = certo ? npc.falas?.find((f) => f.regras?.includes(novo.regra))?.texto : undefined;
+        this.mundo.falar(npc.id, dica ? [texto, dica] : texto);
         this.dizer(`${npc.nome}: “${texto}”`);
-        if (!certo) this.avisar('Não foi essa pessoa. Sua chance de mostrar a carta acabou.', 6000);
+        if (dica) this.dizer(`${npc.nome}: “${dica}”`);
+        if (!certo) {
+          const restam = chancesRestantes(novo, this.eu);
+          this.avisar(restam > 0 ? 'Não foi essa pessoa. Resta uma chance de mostrar a carta.' : 'Não foi essa pessoa. Sua chance de mostrar a carta acabou.', 6000);
+        }
       } else {
         this.legendar(`${this.nomeDe(m.quem)} mostrou a carta a ${npc.nome}. ${certo ? 'Foi quem escreveu.' : 'Não foi essa pessoa.'}`, 'lugar');
       }
@@ -486,7 +523,12 @@ export class PartidaNaTela {
       for (const id of novo.pistas.filter((p) => !antes.pistas.includes(p))) {
         const doCofre = !!novo.cofre?.aberto && !antes.cofre?.aberto && novo.cofre.abertoPor === this.eu;
         const minha = doCofre || novo.achados.some((a) => a.pista === id && a.pegoPor === this.eu && !antes.achados.find((x) => x.id === a.id)?.pego);
-        if (!minha) this.legendar(`O grupo descobriu: ${this.bib.pistas.find((p) => p.id === id)?.texto ?? ''}`, 'lugar');
+        if (!minha) this.legendar(`${novo.personagens.length > 1 ? 'O grupo descobriu' : 'Pista'}: ${this.bib.pistas.find((p) => p.id === id)?.texto ?? ''}`, 'lugar');
+      }
+      // Pista que so este jogador ganhou, ouvindo quem confia nele.
+      if ((souEu.ouviu?.length ?? 0) > (eraEu.ouviu?.length ?? 0) && souEu.pistas.length > eraEu.pistas.length) {
+        this.mundo.sinal('pista');
+        this.avisar(novo.personagens.length > 1 ? 'Isso vale como pista. Só você ouviu: conte aos outros.' : 'Isso vale como pista. Está no diário (J).', 6000);
       }
     }
     this.conferirObjetivos();
@@ -704,7 +746,10 @@ export class PartidaNaTela {
   }
 
   /** Devolve true se a tecla foi usada pela partida. */
-  tecla(codigo: string): boolean {
+  tecla(codigo: string, repete = false): boolean {
+    // Tecla segurada so repete para girar o disco do cofre. O resto vale uma vez por aperto.
+    const gira = this.modo === 'cofre' && ['KeyW', 'KeyS', 'ArrowUp', 'ArrowDown'].includes(codigo);
+    if (repete && !gira) return this.modo !== 'andando';
     if (this.modo === 'cofre') return this.teclaNoCofre(codigo);
     const numero = /^(?:Digit|Numpad)([1-3])$/.exec(codigo)?.[1];
     if (this.modo === 'cena' && numero) {
@@ -742,7 +787,11 @@ export class PartidaNaTela {
     else if (codigo === 'KeyD' || codigo === 'ArrowRight') this.discoEscolhido = (this.discoEscolhido + 1) % discos;
     else if (codigo === 'KeyW' || codigo === 'ArrowUp') this.condutor.disco(this.discoEscolhido, 1);
     else if (codigo === 'KeyS' || codigo === 'ArrowDown') this.condutor.disco(this.discoEscolhido, -1);
-    else if (codigo === 'Space' || codigo === 'Enter') this.condutor.alavanca();
+    else if (codigo === 'Space' || codigo === 'Enter') {
+      if (cofreEmperrado(this.estado)) this.avisar('A alavanca emperrou. Só volta a mexer depois do sino.', 4500);
+      else if (this.personagem.medo >= MEDO_MAXIMO) this.avisar('As mãos tremem demais para puxar a alavanca. Um tônico acalma.', 4500);
+      else this.condutor.alavanca();
+    }
     else if (codigo === 'KeyE' || codigo === 'Backspace') {
       if (performance.now() - this.cofreDesde > 250) this.largarOCofre();
     } else if (codigo === 'KeyJ') this.alternarDiario();
@@ -919,16 +968,23 @@ export class PartidaNaTela {
     // Numa sala, o fim de cada um dos outros vem junto.
     const outros = fim.epilogos.filter((ep) => ep.id !== meu.id).map((ep) => `<li><b class="${ep.vivo ? 'bom' : 'ruim'}">${escapar(ep.nome)}</b> ${escapar(ep.texto)}</li>`);
     this.mundo.sinal(meu.vivo ? 'amanhecer' : 'morte');
+    const autor = fim.carta.autor ? (this.bib.npcs.find((n) => n.id === fim.carta.autor)?.nome ?? '') : '';
     this.modo = 'fim';
     this.painel(
-      `<h3>${meu.vivo ? 'Amanheceu' : fim.amanheceu ? 'O sol nasceu sem você' : 'Ninguém viu o sol nascer'}</h3>` +
+      `<h3>${meu.vivo ? (fim.carta.autor && !fim.carta.achou ? 'Amanheceu, e o socorro não chegou' : 'Amanheceu') : fim.amanheceu ? 'O sol nasceu sem você' : 'Ninguém viu o sol nascer'}</h3>` +
         `<p>${escapar(meu.texto)}</p>` +
+        (autor
+          ? `<h4>A carta</h4><p class="${fim.carta.achou ? 'bom' : 'ruim'}">${escapar(
+              fim.carta.achou
+                ? fim.amanheceu
+                  ? `Quem escreveu foi ${autor}. Subiu no trem da manhã com a turma de socorro, sem olhar para a cidade.`
+                  : `Quem escreveu foi ${autor}. O socorro chegou à porta certa, e não passou da noite.`
+                : `Quem escreveu foi ${autor}. Ficou para trás, esperando um socorro que passou pela porta e não bateu.`,
+            )}</p>`
+          : '') +
         (outros.length ? `<h4>Os outros</h4><ul>${outros.join('')}</ul>` : '') +
         `<h4>A regra da noite: ${escapar(regra.nome)}</h4><p>${escapar(fim.revelacao)}</p>` +
         `<p class="${meu.sabia ? 'bom' : 'ruim'}">${meu.sabia ? 'As pistas que apareceram bastavam para entender.' : `Faltaram pistas para entender a tempo (${regra.pistas.filter((p) => minhas.includes(p)).length} de ${PISTAS_PARA_DESCOBRIR}).`}</p>` +
-        (fim.carta.autor
-          ? `<h4>A carta</h4><p class="${fim.carta.achou ? 'bom' : 'ruim'}">Quem escreveu foi ${escapar(this.bib.npcs.find((n) => n.id === fim.carta.autor)?.nome ?? '')}. ${fim.carta.achou ? 'O socorro chegou a quem pediu.' : 'Ninguém chegou a essa pessoa a tempo.'}</p>`
-          : '') +
         `<h4>Objetivos da noite</h4><ul class="objetivos">${this.listaDeObjetivos()}</ul>` +
         (pistas.length ? `<h4>Pistas encontradas</h4><ul>${pistas.join('')}</ul>` : '') +
         `<div class="seguir"><kbd>R</kbd> outra noite${this.sala ? ' (quem criou a sala decide)' : ''}</div>`,

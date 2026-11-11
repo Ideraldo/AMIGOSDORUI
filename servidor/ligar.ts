@@ -72,6 +72,17 @@ export function ligarSalas(http: Server): void {
       } catch {
         return;
       }
+      // Qualquer um manda o que quiser por este fio: so passa objeto com o tipo escrito.
+      if (!m || typeof m !== 'object' || typeof (m as { t?: unknown }).t !== 'string') return;
+      try {
+        tratar(m);
+      } catch (erro) {
+        // Uma mensagem estragada nao pode derrubar as salas de todo mundo.
+        console.error('sala: mensagem recusada', erro);
+      }
+    });
+
+    function tratar(m: Intencao): void {
       if (!mesa) {
         // Antes de entrar numa sala so vale criar uma ou entrar numa.
         if (m.t !== 'criar' && m.t !== 'entrar') return;
@@ -103,7 +114,7 @@ export function ligarSalas(http: Server): void {
       mesa.sala.receber(id, m);
       // Quando a noite comeca, todo mundo precisa saber que a sala saiu da espera.
       if (!comecou && mesa.sala.estado) avisarSala(mesa);
-    });
+    }
 
     ws.on('close', () => {
       if (!mesa) return;
@@ -116,7 +127,12 @@ export function ligarSalas(http: Server): void {
 
   const relogio = setInterval(() => {
     for (const mesa of mesas.values()) {
-      mesa.sala.avancar(PASSO);
+      try {
+        mesa.sala.avancar(PASSO);
+      } catch (erro) {
+        console.error('sala: o relogio tropecou', erro);
+        continue;
+      }
       mesa.segundo += PASSO;
       if (mesa.segundo < 1 || !mesa.sala.estado) continue;
       mesa.segundo = 0;

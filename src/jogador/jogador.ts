@@ -143,7 +143,8 @@ export class Jogador {
 
   /** A camera esta fora do corpo (terceira pessoa ou gesto)? Entao o personagem precisa aparecer. */
   get vistoDeFora(): boolean {
-    return (this.terceira || this.gesto !== null) && !this.cinema && !this.camFixa;
+    // Em cena, no cofre ou com painel aberto (congelado) a camera volta para os olhos: o corpo taparia o que se olha.
+    return (this.terceira || this.gesto !== null) && !this.cinema && !this.camFixa && !this.congelado;
   }
 
   /** Comeca um gesto, ou para se for o mesmo (ou null). Devolve o gesto que ficou valendo. */
@@ -190,7 +191,7 @@ export class Jogador {
     if (!this.gesto) this.giroDoCorpo = this.giro;
 
     // Espiar pelo canto: segurar Z (esquerda) ou X (direita). So com os pes no chao.
-    const querEspiar = this.corpo.noChao && !this.gesto ? (this.teclas.has('KeyX') ? 1 : 0) - (this.teclas.has('KeyZ') ? 1 : 0) : 0;
+    const querEspiar = this.corpo.noChao && !this.gesto && !this.congelado ? (this.teclas.has('KeyX') ? 1 : 0) - (this.teclas.has('KeyZ') ? 1 : 0) : 0;
     this.espia += (querEspiar - this.espia) * Math.min(1, 9 * dt);
     if (Math.abs(this.espia) < 0.002) this.espia = 0;
     const espiando = Math.abs(this.espia) > 0.15;

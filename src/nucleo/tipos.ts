@@ -195,6 +195,8 @@ export interface Personagem {
   visitados: LugarId[];
   /** Pistas que so este personagem conhece, ate decidir contar. */
   pistas: string[];
+  /** De quais NPCs este personagem ja ouviu a dica da regra da noite. */
+  ouviu?: string[];
   /** Como cada NPC ve este personagem. */
   relacoes: Record<string, number>;
   /** O que o personagem carrega para usar depois. */
@@ -287,6 +289,8 @@ export interface Cofre {
   abertoPor?: string;
   /** Quantas vezes puxaram a alavanca com o segredo errado. */
   erros: number;
+  /** A rodada em que o cofre emperrou, de tanto erro. So volta a mexer depois do sino. */
+  emperrado?: number;
 }
 
 /** O favor da noite: alguem da cidade pede uma caixa que ficou em outro lugar (o achado `encomenda`). */

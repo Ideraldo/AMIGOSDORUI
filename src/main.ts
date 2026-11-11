@@ -243,7 +243,7 @@ function atualizarMarcas(t: number): void {
     paraAMarca.copy(marca.position).sub(camera.position);
     const d = paraAMarca.length();
     const noChao = Math.hypot(ponto.x - jogador.posicao.x, ponto.z - jogador.posicao.z);
-    if (d < melhor && d < 2.7 && (noChao < 1.3 || paraAMarca.dot(olhar) / d > 0.8)) {
+    if (d < melhor && d < 2.7 + jogador.distanciaDaCamera && (noChao < 1.3 || paraAMarca.dot(olhar) / d > 0.8)) {
       melhor = d;
       alvo = ponto;
     }
@@ -327,7 +327,7 @@ function atualizarAchados(t: number): void {
     paraAMarca.copy(objeto.position).sub(camera.position);
     const d = paraAMarca.length();
     const noChao = Math.hypot(vaga.x - jogador.posicao.x, vaga.z - jogador.posicao.z);
-    if (d < melhor && d < 2.7 && (noChao < 1.3 || paraAMarca.dot(olhar) / d > 0.8)) {
+    if (d < melhor && d < 2.7 + jogador.distanciaDaCamera && (noChao < 1.3 || paraAMarca.dot(olhar) / d > 0.8)) {
       melhor = d;
       aoAlcance = a;
     }
@@ -480,7 +480,8 @@ function entrarNaEspera(): void {
   const i = Math.max(0, presencas.findIndex((p) => p.id === partida.idNaSala));
   const lugar = chegadaNaEspera(i);
   jogador.reiniciar();
-  // Quem estava com um painel da noite local aberto nao fica preso no lugar.
+  // Quem estava com um painel da noite local aberto nao fica preso no lugar, nem leva a cena para a plataforma.
+  partida.suspender();
   jogador.congelado = false;
   jogador.teleportar(lugar.x, 0, lugar.z);
   jogador.giro = lugar.giro;
@@ -565,6 +566,7 @@ rede.aoAviso = (aviso) => {
           pegar: (id) => rede.enviar({ t: 'pegar', id }),
           usar: (tipo) => rede.enviar({ t: 'usar', tipo }),
           mostrar: (npc) => rede.enviar({ t: 'mostrar', npc }),
+          ouvir: (npc) => rede.enviar({ t: 'ouvir', npc }),
           anotar: (numero) => rede.enviar({ t: 'anotar', numero }),
           disco: (disco, passo) => rede.enviar({ t: 'disco', disco, passo }),
           alavanca: () => rede.enviar({ t: 'alavanca' }),
@@ -628,6 +630,8 @@ rede.aoCair = () => {
   document.querySelector<HTMLElement>('#entrada dl')!.style.display = '';
   elEntrar.textContent = 'Jogar sozinho: clique para entrar na cidade';
   elErro.textContent = 'A ligação com a sala caiu. O jogo voltou para um jogador.';
+  // Com o mouse preso a tela de entrada esta escondida: solta o mouse para o recado aparecer.
+  if (document.pointerLockElement) document.exitPointerLock();
 };
 
 async function pedirSala(pedido: 'criar' | 'entrar'): Promise<void> {
@@ -754,7 +758,8 @@ document.addEventListener('keydown', (e) => {
   }
   // Gestos e dancas: segurar B e apertar de 1 a 8. Na espera, os numeros valem direto.
   if (e.code === 'KeyB') rodaAberta = true;
-  const gesto = rodaAberta || emEspera ? gestoDaTecla(e.code) : null;
+  // Em cena os numeros sao o voto, e no cofre nao se danca: ai a roda nao pega a tecla.
+  const gesto = emEspera || (rodaAberta && partida.modo === 'andando') ? gestoDaTecla(e.code) : null;
   if (gesto && !e.repeat) {
     fazerGesto(gesto);
     e.preventDefault();
@@ -780,7 +785,7 @@ document.addEventListener('keydown', (e) => {
   else if (e.code === 'KeyE' && interlocutor && !e.repeat) falarCom(interlocutor.id);
   else if (e.code === 'KeyV' && interlocutor && !e.repeat && !aoAlcance && !alvo) mostrarCartaA(interlocutor.id);
   if (e.code === 'KeyF' && !e.repeat && partida.semQuerosene) partida.avisar('O lampião está seco. Há latas de querosene pelos lugares abertos.', 4500);
-  else if (partida.tecla(e.code)) e.preventDefault();
+  else if (partida.tecla(e.code, e.repeat)) e.preventDefault();
   if (e.code === 'KeyM') elMapa.style.display = elMapa.style.display === 'block' ? 'none' : 'block';
 });
 document.addEventListener('keyup', (e) => {
@@ -901,18 +906,26 @@ function falarCom(id: string): string {
   jaDisse.add(texto);
   partida.dizer(`${npc.nome}: “${texto}”`);
   if (fala) voz.falar(texto, npc.id, npc.figura ?? 'homem', EXEMPLO.npcs.indexOf(npc));
+  // A dica da regra da noite, dita por quem confia no jogador, vale como pista.
+  if (fala && 'regras' in fala && fala.regras) partida.ouvir(id);
   return texto;
 }
 
 /** Da para mostrar a carta a esta pessoa agora? */
 function podeMostrarA(id: string): boolean {
-  return partida.podeMostrarCarta && partida.estado.carta.suspeitos.includes(id);
+  return partida.temChanceDeMostrar && partida.estado.carta.suspeitos.includes(id);
 }
 
 /** Mostrar a carta e a unica chance do jogador: o primeiro V avisa, o segundo (em 5 segundos) mostra. */
 let confirmando: { id: string; ate: number } | null = null;
 function mostrarCartaA(id: string): void {
   if (!podeMostrarA(id)) return;
+  // Sem provas no grupo, ou tremendo de medo, a carta nao sai do bolso: a tela diz por que.
+  const impede = partida.oQueImpedeACarta;
+  if (impede) {
+    partida.avisar(impede, 5000);
+    return;
+  }
   const nome = EXEMPLO.npcs.find((n) => n.id === id)?.nome ?? '';
   if (confirmando?.id === id && performance.now() < confirmando.ate) {
     confirmando = null;
@@ -920,7 +933,7 @@ function mostrarCartaA(id: string): void {
     return;
   }
   confirmando = { id, ate: performance.now() + 5000 };
-  partida.avisar(`Mostrar a carta a ${nome}? Você só tem uma chance. Aperte V de novo para mostrar.`, 5000);
+  partida.avisar(`Mostrar a carta a ${nome}? ${partida.chancesDeMostrar === 1 ? 'É a sua única chance' : `Restam ${partida.chancesDeMostrar} chances`}. Aperte V de novo para mostrar.`, 5000);
 }
 
 // ---------- abertura: o que aconteceu e o que fazer, narrado sobre planos da cidade ----------
@@ -1185,7 +1198,7 @@ function quadro(): void {
   // O relogio da noite so anda com o jogo em foco e depois da abertura. Camera presa (capturas) nao joga.
   // Na plataforma de espera nao ha noite nenhuma: nem relogio, nem lugares, nem ameaca.
   if (!cam && !emEspera) partida.atualizar(dt, jogador.posicao.x, jogador.posicao.z, jogador.travado && !abertura);
-  palco.atualizar(dt, t);
+  if (!emEspera) palco.atualizar(dt, t);
   // O que a partida faz sentir: luzes que falham, lampiao nervoso, tranco, neblina e amanhecer.
   const eu = medidoresForcados ?? partida.personagem;
   const fx = efeitos.atualizar(dt, eu.medo, eu.ferimento);

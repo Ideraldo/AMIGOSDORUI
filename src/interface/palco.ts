@@ -236,7 +236,8 @@ export class Palco {
     const { camera, jogador } = this.m;
     this.aux.set(x, y, z).sub(camera.position);
     const d = this.aux.length();
-    return d < alcance && (Math.hypot(x - jogador.posicao.x, z - jogador.posicao.z) < 1.3 || this.aux.dot(this.olhar) / d > cone);
+    // Em terceira pessoa a camera esta recuada: o alcance conta a partir do corpo.
+    return d < alcance + jogador.distanciaDaCamera && (Math.hypot(x - jogador.posicao.x, z - jogador.posicao.z) < 1.3 || this.aux.dot(this.olhar) / d > cone);
   }
 
   // ---------- os aderecos das cenas ----------

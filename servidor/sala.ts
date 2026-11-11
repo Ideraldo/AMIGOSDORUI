@@ -2,8 +2,8 @@
 // regras de src/nucleo aplicadas a pedido de cada jogador, para dar para testar sem socket.
 // Quem liga isto aos jogadores de verdade e servidor/ligar.ts.
 
-import { apurar, cenaDe, chegar, contar, entrar, mostrarCarta, novaPartida, passarRodada, pegar, sair, usar, votar } from '../src/nucleo/partida.ts';
-import { anotarNumero, entregar, girarDisco, puxarAlavanca } from '../src/nucleo/missoes.ts';
+import { apurar, cenaDe, chegar, contar, entrar, mostrarCarta, novaPartida, passarRodada, pegar, sair, usar, votar, ouvirDica } from '../src/nucleo/partida.ts';
+import { anotarNumero, entregar, girarDisco, puxarAlavanca, largarCaixa } from '../src/nucleo/missoes.ts';
 import { SEGUNDOS_POR_RODADA, type Biblioteca, type Cena, type Estado } from '../src/nucleo/tipos.ts';
 import { limparAparencia } from '../src/rede/aparencia.ts';
 import { MAXIMO_DE_JOGADORES, SEGUNDOS_DE_VOTO, type Intencao, type Presenca } from '../src/rede/protocolo.ts';
@@ -37,7 +37,7 @@ export class Sala {
   entrar(nome: string, aparencia?: unknown): { id: string } | { erro: string } {
     if (this.estado) return { erro: 'A noite desta sala já começou.' };
     if (this.jogadores.length >= MAXIMO_DE_JOGADORES) return { erro: 'A sala está cheia.' };
-    const limpo = nome.trim().slice(0, 16) || `Viajante ${this.proximoId}`;
+    const limpo = nome.trim().replace(/[<>&]/g, '').slice(0, 16) || `Viajante ${this.proximoId}`;
     const id = `j${this.proximoId++}`;
     // Quem nao mandou aparencia (ou mandou lixo) ganha uma, diferente da de quem ja esta.
     this.jogadores.push({ id, nome: limpo, aparencia: limparAparencia(aparencia, this.proximoId - 2) });
@@ -48,6 +48,8 @@ export class Sala {
   sair(id: string): void {
     const i = this.jogadores.findIndex((j) => j.id === id);
     if (i >= 0) this.jogadores.splice(i, 1);
+    // Quem sai levando a caixa do favor larga a caixa onde a achou, para outro poder levar.
+    if (this.estado) this.mudar(largarCaixa(this.estado, id));
   }
 
   /** Quanto falta na votacao em que este jogador esta. null: nao esta em votacao com prazo. */
@@ -101,10 +103,14 @@ export class Sala {
           if (cenaDe(e, id)) this.mudar(votar(e, this.bib, id, m.indice));
           break;
         case 'pegar':
-          this.mudar(pegar(e, this.bib, id, m.id));
+          // So pega quem esta no lugar da coisa.
+          if (eu.lugar !== null && e.achados.find((a) => a.id === m.id)?.lugar === eu.lugar) this.mudar(pegar(e, this.bib, id, m.id));
           break;
         case 'usar':
-          this.mudar(usar(e, id, m.tipo));
+          if (m.tipo === 'atadura' || m.tipo === 'tonico') this.mudar(usar(e, id, m.tipo));
+          break;
+        case 'ouvir':
+          this.mudar(ouvirDica(e, this.bib, id, String(m.npc)));
           break;
         case 'contar':
           if (eu.pistas.includes(m.pista)) this.mudar(contar(e, this.bib, id, m.pista));
@@ -113,16 +119,16 @@ export class Sala {
           this.mudar(mostrarCarta(e, this.bib, id, m.npc));
           break;
         case 'anotar':
-          this.mudar(anotarNumero(e, id, m.numero));
+          if (!cenaDe(e, id)) this.mudar(anotarNumero(e, id, m.numero));
           break;
         case 'disco':
-          this.mudar(girarDisco(e, id, m.disco, m.passo));
+          if (!cenaDe(e, id)) this.mudar(girarDisco(e, id, m.disco, m.passo));
           break;
         case 'alavanca':
-          this.mudar(puxarAlavanca(e, this.bib, id));
+          if (!cenaDe(e, id)) this.mudar(puxarAlavanca(e, this.bib, id));
           break;
         case 'entregar':
-          this.mudar(entregar(e, this.bib, id));
+          if (!cenaDe(e, id)) this.mudar(entregar(e, this.bib, id));
           break;
         case 'virar':
           if (id === this.dono && !e.fim) this.virar();

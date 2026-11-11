@@ -7,7 +7,7 @@
 import type { Biblioteca } from '../tipos.ts';
 
 export const EXEMPLO: Biblioteca = {
-  nome: 'Exemplo: a noite da diligência',
+  nome: 'Exemplo: a noite da carta',
 
   // Uma historia so: a carta. A abertura da noite narra o gancho, depois cada frase de `abertura`.
   ganchos: [
@@ -17,7 +17,7 @@ export const EXEMPLO: Biblioteca = {
       texto: 'Há três dias chegou uma carta ao posto de socorro da estrada de ferro. Alguém desta cidade pedia ajuda, com a letra tremida, e não assinou.',
       abertura: [
         'Vocês são a turma de socorro da ferrovia. Quando uma cidade da linha pede ajuda, são vocês que vão. O último trem deixou todos na estação e seguiu viagem.',
-        'A carta dizia pouco. Alguma coisa anda pelas ruas depois que escurece, e leva gente. Quem ficou não abre a porta para ninguém. Venham antes do amanhecer.',
+        'A carta dizia pouco. Alguma coisa anda pelas ruas depois que escurece, e leva gente. Quem ficou não confia em mais ninguém. Venham antes do amanhecer.',
       ],
     },
   ],
@@ -204,7 +204,7 @@ export const EXEMPLO: Biblioteca = {
   ],
 
   pistas: [
-    { id: 'sino', texto: 'Quando o sino da igreja toca, a coisa recua.' },
+    { id: 'sino', texto: 'Os arranhões param no batente onde há um terço. O que é bento, ela não toca.' },
     { id: 'chao-bento', texto: 'Ela não pisa em chão consagrado. Só a igreja e o cemitério são seguros.' },
     { id: 'cavalos-calmos', texto: 'Os animais que ficaram calmos foram poupados. Os que entraram em pânico, não.' },
     { id: 'anotacao-do-medo', texto: 'Alguém anotou: ela vem atrás de quem treme. Quem segura o medo, ela não enxerga.' },

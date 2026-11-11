@@ -45,6 +45,7 @@ export type Intencao =
   | { t: 'contar'; pista: string }
   /** Mostra a carta a um NPC. Cada jogador so tem uma chance. */
   | { t: 'mostrar'; npc: string }
+  | { t: 'ouvir'; npc: string }
   /** Chegou perto da tabua de um numero do cofre: anota para si. */
   | { t: 'anotar'; numero: number }
   /** Gira um disco do cofre, um passo para cima (1) ou para baixo (-1). */

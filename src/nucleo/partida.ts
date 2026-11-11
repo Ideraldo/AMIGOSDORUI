@@ -189,10 +189,57 @@ export function inocentados(e: Estado, quem: string): string[] {
 /** O grupo ja mostrou a carta a quem a escreveu? */
 export const achouOAutor = (e: Estado): boolean => e.carta.autor !== '' && e.carta.mostradas.some((m) => m.npc === e.carta.autor);
 
-/** Este personagem ainda pode mostrar a carta a alguem? */
-export function podeMostrar(e: Estado, quem: string): boolean {
+/** Quantas provas o grupo precisa ter achado antes de alguem mostrar a carta: sem isso seria chute. */
+export const PROVAS_PARA_MOSTRAR = 2;
+
+/** Quantas provas ainda faltam ao grupo para poder mostrar a carta. */
+export function provasQueFaltam(e: Estado): number {
+  const provas = e.achados.filter((a) => a.tipo === 'prova');
+  return Math.max(0, Math.min(PROVAS_PARA_MOSTRAR, provas.length) - provas.filter((a) => a.pego).length);
+}
+
+/** Quantas vezes cada um pode mostrar a carta: sozinho sao duas, em grupo uma por pessoa. */
+export const chancesDeMostrar = (e: Estado): number => (e.personagens.length === 1 ? 2 : 1);
+
+/** Quantas chances de mostrar a carta este personagem ainda tem. */
+export function chancesRestantes(e: Estado, quem: string): number {
+  return Math.max(0, chancesDeMostrar(e) - e.carta.mostradas.filter((m) => m.quem === quem).length);
+}
+
+/** Este personagem ainda tem como mostrar a carta nesta noite (mesmo que falte prova ou sobre medo agora)? */
+export function temChance(e: Estado, quem: string): boolean {
   const p = e.personagens.find((x) => x.id === quem);
-  return !e.fim && !!p?.vivo && e.carta.autor !== '' && !achouOAutor(e) && !e.carta.mostradas.some((m) => m.quem === quem);
+  return !e.fim && !!p?.vivo && e.carta.autor !== '' && !achouOAutor(e) && chancesRestantes(e, quem) > 0;
+}
+
+/** Por que este personagem nao pode mostrar a carta agora. null: pode. */
+export function oQueImpedeMostrar(e: Estado, quem: string): string | null {
+  if (!temChance(e, quem)) return 'Não há mais chance de mostrar a carta.';
+  const faltam = provasQueFaltam(e);
+  if (faltam > 0) return `Ainda é cedo para mostrar a carta: ${faltam === 1 ? 'falta 1 prova' : `faltam ${faltam} provas`} ao grupo.`;
+  if ((e.personagens.find((x) => x.id === quem)?.medo ?? 0) >= MEDO_MAXIMO) return 'As mãos tremem demais para tirar a carta do bolso. Um tônico acalma.';
+  return null;
+}
+
+/** Este personagem pode mostrar a carta a alguem agora? */
+export function podeMostrar(e: Estado, quem: string): boolean {
+  return oQueImpedeMostrar(e, quem) === null;
+}
+
+/**
+ * O personagem ouve de um NPC a dica da regra da noite (a fala com `regras`, que so sai para
+ * quem ele confia). Vale como pista, so dele, ate ele contar. Cada NPC da uma so.
+ */
+export function ouvirDica(estado: Estado, bib: Biblioteca, quem: string, npc: string): Estado {
+  const atual = estado.personagens.find((x) => x.id === quem);
+  if (estado.fim || !atual?.vivo || atual.ouviu?.includes(npc)) return estado;
+  if (!falasDoNpc(estado, bib, npc, quem).some((f) => f.regras)) return estado;
+  const e = copiar(estado);
+  const p = personagem(e, quem);
+  p.ouviu = [...(p.ouviu ?? []), npc];
+  const pista = regraDe(e, bib).pistas.find((x) => !e.pistas.includes(x) && !p.pistas.includes(x));
+  if (pista) p.pistas.push(pista);
+  return e;
 }
 
 /**
@@ -232,10 +279,18 @@ export function tarefas(e: Estado, bib: Biblioteca, quem: string): Tarefa[] {
       const por = a.pego && a.pegoPor !== quem ? ` (${e.personagens.find((p) => p.id === a.pegoPor)?.nome ?? 'outro'} achou)` : '';
       return { texto: `Buscar uma prova: ${lugar}${por}`, feita: a.pego };
     });
-  const minha = e.carta.mostradas.find((m) => m.quem === quem);
+  const minhas = e.carta.mostradas.filter((m) => m.quem === quem);
+  const restam = chancesRestantes(e, quem);
+  const faltam = provasQueFaltam(e);
+  const chances = restam === 1 ? 'uma chance' : `${restam} chances`;
   lista.push({
-    texto: minha ? `Carta mostrada a ${achar(bib.npcs, minha.npc, 'npc').nome}` : 'Mostrar a carta a quem a escreveu (uma chance)',
-    feita: !!minha || achouOAutor(e),
+    texto:
+      restam === 0 || achouOAutor(e)
+        ? `Carta mostrada a ${minhas.map((m) => achar(bib.npcs, m.npc, 'npc').nome).join(' e ') || 'quem a escreveu'}`
+        : faltam > 0
+          ? `Mostrar a carta a quem a escreveu (antes, o grupo precisa de mais ${faltam === 1 ? '1 prova' : `${faltam} provas`})`
+          : `Mostrar a carta a quem a escreveu (${chances})`,
+    feita: restam === 0 || achouOAutor(e),
   });
   return lista;
 }
@@ -253,9 +308,14 @@ export function pegar(estado: Estado, bib: Biblioteca, quem: string, id: string)
   achado.pego = true;
   achado.pegoPor = quem;
   if (achado.tipo === 'atadura' || achado.tipo === 'tonico') p.bolsa[achado.tipo] += 1;
-  if (achado.tipo === 'bilhete' && achado.pista && !e.pistas.includes(achado.pista)) {
-    e.pistas.push(achado.pista);
-    e.diario.push({ rodada: e.rodada, tipo: 'pista', texto: achar(bib.pistas, achado.pista, 'pista').texto, lugar: achado.lugar });
+  if (achado.tipo === 'bilhete' && achado.pista) {
+    // Se o grupo ja tem a pista deste bilhete, ele entrega a que falta da regra da noite.
+    const pista = !e.pistas.includes(achado.pista) ? achado.pista : regraDe(e, bib).pistas.find((x) => !e.pistas.includes(x));
+    if (pista) {
+      achado.pista = pista;
+      e.pistas.push(pista);
+      e.diario.push({ rodada: e.rodada, tipo: 'pista', texto: achar(bib.pistas, pista, 'pista').texto, lugar: achado.lugar });
+    }
   }
   return e;
 }
@@ -266,6 +326,7 @@ export function pegar(estado: Estado, bib: Biblioteca, quem: string, id: string)
  */
 export function usar(estado: Estado, quem: string, tipo: 'atadura' | 'tonico'): Estado {
   const atual = personagem(estado, quem);
+  if (tipo !== 'atadura' && tipo !== 'tonico') return estado;
   if (estado.fim || !atual.vivo || atual.bolsa[tipo] <= 0) return estado;
   if (tipo === 'atadura' ? atual.ferimento <= 0 : atual.medo <= 0) return estado;
   const e = copiar(estado);
@@ -599,7 +660,7 @@ export function objetivos(e: Estado, bib: Biblioteca, quem: string): Objetivo[] 
   const falhou = !p.vivo;
   const achou = achouOAutor(e);
   // Sem ninguem vivo que ainda possa mostrar a carta, o autor fica sem ser achado.
-  const semChance = !achou && !e.personagens.some((o) => podeMostrar(e, o.id));
+  const semChance = !achou && !e.personagens.some((o) => temChance(e, o.id));
   const lista: Objetivo[] = [];
   if (e.carta.autor !== '') {
     const provas = e.achados.filter((a) => a.tipo === 'prova');
@@ -644,7 +705,7 @@ function encerrar(e: Estado, bib: Biblioteca): void {
       return { id: p.id, nome: p.nome, vivo: p.vivo, sabia, texto: texto(!p.vivo ? 'morto' : sabia ? 'vivo-sabendo' : 'vivo-sem-saber') };
     }),
   };
-  e.diario.push({ rodada: e.rodada, tipo: 'fim', texto: e.fim.amanheceu ? 'Amanheceu.' : 'Ninguem viu o sol nascer.' });
+  e.diario.push({ rodada: e.rodada, tipo: 'fim', texto: e.fim.amanheceu ? 'Amanheceu.' : 'Ninguém viu o sol nascer.' });
 }
 
 /**
@@ -695,6 +756,12 @@ export function passarRodada(estado: Estado, bib: Biblioteca): { estado: Estado;
     encerrar(e, bib);
   } else {
     e.rodada += 1;
+    // Quem morreu levando a caixa do favor larga a caixa onde a achou.
+    const comACaixa = e.achados.find((a) => a.tipo === 'encomenda' && a.pego && !e.favor?.entregue);
+    if (comACaixa && !e.personagens.find((p) => p.id === comACaixa.pegoPor)?.vivo) {
+      comACaixa.pego = false;
+      delete comACaixa.pegoPor;
+    }
     for (const p of e.personagens) {
       p.lugar = null;
       p.visitados = [];

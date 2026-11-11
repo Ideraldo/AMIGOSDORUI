@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { LUGARES } from '../src/mundo/planta.ts';
 import { jogar } from '../src/nucleo/bot.ts';
 import { EXEMPLO } from '../src/nucleo/historias/exemplo.ts';
-import { achouOAutor, apurar, candidatos, casaDoNpc, cenaDe, chegar, comoEscapar, contar, descobriuARegra, entrar, escolher, escolhasDisponiveis, inocentados, mostrarCarta, novaPartida, objetivos, passarRodada, pegar, podeMostrar, regraDe, sabeARegra, tarefas, textoDaProva, usar, validarBiblioteca, votar } from '../src/nucleo/partida.ts';
+import { achouOAutor, apurar, candidatos, casaDoNpc, cenaDe, chegar, comoEscapar, contar, descobriuARegra, entrar, escolher, escolhasDisponiveis, inocentados, mostrarCarta, novaPartida, objetivos, passarRodada, pegar, podeMostrar, chancesRestantes, oQueImpedeMostrar, ouvirDica, temChance, regraDe, sabeARegra, tarefas, textoDaProva, usar, validarBiblioteca, votar } from '../src/nucleo/partida.ts';
 import { ACHADOS_POR_NOITE, ALIVIO_DO_TONICO, DANO_DO_ULTIMO_SINO, FERIMENTO_FATAL, MEDO_MAXIMO, RODADAS, type Biblioteca, type Estado } from '../src/nucleo/tipos.ts';
 
 const UM = [{ id: 'a', nome: 'Ana' }];
@@ -454,8 +454,16 @@ test('a carta: cada um so mostra uma vez, errar custa caro e acertar faz quem es
   assert.ok(tarefas(comProva, EXEMPLO, 'a')[0]!.feita);
   assert.ok(objetivos(comProva, EXEMPLO, 'b')[0]!.texto.includes('1 de'));
 
+  // Com uma prova so ainda e cedo: mostrar a carta seria chute, e nada acontece.
+  assert.ok(!podeMostrar(comProva, 'a') && temChance(comProva, 'a'));
+  assert.match(oQueImpedeMostrar(comProva, 'a')!, /falta 1 prova/);
+  assert.equal(mostrarCarta(comProva, EXEMPLO, 'a', autor), comProva, 'mostrou a carta sem provas');
+  const outraProva = comProva.achados.find((x) => x.tipo === 'prova' && !x.pego)!;
+  const comDuas = pegar(comProva, EXEMPLO, 'b', outraProva.id);
+  assert.ok(podeMostrar(comDuas, 'a'));
+
   // A mostra a carta a pessoa errada: perde a chance, a confianca e a calma. Todos ficam sabendo que nao foi ela.
-  const errou = mostrarCarta(comProva, EXEMPLO, 'a', errado);
+  const errou = mostrarCarta(comDuas, EXEMPLO, 'a', errado);
   assert.equal(errou.personagens[0]!.medo, 1);
   assert.equal(errou.personagens[0]!.relacoes[errado], -1);
   assert.ok(!podeMostrar(errou, 'a') && podeMostrar(errou, 'b'));
@@ -478,4 +486,37 @@ test('a carta: cada um so mostra uma vez, errar custa caro e acertar faz quem es
   let fim = todosErraram;
   while (!fim.fim) fim = passarRodada(fim, EXEMPLO).estado;
   assert.deepEqual(fim.fim.carta, { autor, achou: false });
+});
+
+test('a carta sozinho: sao duas chances, e com medo no maximo a carta nao sai do bolso', () => {
+  let e = novaPartida(EXEMPLO, 5, [{ id: 'a', nome: 'A' }]);
+  const { autor, suspeitos } = e.carta;
+  for (const prova of e.achados.filter((x) => x.tipo === 'prova').slice(0, 2)) e = pegar(e, EXEMPLO, 'a', prova.id);
+  const errado = suspeitos.find((n) => n !== autor)!;
+  const errou = mostrarCarta(e, EXEMPLO, 'a', errado);
+  assert.equal(chancesRestantes(errou, 'a'), 1);
+  assert.ok(podeMostrar(errou, 'a') && !objetivos(errou, EXEMPLO, 'a')[0]!.falhou);
+  const tremendo = { ...errou, personagens: errou.personagens.map((p) => ({ ...p, medo: 5 })) };
+  assert.match(oQueImpedeMostrar(tremendo, 'a')!, /tremem/);
+  assert.equal(mostrarCarta(tremendo, EXEMPLO, 'a', autor), tremendo);
+  assert.ok(achouOAutor(mostrarCarta(errou, EXEMPLO, 'a', autor)));
+});
+
+test('a dica da regra, dita por quem confia no personagem, vale como pista so dele, uma por pessoa', () => {
+  const inicio = novaPartida(EXEMPLO, 5, [{ id: 'a', nome: 'A' }, { id: 'b', nome: 'B' }]);
+  const npc = EXEMPLO.npcs.find((n) => n.falas?.some((f) => f.regras?.includes(inicio.regra)))!;
+  // Sem confianca a fala nao sai, e nada muda.
+  assert.equal(ouvirDica(inicio, EXEMPLO, 'a', npc.id), inicio);
+  const amigo = { ...inicio, personagens: inicio.personagens.map((p) => (p.id === 'a' ? { ...p, relacoes: { [npc.id]: 2 } } : p)) };
+  const ouviu = ouvirDica(amigo, EXEMPLO, 'a', npc.id);
+  assert.equal(ouviu.personagens[0]!.pistas.length, 1);
+  assert.ok(regraDe(ouviu, EXEMPLO).pistas.includes(ouviu.personagens[0]!.pistas[0]!));
+  assert.deepEqual(ouviu.pistas, []);
+  assert.equal(ouvirDica(ouviu, EXEMPLO, 'a', npc.id), ouviu, 'a mesma pessoa deu duas pistas');
+});
+
+test('usar so aceita atadura e tonico', () => {
+  const inicio = novaPartida(EXEMPLO, 5, [{ id: 'a', nome: 'A' }]);
+  const comMedo = { ...inicio, personagens: inicio.personagens.map((p) => ({ ...p, medo: 5 })) };
+  assert.equal(usar(comMedo, 'a', 'qualquer' as 'tonico'), comMedo);
 });

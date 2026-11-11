@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { Sala } from '../servidor/sala.ts';
 import { GESTOS_DO_ADERECO, cenasNoMundo, validarGestos } from '../src/nucleo/gestos.ts';
 import { EXEMPLO } from '../src/nucleo/historias/exemplo.ts';
-import { anotarNumero, entregar, girarDisco, levandoAEncomenda, missoes, puxarAlavanca, segredoAnotado } from '../src/nucleo/missoes.ts';
+import { ERROS_PARA_EMPERRAR, cofreEmperrado, anotarNumero, entregar, girarDisco, levandoAEncomenda, missoes, puxarAlavanca, segredoAnotado } from '../src/nucleo/missoes.ts';
 import { casaDoNpc, chegar, entrar, escolher, falasDoNpc, novaPartida, passarRodada, pegar, regraDe, sair, validarBiblioteca } from '../src/nucleo/partida.ts';
 import type { Biblioteca, Estado } from '../src/nucleo/tipos.ts';
 
@@ -141,6 +141,19 @@ test('alavanca com o segredo errado assusta e nao abre', () => {
   assert.equal(depois.personagens[0]!.medo, 1);
   assert.equal(depois.pistas.length, 0);
   assert.equal(e.cofre!.erros, 0, 'alterou o estado recebido');
+});
+
+test('no terceiro erro a alavanca emperra ate o sino, e com medo no maximo ninguem puxa', () => {
+  let e = novaPartida(EXEMPLO, 12, DOIS);
+  e = chegar(e, ['a', 'b'], e.cofre!.lugar);
+  for (let i = 0; i < ERROS_PARA_EMPERRAR; i++) e = puxarAlavanca(e, EXEMPLO, 'a');
+  assert.ok(cofreEmperrado(e));
+  assert.equal(puxarAlavanca(e, EXEMPLO, 'b'), e, 'puxou a alavanca emperrada');
+  const depois = chegar(passarRodada(e, EXEMPLO).estado, ['a', 'b'], e.cofre!.lugar);
+  assert.ok(!cofreEmperrado(depois));
+  const tremendo = { ...depois, personagens: depois.personagens.map((p) => ({ ...p, medo: 5 })) };
+  assert.equal(puxarAlavanca(tremendo, EXEMPLO, 'a'), tremendo);
+  assert.equal(puxarAlavanca(depois, EXEMPLO, 'b').cofre!.erros, ERROS_PARA_EMPERRAR + 1);
 });
 
 test('com o segredo certo o cofre abre: pista da regra para o grupo e atadura para quem abriu', () => {

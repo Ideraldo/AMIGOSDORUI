@@ -129,6 +129,10 @@ test('cada coisa so vai para quem pegou primeiro, e a pista do bilhete e de todo
   const { sala, ids } = salaComecada(2);
   const [a, b] = ids as [string, string];
   const atadura = sala.estado!.achados.find((x) => x.tipo === 'atadura')!;
+  // De longe ninguem pega: e preciso estar no lugar da coisa.
+  sala.receber(a, { t: 'pegar', id: atadura.id });
+  assert.ok(!sala.estado!.achados.find((x) => x.id === atadura.id)!.pego);
+  for (const id of [a, b]) sala.receber(id, { t: 'chegar', lugar: atadura.lugar });
   sala.receber(a, { t: 'pegar', id: atadura.id });
   sala.receber(b, { t: 'pegar', id: atadura.id });
   const depois = sala.estado!;
@@ -136,8 +140,28 @@ test('cada coisa so vai para quem pegou primeiro, e a pista do bilhete e de todo
   assert.equal(depois.personagens.find((p) => p.id === a)!.bolsa.atadura, 1);
   assert.equal(depois.personagens.find((p) => p.id === b)!.bolsa.atadura, 0);
   const bilhete = depois.achados.find((x) => x.tipo === 'bilhete')!;
+  sala.receber(b, { t: 'chegar', lugar: bilhete.lugar });
   sala.receber(b, { t: 'pegar', id: bilhete.id });
   assert.deepEqual(sala.estado!.pistas, [bilhete.pista]);
+  // Tipo inventado nao vira tonico de graca, e lixo nao derruba a sala.
+  const antes = sala.estado!;
+  sala.receber(a, { t: 'usar', tipo: 'qualquer' } as never);
+  sala.receber(a, { t: 'ouvir', npc: 42 } as never);
+  assert.equal(sala.estado, antes);
+});
+
+test('quem sai da sala levando a caixa do favor larga a caixa para outro levar', () => {
+  const { sala, ids } = salaComecada(2);
+  const [a, b] = ids as [string, string];
+  const caixa = sala.estado!.achados.find((x) => x.tipo === 'encomenda')!;
+  sala.receber(a, { t: 'chegar', lugar: caixa.lugar });
+  sala.receber(a, { t: 'pegar', id: caixa.id });
+  assert.equal(sala.estado!.achados.find((x) => x.id === caixa.id)!.pegoPor, a);
+  sala.sair(a);
+  assert.ok(!sala.estado!.achados.find((x) => x.id === caixa.id)!.pego);
+  sala.receber(b, { t: 'chegar', lugar: caixa.lugar });
+  sala.receber(b, { t: 'pegar', id: caixa.id });
+  assert.equal(sala.estado!.achados.find((x) => x.id === caixa.id)!.pegoPor, b);
 });
 
 test('quem sai da sala no meio da noite deixa o personagem para tras', () => {
