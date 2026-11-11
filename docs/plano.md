@@ -79,3 +79,18 @@ Confere-se com `npm test` (regras da sala, sem rede) e `npm run sala` (dois nave
 - Onde hospedar o servidor (uma máquina pequena basta) e quanto aceita gastar por mês.
 - Voz dentro do jogo ou Discord.
 - Se a sala fica aberta a qualquer um com o link ou só a convidados.
+
+## Ideias maiores (PVE, PVP e o que vem de outros jogos)
+
+Escritas em 11/11/2026, quando o Ideraldo pediu ideias novas e liberdade para criar. Na ordem em que eu faria, com o jogo de onde vem a ideia.
+
+1. **A Coisa anda (PVE).** Hoje o vulto só aparece parado. Ele passa a rondar a cidade seguindo a regra da noite: fareja medo, procura quem está só, não pisa em chão bento. Quem o vê de longe tem tempo de apagar o lampião, agachar e se esconder atrás de um móvel. Vem de Amnesia e de Lethal Company. É a peça que mais falta para o terror.
+2. **Assombração.** Quem morre continua jogando como fantasma: atravessa parede, não investiga, e uma vez por hora pode piscar uma luz, bater numa porta ou soprar o lampião de um vivo. Dá para ajudar (apontar a prova) ou assustar os amigos. Vem dos fantasmas de Among Us e de Phasmophobia.
+3. **Revólver com três balas (tiros).** Um revólver escondido na cadeia. Bala não mata a Coisa: faz ela recuar por alguns segundos e o estampido aumenta o medo de quem está perto. Três balas para o grupo inteiro, então atirar é decisão. Tiro em amigo não fere, mas apaga o lampião dele e sobe o medo dos dois.
+4. **O marcado (PVP escondido).** Modo opcional para 4 ou mais. No terceiro sino, a Coisa marca um jogador em segredo. O marcado ganha a noite se o grupo não achar quem escreveu a carta, e pode esconder ou trocar provas de lugar. Os outros podem votar para trancar alguém na cadeia por uma hora. Vem de Among Us e de Dread Hunger.
+5. **A Coisa é um jogador (PVP assimétrico).** Modo à parte: um amigo joga como a Coisa, presa à regra da noite, que só ele conhece. Os outros têm de descobrir a regra observando o que ele não consegue fazer. Vem de Dead by Daylight, com a diferença de que a regra muda a cada noite.
+6. **A máquina de retrato.** Uma câmera de fole com cinco chapas. O clarão do magnésio paralisa a Coisa por um instante e a chapa revelada mostra o que o olho não viu (um rastro, um vulto na janela), o que vira pista. Vem de Fatal Frame.
+7. **Resgate no trem do amanhecer.** Depois de achar quem escreveu a carta, o grupo pode levar essa pessoa até a estação antes do último sino. Ela anda devagar e tem medo de escuro. Dá um final melhor que só sobreviver. Vem das escoltas de Left 4 Dead.
+8. **Medo que mente.** Com medo alto, cada jogador vê e ouve coisas que os outros não veem: passos, um amigo que não está lá, uma porta fechada que está aberta. No Discord vira discussão. Vem de Phasmophobia e de Eternal Darkness.
+
+O que só o Ideraldo decide: se o jogo deve ter traição entre amigos (itens 4 e 5) ou ficar só cooperativo.
