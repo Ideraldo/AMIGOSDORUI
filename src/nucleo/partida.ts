@@ -7,8 +7,10 @@
 //   novaPartida -> (entrar -> escolher)* -> passarRodada -> ... -> estado.fim preenchido
 
 import { LUGARES, LUGARES_ABERTOS_POR_NOITE, type LugarId } from '../mundo/planta.ts';
-import { embaralhar, escolher as sortear, ponderado, proximo } from './rng.ts';
+import { embaralhar, escolher as sortear, ponderado, proximo, type ComRng } from './rng.ts';
 import {
+  ACHADOS_POR_NOITE,
+  ALIVIO_DO_TONICO,
   DANO_DO_ULTIMO_SINO,
   FERIMENTO_FATAL,
   LUGARES_PARA_EXPLORAR,
@@ -18,6 +20,7 @@ import {
   RODADAS,
   atoDaRodada,
   type Biblioteca,
+  type Achado,
   type Alvo,
   type Cena,
   type Condicao,
@@ -60,13 +63,14 @@ export function novaPartida(bib: Biblioteca, semente: number, jogadores: readonl
     regra: '',
     gancho: '',
     elenco: [],
-    personagens: jogadores.map((j) => ({ id: j.id, nome: j.nome, medo: 0, ferimento: 0, vivo: true, lugar: null, visitados: [], pistas: [], relacoes: {} })),
+    personagens: jogadores.map((j) => ({ id: j.id, nome: j.nome, medo: 0, ferimento: 0, vivo: true, lugar: null, visitados: [], pistas: [], relacoes: {}, bolsa: { atadura: 0, tonico: 0 } })),
     pistas: [],
     marcas: [],
     usados: [],
     cenas: [],
     aAbrir: [],
     aFechar: [],
+    achados: [],
     diario: [],
     fim: null,
   };
@@ -90,7 +94,62 @@ export function novaPartida(bib: Biblioteca, semente: number, jogadores: readonl
     }
     e.abertos = LUGARES.map((l) => l.id).filter((id) => abertos.has(id));
   }
+  e.achados = espalharAchados(e, regra);
   e.diario.push({ rodada: 1, tipo: 'gancho', texto: `${gancho.titulo}. ${gancho.texto}` });
+  return e;
+}
+
+/** Espalha as coisas da noite pelos lugares abertos, um lugar diferente para cada enquanto houver. */
+function espalharAchados(e: Estado, regra: RegraSecreta): Achado[] {
+  if (e.abertos.length === 0) return [];
+  // Sorteio proprio, para nao gastar o da partida: as cenas de cada semente continuam as mesmas.
+  const dado: ComRng = { rng: (Math.imul(e.semente, 2654435761) + 97) >>> 0 };
+  const lugares = embaralhar(dado, e.abertos);
+  const achados: Achado[] = [];
+  for (const tipo of ['bilhete', 'atadura', 'querosene', 'tonico'] as const) {
+    for (let i = 0; i < ACHADOS_POR_NOITE[tipo]; i++) {
+      if (tipo === 'bilhete' && regra.pistas.length === 0) continue;
+      const n = achados.length;
+      const achado: Achado = { id: `${tipo}-${i + 1}`, tipo, lugar: lugares[n % lugares.length]!, vaga: 1 + Math.floor(n / lugares.length) + Math.floor(proximo(dado) * 3), pego: false };
+      if (tipo === 'bilhete') achado.pista = sortear(dado, regra.pistas);
+      achados.push(achado);
+    }
+  }
+  return achados;
+}
+
+/**
+ * O personagem pega uma coisa. O bilhete entrega a pista ao grupo, a atadura e o tonico vao
+ * para a bolsa, e o querosene so fica marcado como pego (quem enche o lampiao e a tela).
+ */
+export function pegar(estado: Estado, bib: Biblioteca, quem: string, id: string): Estado {
+  const alvo = estado.achados.find((a) => a.id === id);
+  if (estado.fim || !alvo || alvo.pego || !personagem(estado, quem).vivo) return estado;
+  const e = copiar(estado);
+  const achado = e.achados.find((a) => a.id === id)!;
+  const p = personagem(e, quem);
+  achado.pego = true;
+  if (achado.tipo === 'atadura' || achado.tipo === 'tonico') p.bolsa[achado.tipo] += 1;
+  if (achado.tipo === 'bilhete' && achado.pista && !e.pistas.includes(achado.pista)) {
+    e.pistas.push(achado.pista);
+    e.diario.push({ rodada: e.rodada, tipo: 'pista', texto: achar(bib.pistas, achado.pista, 'pista').texto, lugar: achado.lugar });
+  }
+  return e;
+}
+
+/**
+ * O personagem usa algo da bolsa: a atadura tira um ferimento, o tonico tira medo.
+ * Nao gasta a toa: sem ferimento ou sem medo, nada muda.
+ */
+export function usar(estado: Estado, quem: string, tipo: 'atadura' | 'tonico'): Estado {
+  const atual = personagem(estado, quem);
+  if (estado.fim || !atual.vivo || atual.bolsa[tipo] <= 0) return estado;
+  if (tipo === 'atadura' ? atual.ferimento <= 0 : atual.medo <= 0) return estado;
+  const e = copiar(estado);
+  const p = personagem(e, quem);
+  p.bolsa[tipo] -= 1;
+  if (tipo === 'atadura') p.ferimento -= 1;
+  else p.medo = Math.max(0, p.medo - ALIVIO_DO_TONICO);
   return e;
 }
 

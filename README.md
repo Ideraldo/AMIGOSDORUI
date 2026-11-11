@@ -33,7 +33,9 @@ Abra o endereço que aparecer no terminal (normalmente http://localhost:5173) e 
 | Shift | correr |
 | Espaço | pular (sobe em mesa, caixote e cama) |
 | C (segurando) | agachar |
-| E | investigar o que brilha dentro dos lugares |
+| E | investigar o que brilha dentro dos lugares e pegar o que achar |
+| Q | usar a atadura da bolsa |
+| T | beber o tônico da bolsa |
 | F | acender ou apagar o lampião |
 | 1, 2, 3 | escolher numa cena |
 | Espaço | continuar depois de uma cena ou da virada da hora |
@@ -87,6 +89,7 @@ A planta inteira está em dados em `src/mundo/planta.ts`. O mapa do jogo, a coli
 - **Objetivos**, sempre no canto da tela: investigar 3 lugares, juntar 2 pistas sobre a ameaça e ver o sol nascer. Quando a regra é entendida, o terceiro passa a dizer o que fazer.
 - Na virada de cada hora a ameaça age conforme a **regra secreta** da noite. No ato 1 só há presságios. Depois ela ataca cada vez mais.
 - **O último sino**: na virada da 8ª hora ela vem com certeza, e o golpe vale por dois. Quem entendeu a regra sabe onde estar. Quem não entendeu depende de ter chegado inteiro.
+- **Coisas para pegar**, largadas em cima dos móveis dos lugares abertos: 3 latas de querosene (o lampião gasta e apaga quando seca, cada lata enche de novo), 1 bilhete com uma pista da regra, 1 atadura (tira um ferimento) e 2 frascos de tônico (tiram medo). Atadura e tônico ficam na bolsa até você usar.
 - Depois do sino a ameaça aparece: um vulto parado na rua, que some se alguém chega perto ou encara demais.
 - A regra vale pelo lugar em que você está quando a hora vira. Com 3 de ferimento o personagem morre.
 - Quem junta 2 pistas da regra entende a ameaça. O fim mostra a regra, o epílogo e as pistas achadas.

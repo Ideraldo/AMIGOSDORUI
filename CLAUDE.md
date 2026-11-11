@@ -114,6 +114,14 @@ No fim de `construirCidade`, `fundir` troca as milhares de caixas e cilindros de
 - Interior novo: confira com `npm run colisao`, que reprova lugar sem ponto, ponto que não se alcança a pé e marca a mais de 1,2 m de quem investiga.
 - Toda escolha mostra o que mudou. Além de medo, ferimento e pista, o painel diz quando um NPC mudou de opinião e quando uma marca nova entrou.
 
+## Coisas para pegar
+
+- `Estado.achados` guarda as coisas da noite (`Achado` em `tipos.ts`): querosene, bilhete, atadura e tônico, nas quantidades de `ACHADOS_POR_NOITE`. `novaPartida` espalha com um sorteio próprio, para não mudar as cenas de cada semente. `pegar` e `usar` são as regras.
+- Onde cada coisa aparece: num dos pontos de `pontos.ts` do lugar (`vaga`), pousada no móvel. Se o ponto de investigar da hora cair no mesmo móvel, o E pega a coisa primeiro.
+- O querosene é da tela, não das regras: `partidaNaTela.ts` guarda `querosene` de 0 a 1, que gasta em `SEGUNDOS_DE_QUEROSENE` (300) de relógio com o lampião aceso. Quando o multiplayer chegar, isso sobe para o estado de cada personagem.
+- Os modelos são montados em `main.ts` (`modeloDoAchado`), fora da cidade fundida.
+- Tipo novo de coisa: `TipoDeAchado`, `ACHADOS_POR_NOITE`, `pegar`, `modeloDoAchado` e `NOME_DO_ACHADO`.
+
 ## O vulto e os segredos
 
 - `src/mundo/vulto.ts` é a ameaça vista de longe: aparece na rua, na direção em que o jogador olha, quando o painel da virada fecha (longe no presságio e na ronda, perto depois do ataque) e de tempos em tempos para quem tem medo 4 ou 5. Não tem colisão e não muda regra nenhuma. Ainda não anda.
@@ -143,7 +151,7 @@ No fim de `construirCidade`, `fundir` troca as milhares de caixas e cilindros de
 - Nenhum modelo de IA gera texto durante a partida. A história vem de uma biblioteca pronta, feita antes.
 - Não troque de motor, não acrescente framework de interface e não traga modelos 3D prontos sem combinar com o Ideraldo.
 - Pulo e agachar existem desde 10/11/2026, a pedido do Ideraldo. Agachar ainda não tem uso na história: a ideia é servir para se esconder da ameaça.
-- Ainda faltam, na ordem de `docs/plano.md`: objetos de verdade para pegar e usar, missões da história, ameaça que se move, NPCs visíveis, menu e multiplayer.
+- Ainda faltam, na ordem de `docs/plano.md`: chaves e quartos trancados, missões da história, ameaça que se move, NPCs visíveis, menu e multiplayer.
 - O Ideraldo cogita virar executável de PC se o navegador pesar. Em 10/11/2026 não pesava: 60 FPS travados na RTX 2060, com folga de 98 a 230 FPS sem limite (ver `docs/teste-2026-11-10.md`). Se um dia for preciso, empacotar com Electron ou Tauri aproveita o mesmo código.
 - Quartos trancados dos sobrados (2, 4 e 6 do bar, 2 da pensão, dois do casarão) estão vazios por dentro. São reserva para a história abrir depois.
 - Os textos de cartazes e placas (avisos, quadro da escola, linhas do telégrafo) são ambientação inventada no cenário, não história oficial. Quando o roteiro existir, eles devem passar a vir dele.

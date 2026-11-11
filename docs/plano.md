@@ -8,7 +8,7 @@ Escrito em 10/11/2026, depois do primeiro teste do Ideraldo. Diz onde o jogo est
 | --- | --- |
 | A história funciona? | A mecânica funciona. A história em si é a biblioteca de exemplo, escrita à mão para testar o molde: 38 cenas, 3 regras secretas, 1 tipo de ameaça. Não é a história de verdade. |
 | Tem começo, meio e fim? | Tem. Começo: o gancho na tela de entrada. Meio: 8 horas em 3 atos, com a ameaça subindo de presságio para ataque. Fim: o último sino, em que a ameaça vem com certeza, e depois o amanhecer ou a morte, com epílogo. |
-| Tem interações? | Uma só: investigar (E) o que brilha em cada lugar, que abre uma cena com escolhas. Não dá para pegar, carregar, abrir ou usar nada. |
+| Tem interações? | Duas: investigar (E) o que brilha em cada lugar, que abre uma cena com escolhas, e pegar coisas largadas nos móveis (querosene, bilhete, atadura, tônico). Ainda não dá para abrir portas nem gavetas. |
 | Os objetivos são claros? | Agora há três na tela: investigar 3 lugares, juntar 2 pistas da regra e ver o sol nascer. O terceiro passa a dizer o que fazer quando a regra é entendida. Ainda não há missões próprias de cada história. |
 | Tem segredos? | Três pequenos, escondidos (lista no `CLAUDE.md`). |
 | Os interiores funcionam? | Os 18 estão mobiliados, com colisão conferida e ponto de investigação alcançável. Alguns são vazios demais (estação, celeiro, fundo do sítio). Os quartos trancados dos sobrados continuam vazios. |
@@ -17,7 +17,7 @@ Escrito em 10/11/2026, depois do primeiro teste do Ideraldo. Diz onde o jogo est
 
 ## O que falta, na ordem em que eu faria
 
-1. **Objetos de verdade.** Pegar e usar: chave que abre quarto trancado, querosene para o lampião (que hoje nunca acaba), pista que se carrega e se mostra. É o que mais tira o jogo do texto. Precisa de um inventário pequeno e de objetos fora da fusão da cidade.
+1. **Chaves e quartos trancados.** Pegar e usar já existe (querosene, bilhete, atadura, tônico). Falta o que abre coisa: chave para os quartos trancados dos sobrados, que hoje estão vazios, e algo dentro deles que valha a subida.
 2. **Missões da história.** O formato da biblioteca ganha `missoes`: tarefas concretas que a história pede (levar algo a um lugar, abrir um quarto, tocar o sino antes de certa hora). Os três objetivos de hoje são genéricos e saem das regras.
 3. **Ameaça que se move.** O vulto anda entre os lugares conforme a regra, e dá para se esconder dele agachado. É o uso que falta para o agachar.
 4. **NPCs visíveis.** Os quatro do elenco da noite, parados nos lugares deles. A conversa continua em painel, mas com alguém na frente.

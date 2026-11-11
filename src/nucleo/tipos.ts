@@ -154,6 +154,8 @@ export interface Personagem {
   pistas: string[];
   /** Como cada NPC ve este personagem. */
   relacoes: Record<string, number>;
+  /** O que o personagem carrega para usar depois. */
+  bolsa: { atadura: number; tonico: number };
 }
 
 export interface Cena {
@@ -174,6 +176,30 @@ export interface Registro {
   escolha?: number;
   /** Pista que so `quem` conhece. */
   privada?: boolean;
+}
+
+export type TipoDeAchado = 'querosene' | 'bilhete' | 'atadura' | 'tonico';
+
+/** Quantos de cada coisa a noite espalha pelos lugares abertos. */
+export const ACHADOS_POR_NOITE: Record<TipoDeAchado, number> = { querosene: 3, bilhete: 1, atadura: 1, tonico: 2 };
+/** Quanto de medo um tonico tira. */
+export const ALIVIO_DO_TONICO = 2;
+
+/**
+ * Uma coisa largada num lugar, que o jogador pega com as maos.
+ * - querosene: enche o lampiao (o lampiao e da tela, as regras so marcam que a lata foi pega).
+ * - bilhete: traz escrita uma pista da regra da noite, que vai para o grupo.
+ * - atadura e tonico: vao para a bolsa de quem pegou, para usar quando quiser.
+ */
+export interface Achado {
+  id: string;
+  tipo: TipoDeAchado;
+  lugar: LugarId;
+  /** Em qual movel do lugar a coisa esta. A tela escolhe entre os moveis que existem. */
+  vaga: number;
+  pego: boolean;
+  /** So no bilhete: a pista escrita nele. */
+  pista?: string;
 }
 
 /** Um objetivo da noite, do jeito que a tela mostra. Sai do estado, nao e guardado nele. */
@@ -211,6 +237,8 @@ export interface Estado extends ComRng {
   /** Lugares que mudam na proxima virada de rodada. */
   aAbrir: LugarId[];
   aFechar: LugarId[];
+  /** As coisas espalhadas pela cidade nesta noite. */
+  achados: Achado[];
   diario: Registro[];
   fim: Fim | null;
 }

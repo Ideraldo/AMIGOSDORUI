@@ -63,7 +63,19 @@ try {
     const ponto = await pagina.evaluate((id) => window.__depurar!.ponto(id), id);
     if (!ponto) return false;
     await ir(ponto.pe[0], ponto.pe[1]);
+    const agir = () => pagina.$eval('#agir', (el) => ((el as HTMLElement).style.opacity === '1' ? (el.textContent ?? '') : ''));
     await pagina.waitForFunction(() => document.querySelector<HTMLElement>('#agir')!.style.opacity === '1', { timeout: 60000 });
+    // Se houver uma coisa largada no mesmo movel, o E pega a coisa primeiro. Pega e segue.
+    for (let i = 0; i < 4 && !(await agir()).includes('investigar'); i++) {
+      const antes = await agir();
+      await pagina.keyboard.press('KeyE');
+      await pagina.waitForFunction((antes) => window.__depurar!.partida().modo === 'resultado' || document.querySelector('#agir')!.textContent !== antes, { timeout: 60000 }, antes);
+      if ((await partida()).modo === 'resultado') {
+        await pagina.keyboard.press('Space');
+        await esperar('andando');
+      }
+      await pagina.waitForFunction(() => document.querySelector<HTMLElement>('#agir')!.style.opacity === '1', { timeout: 60000 });
+    }
     await pagina.keyboard.press('KeyE');
     await pagina.waitForFunction((id) => window.__depurar!.partida().modo === 'cena' || window.__depurar!.ponto(id) === null, { timeout: 60000 }, id);
     return (await partida()).modo === 'cena';
@@ -100,6 +112,28 @@ try {
   conferir(true, 'voltar para a rua tira o personagem do lugar');
   await entrarEm('bar');
   conferir(!(await investigar('bar')) && (await partida()).modo === 'andando', 'o mesmo lugar nao da duas cenas na mesma hora');
+  await paraARua();
+
+  // As coisas da noite: vai ate uma lata de querosene e pega com a tecla E.
+  const coisas = await pagina.evaluate(() => window.__depurar!.achados());
+  conferir(coisas.length === 7 && coisas.every((c) => c.pe !== null), `a noite espalhou ${coisas.length} coisas, todas em lugares abertos`);
+  const lata = coisas.find((c) => c.tipo === 'querosene')!;
+  await ir(lata.pe![0], lata.pe![1]);
+  await pagina.waitForFunction(() => document.querySelector<HTMLElement>('#agir')!.textContent!.includes('querosene'), { timeout: 60000 });
+  await foto('3-querosene');
+  await pagina.keyboard.press('KeyE');
+  await pagina.waitForFunction((id) => window.__depurar!.achados().find((c) => c.id === id)!.pego, { timeout: 60000 }, lata.id);
+  conferir((await partida()).modo === 'andando', 'a tecla E pega o querosene sem abrir painel');
+  // O bilhete para o jogo para ser lido e entrega uma pista.
+  const bilhete = coisas.find((c) => c.tipo === 'bilhete')!;
+  await ir(bilhete.pe![0], bilhete.pe![1]);
+  await pagina.waitForFunction(() => document.querySelector<HTMLElement>('#agir')!.textContent!.includes('bilhete'), { timeout: 60000 });
+  await pagina.keyboard.press('KeyE');
+  await esperar('resultado');
+  await foto('3-bilhete');
+  conferir((await partida()).estado.pistas.length >= 1, 'ler o bilhete entrega uma pista');
+  await pagina.keyboard.press('Space');
+  await esperar('andando');
   await paraARua();
 
   await pagina.keyboard.press('KeyJ');

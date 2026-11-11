@@ -3,8 +3,8 @@ import { test } from 'node:test';
 import { LUGARES } from '../src/mundo/planta.ts';
 import { jogar } from '../src/nucleo/bot.ts';
 import { EXEMPLO } from '../src/nucleo/historias/exemplo.ts';
-import { apurar, candidatos, cenaDe, chegar, comoEscapar, contar, descobriuARegra, entrar, escolher, escolhasDisponiveis, novaPartida, objetivos, passarRodada, regraDe, sabeARegra, validarBiblioteca, votar } from '../src/nucleo/partida.ts';
-import { DANO_DO_ULTIMO_SINO, FERIMENTO_FATAL, LUGARES_PARA_EXPLORAR, MEDO_MAXIMO, RODADAS, type Biblioteca, type Estado } from '../src/nucleo/tipos.ts';
+import { apurar, candidatos, cenaDe, chegar, comoEscapar, contar, descobriuARegra, entrar, escolher, escolhasDisponiveis, novaPartida, objetivos, passarRodada, pegar, regraDe, sabeARegra, usar, validarBiblioteca, votar } from '../src/nucleo/partida.ts';
+import { ACHADOS_POR_NOITE, ALIVIO_DO_TONICO, DANO_DO_ULTIMO_SINO, FERIMENTO_FATAL, LUGARES_PARA_EXPLORAR, MEDO_MAXIMO, RODADAS, type Biblioteca, type Estado } from '../src/nucleo/tipos.ts';
 
 const UM = [{ id: 'a', nome: 'Ana' }];
 const TRES = [...UM, { id: 'b', nome: 'Beto' }, { id: 'c', nome: 'Caio' }];
@@ -337,4 +337,59 @@ test('no ultimo sino a ameaca vem com certeza: quem segue a regra ve o sol, quem
     const [, , amanhecer] = objetivos(morto, EXEMPLO, 'a');
     assert.ok(!amanhecer!.feito && amanhecer!.falhou);
   }
+});
+
+test('a noite espalha as coisas pelos lugares abertos, sempre do mesmo jeito para a mesma semente', () => {
+  for (let semente = 1; semente <= 40; semente++) {
+    const e = novaPartida(EXEMPLO, semente, [{ id: 'a', nome: 'A' }]);
+    assert.deepEqual(e.achados, novaPartida(EXEMPLO, semente, [{ id: 'a', nome: 'A' }]).achados);
+    for (const [tipo, quantos] of Object.entries(ACHADOS_POR_NOITE)) {
+      assert.equal(e.achados.filter((a) => a.tipo === tipo).length, quantos, `semente ${semente}: ${tipo}`);
+    }
+    assert.ok(e.achados.every((a) => e.abertos.includes(a.lugar) && !a.pego));
+    assert.equal(new Set(e.achados.map((a) => a.id)).size, e.achados.length);
+    // Com nove lugares abertos, cada coisa fica num lugar diferente.
+    assert.equal(new Set(e.achados.map((a) => a.lugar)).size, e.achados.length);
+    const bilhete = e.achados.find((a) => a.tipo === 'bilhete')!;
+    assert.ok(regraDe(e, EXEMPLO).pistas.includes(bilhete.pista!), 'o bilhete traz pista de outra regra');
+  }
+});
+
+test('pegar: o bilhete da a pista ao grupo, atadura e tonico vao para a bolsa, e nada se pega duas vezes', () => {
+  const inicio = novaPartida(EXEMPLO, 5, [{ id: 'a', nome: 'A' }]);
+  const bilhete = inicio.achados.find((a) => a.tipo === 'bilhete')!;
+  const comBilhete = pegar(inicio, EXEMPLO, 'a', bilhete.id);
+  assert.ok(!inicio.achados.find((a) => a.id === bilhete.id)!.pego, 'pegar alterou o estado recebido');
+  assert.deepEqual(comBilhete.pistas, [bilhete.pista]);
+  assert.ok(comBilhete.diario.some((r) => r.tipo === 'pista'));
+  assert.ok(objetivos(comBilhete, EXEMPLO, 'a')[1]!.texto.includes('1 de 2'));
+  assert.equal(pegar(comBilhete, EXEMPLO, 'a', bilhete.id), comBilhete, 'pegou o mesmo bilhete duas vezes');
+  assert.equal(pegar(inicio, EXEMPLO, 'a', 'nao-existe'), inicio);
+
+  let e = comBilhete;
+  for (const a of inicio.achados.filter((x) => x.tipo !== 'bilhete')) e = pegar(e, EXEMPLO, 'a', a.id);
+  assert.deepEqual(e.personagens[0]!.bolsa, { atadura: ACHADOS_POR_NOITE.atadura, tonico: ACHADOS_POR_NOITE.tonico });
+  assert.ok(e.achados.every((a) => a.pego));
+});
+
+test('usar: a atadura tira um ferimento, o tonico tira medo, e nada se gasta a toa', () => {
+  let e = novaPartida(EXEMPLO, 5, [{ id: 'a', nome: 'A' }]);
+  for (const a of e.achados) e = pegar(e, EXEMPLO, 'a', a.id);
+  // Inteiro e calmo: nada a tratar, a bolsa fica como esta.
+  assert.equal(usar(e, 'a', 'atadura'), e);
+  assert.equal(usar(e, 'a', 'tonico'), e);
+
+  const mal = structuredClone(e);
+  mal.personagens[0]!.ferimento = 2;
+  mal.personagens[0]!.medo = 3;
+  const tratado = usar(mal, 'a', 'atadura');
+  assert.equal(tratado.personagens[0]!.ferimento, 1);
+  assert.equal(tratado.personagens[0]!.bolsa.atadura, 0);
+  assert.equal(mal.personagens[0]!.ferimento, 2, 'usar alterou o estado recebido');
+  assert.equal(usar(tratado, 'a', 'atadura'), tratado, 'usou atadura que nao tinha');
+  const calmo = usar(tratado, 'a', 'tonico');
+  assert.equal(calmo.personagens[0]!.medo, 3 - ALIVIO_DO_TONICO);
+  assert.equal(calmo.personagens[0]!.bolsa.tonico, ACHADOS_POR_NOITE.tonico - 1);
+  // O tonico nao leva o medo abaixo de zero.
+  assert.equal(usar(calmo, 'a', 'tonico').personagens[0]!.medo, 0);
 });

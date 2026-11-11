@@ -245,6 +245,9 @@
       .medidor span {
         letter-spacing: 0.12em;
       }
+      .medidor span.bolsa {
+        letter-spacing: 0;
+      }
       .ruim {
         color: #e2553f;
       }
@@ -402,9 +405,9 @@
     <div class="hud" id="noite"></div>
     <div class="hud" id="mira"></div>
     <div class="hud" id="lugar"></div>
-    <div class="hud" id="agir"><kbd>E</kbd>investigar</div>
+    <div class="hud" id="agir"></div>
     <div class="hud" id="aviso"></div>
-    <div class="hud" id="teclas">WASD anda · Shift corre · Espaço pula · C agacha · E investiga · F lampião · M mapa · J diário · N passar a hora · R outra noite · Esc solta o mouse</div>
+    <div class="hud" id="teclas">WASD anda · Shift corre · Espaço pula · C agacha · E investiga e pega · Q atadura · T tônico · F lampião · M mapa · J diário · N passar a hora · R outra noite · Esc solta o mouse</div>
     <div id="mapa"></div>
     <div id="cena" class="painel"></div>
     <div id="diario"></div>
@@ -424,7 +427,9 @@
           <dt>C</dt>
           <dd>agachar</dd>
           <dt>E</dt>
-          <dd>investigar o que brilha dentro dos lugares</dd>
+          <dd>investigar o que brilha e pegar o que achar</dd>
+          <dt>Q, T</dt>
+          <dd>usar a atadura, beber o tônico</dd>
           <dt>F</dt>
           <dd>acender ou apagar o lampião</dd>
           <dt>M</dt>

@@ -22,7 +22,7 @@ import { Som } from './som/som.ts';
 import { Segredos } from './interface/segredos.ts';
 import { Vulto } from './mundo/vulto.ts';
 import { EXEMPLO } from './nucleo/historias/exemplo.ts';
-import type { Estado } from './nucleo/tipos.ts';
+import type { Achado, Estado } from './nucleo/tipos.ts';
 
 declare global {
   interface Window {
@@ -54,6 +54,8 @@ declare global {
       teleportar: (x: number, y: number, z: number) => void;
       /** O ponto de interesse que vale agora num lugar. null: lugar fechado ou ja investigado nesta hora. */
       ponto: (lugar: LugarId) => Ponto | null;
+      /** As coisas da noite, com o lugar de ficar de pe para pegar cada uma (null: lugar fechado). */
+      achados: () => { id: string; tipo: string; lugar: LugarId; pego: boolean; pe: [number, number] | null }[];
       /** O vulto: se esta na cena e onde. */
       vulto: () => { ativo: boolean; x: number; z: number };
       /** Como o som esta: contexto, arquivos carregados e os ultimos sons tocados. */
@@ -142,8 +144,11 @@ function texturaDaMarca(): THREE.CanvasTexture {
 }
 const materialDaMarca = new THREE.SpriteMaterial({ map: texturaDaMarca(), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true });
 const marcas = new Map<LugarId, THREE.Sprite>();
-/** O ponto que o jogador pode investigar agora (perto e na mira). */
+/** O que o jogador pode investigar agora (perto e na mira). */
 let alvo: Ponto | null = null;
+/** O que o jogador pode pegar agora. Tem a preferencia sobre investigar. */
+let aoAlcance: Achado | null = null;
+let textoDoAgir = '';
 const paraAMarca = new THREE.Vector3();
 const olhar = new THREE.Vector3();
 
@@ -184,7 +189,92 @@ function atualizarMarcas(t: number): void {
     }
   });
   if (partida.modo !== 'andando') alvo = null;
-  elAgir.style.opacity = alvo ? '1' : '0';
+}
+
+// As coisas da noite: objetos pequenos em cima dos moveis, cada um com um reflexo frio para chamar o olho.
+const NOME_DO_ACHADO: Record<Achado['tipo'], string> = { querosene: 'pegar o querosene', bilhete: 'ler o bilhete', atadura: 'pegar a atadura', tonico: 'pegar o tônico' };
+const materialDoReflexo = new THREE.SpriteMaterial({ map: materialDaMarca.map, color: 0xbfd8ff, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.8 });
+const objetos = new Map<string, THREE.Group>();
+
+function modeloDoAchado(tipo: Achado['tipo']): THREE.Group {
+  const g = new THREE.Group();
+  const peca = (geo: THREE.BufferGeometry, cor: number, x: number, y: number, z: number, metal = 0) => {
+    const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: cor, roughness: metal ? 0.45 : 0.9, metalness: metal }));
+    m.position.set(x, y, z);
+    g.add(m);
+    return m;
+  };
+  if (tipo === 'querosene') {
+    // Lata vermelha com bico e alca.
+    peca(new THREE.CylinderGeometry(0.075, 0.08, 0.2, 12), 0x9b2a1e, 0, 0.1, 0, 0.5);
+    peca(new THREE.CylinderGeometry(0.014, 0.02, 0.1, 6), 0x3a3a3a, 0.05, 0.24, 0, 0.7).rotation.z = -0.5;
+    peca(new THREE.TorusGeometry(0.045, 0.008, 6, 12, Math.PI), 0x3a3a3a, -0.02, 0.2, 0, 0.7);
+  } else if (tipo === 'bilhete') {
+    peca(new THREE.BoxGeometry(0.22, 0.004, 0.15), 0xe9dfc2, 0, 0.004, 0).rotation.y = 0.4;
+    peca(new THREE.BoxGeometry(0.15, 0.002, 0.008), 0x4a4038, 0, 0.008, -0.02).rotation.y = 0.4;
+    peca(new THREE.BoxGeometry(0.12, 0.002, 0.008), 0x4a4038, 0.01, 0.008, 0.02).rotation.y = 0.4;
+  } else if (tipo === 'atadura') {
+    // Rolo de pano deitado, com a ponta solta.
+    peca(new THREE.CylinderGeometry(0.045, 0.045, 0.08, 12), 0xf1ede2, 0, 0.045, 0).rotation.x = Math.PI / 2;
+    peca(new THREE.BoxGeometry(0.12, 0.004, 0.075), 0xf1ede2, 0.08, 0.004, 0);
+  } else {
+    // Frasco azul de botica, com rolha.
+    peca(new THREE.CylinderGeometry(0.036, 0.04, 0.12, 10), 0x2c6480, 0, 0.06, 0, 0.2);
+    peca(new THREE.CylinderGeometry(0.015, 0.02, 0.05, 8), 0x2c6480, 0, 0.145, 0, 0.2);
+    peca(new THREE.CylinderGeometry(0.016, 0.014, 0.025, 8), 0x9c7a4e, 0, 0.18, 0);
+  }
+  const reflexo = new THREE.Sprite(materialDoReflexo);
+  reflexo.position.y = 0.2;
+  reflexo.name = 'reflexo';
+  g.add(reflexo);
+  return g;
+}
+
+/** Em que movel a coisa esta. null se o lugar dela esta fechado agora. */
+function vagaDoAchado(a: Achado): Ponto | null {
+  const pontos = pontosPorLugar.get(a.lugar);
+  return pontos ? pontos[a.vaga % pontos.length]! : null;
+}
+
+function atualizarAchados(t: number): void {
+  aoAlcance = null;
+  let melhor = Infinity;
+  partida.estado.achados.forEach((a, i) => {
+    // O id repete de uma noite para a outra: o tipo vai junto para o modelo nao trocar de forma.
+    const chave = `${a.tipo}:${a.id}`;
+    const vaga = a.pego ? null : vagaDoAchado(a);
+    let objeto = objetos.get(chave);
+    if (!vaga) {
+      if (objeto) objeto.visible = false;
+      return;
+    }
+    if (!objeto) {
+      objeto = modeloDoAchado(a.tipo);
+      objetos.set(chave, objeto);
+      cena.add(objeto);
+    }
+    objeto.visible = true;
+    // A marca de investigar flutua 0,32 m acima do movel. A coisa fica pousada nele.
+    objeto.position.set(vaga.x, vaga.y - 0.32, vaga.z);
+    objeto.getObjectByName('reflexo')!.scale.setScalar(0.2 + Math.sin(t * 2.6 + i * 1.9) * 0.05);
+    paraAMarca.copy(objeto.position).sub(camera.position);
+    const d = paraAMarca.length();
+    const noChao = Math.hypot(vaga.x - jogador.posicao.x, vaga.z - jogador.posicao.z);
+    if (d < melhor && d < 2.7 && (noChao < 1.3 || paraAMarca.dot(olhar) / d > 0.8)) {
+      melhor = d;
+      aoAlcance = a;
+    }
+  });
+  if (partida.modo !== 'andando') aoAlcance = null;
+
+  // Um aviso so para as duas coisas: pegar vem antes de investigar.
+  const pegavel = aoAlcance as Achado | null;
+  const texto = pegavel ? NOME_DO_ACHADO[pegavel.tipo] : alvo ? 'investigar' : '';
+  if (texto !== textoDoAgir) {
+    textoDoAgir = texto;
+    if (texto) elAgir.innerHTML = `<kbd>E</kbd>${texto}`;
+    elAgir.style.opacity = texto ? '1' : '0';
+  }
 }
 
 // A historia decide o que abre: quem sorteia a noite e a partida.
@@ -192,6 +282,11 @@ const partida = new PartidaNaTela(EXEMPLO, semente, { abertos: abertosForcados, 
   reconstruir: montarCidade,
   congelar: (sim) => (jogador.congelado = sim),
   levarPara: (x, z) => jogador.teleportar(x, 0, z),
+  lampiaoAceso: () => jogador.lampiao.visible,
+  apagarLampiao: () => {
+    jogador.lampiao.visible = false;
+    som.tocar('lampiao', { volume: 0.5, tom: 0.8 });
+  },
   sinal: (sinal) => {
     efeitos.sinal(sinal);
     som.sinal(sinal);
@@ -238,7 +333,9 @@ document.addEventListener('keydown', (e) => {
     segredos.lampiao();
   }
   if (e.code === 'KeyR') novaNoite();
+  else if (e.code === 'KeyE' && aoAlcance) partida.pegar(aoAlcance.id);
   else if (e.code === 'KeyE' && alvo) partida.investigar(alvo.lugar);
+  if (e.code === 'KeyF' && !e.repeat && partida.semQuerosene) partida.avisar('O lampião está seco. Há latas de querosene pelos lugares abertos.', 4500);
   else if (partida.tecla(e.code)) e.preventDefault();
   if (e.code === 'KeyM') elMapa.style.display = elMapa.style.display === 'block' ? 'none' : 'block';
 });
@@ -300,6 +397,7 @@ window.__depurar = {
   pontos: (lugar) => pontosPorLugar.get(lugar) ?? [],
   som: () => som.estado(),
   vulto: () => ({ ativo: vulto.ativo, x: vulto.grupo.position.x, z: vulto.grupo.position.z }),
+  achados: () => partida.estado.achados.map((a) => ({ id: a.id, tipo: a.tipo, lugar: a.lugar, pego: a.pego, pe: vagaDoAchado(a)?.pe ?? null })),
   olhar: (giro, inclinacao) => {
     jogador.giro = giro;
     jogador.inclinacao = inclinacao;
@@ -372,6 +470,8 @@ function quadro(): void {
     l.luz.intensity = l.base * (0.9 + tremor) * fx.luzes;
   }
   atualizarMarcas(t);
+  atualizarAchados(t);
+  jogador.seco = partida.semQuerosene;
   atualizarInterface();
   renderizador.render(cena, camera);
   quadros += 1;

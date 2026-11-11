@@ -22,6 +22,8 @@ export class Jogador {
   /** Parado no lugar (durante uma cena), mas ainda olhando em volta. */
   congelado = false;
   agachado = false;
+  /** Sem querosene o lampiao nao acende. Quem cuida do valor e a partida. */
+  seco = false;
   /** Tranco da camera, em radianos. Quem cuida do valor sao os efeitos de tela. */
   tremor = 0;
   /** Avisado a cada passo, pulo e queda, para o som. */
@@ -60,7 +62,7 @@ export class Jogador {
     });
     document.addEventListener('keydown', (e) => {
       this.teclas.add(e.code);
-      if (e.code === 'KeyF') this.lampiao.visible = !this.lampiao.visible;
+      if (e.code === 'KeyF') this.lampiao.visible = !this.lampiao.visible && !this.seco;
       // O pulo vale so no toque da tecla, e nunca com um painel aberto (ali o Espaco e "continuar").
       if (e.code === 'Space' && !e.repeat && !this.congelado) this.querPular = true;
     });

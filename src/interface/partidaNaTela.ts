@@ -4,11 +4,13 @@
 // E DOM puro, sem framework. O Three.js nao aparece aqui.
 
 import { LUGARES, contem, direcao, lugarPorId, pegada, type LugarId } from '../mundo/planta.ts';
-import { cenaDe, chegar, entrar, escolher, escolhasDisponiveis, fragmentoDe, novaPartida, objetivos, passarRodada, regraDe, sabeARegra, sair, type OpcoesDePartida } from '../nucleo/partida.ts';
+import { cenaDe, chegar, entrar, escolher, escolhasDisponiveis, fragmentoDe, novaPartida, objetivos, passarRodada, pegar, regraDe, sabeARegra, sair, usar, type OpcoesDePartida } from '../nucleo/partida.ts';
 import { FERIMENTO_FATAL, MEDO_MAXIMO, PISTAS_PARA_DESCOBRIR, RODADAS, SEGUNDOS_POR_RODADA, atoDaRodada, type Biblioteca, type Estado, type Registro } from '../nucleo/tipos.ts';
 import type { Sinal } from './efeitos.ts';
 
 const EU = 'voce';
+/** Quanto tempo de chama um lampiao cheio aguenta, em segundos de relogio. */
+const SEGUNDOS_DE_QUEROSENE = 300;
 
 type Modo = 'andando' | 'cena' | 'resultado' | 'virada' | 'fim';
 
@@ -20,6 +22,8 @@ export interface Mundo {
   levarPara(x: number, z: number): void;
   /** Algo aconteceu que o jogador deve sentir, alem de ler (ver efeitos.ts). */
   sinal(sinal: Sinal): void;
+  lampiaoAceso(): boolean;
+  apagarLampiao(): void;
 }
 
 const escapar = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;');
@@ -39,6 +43,8 @@ export class PartidaNaTela {
   private readonly elGancho = document.querySelector<HTMLElement>('#gancho');
   private readonly elAviso = document.querySelector<HTMLElement>('#aviso');
   private avisoAte = 0;
+  /** Quanto querosene resta no lampiao, de 0 a 1. E da tela: as regras nao conhecem o lampiao. */
+  querosene = 1;
   /** Objetivos ja cumpridos, para avisar so na hora em que cada um se cumpre. */
   private cumpridos = new Set<string>();
   private ultimoHud = '';
@@ -58,6 +64,7 @@ export class PartidaNaTela {
     this.modo = 'andando';
     this.restante = SEGUNDOS_POR_RODADA;
     this.lugarAtual = null;
+    this.querosene = 1;
     this.cumpridos = new Set();
     this.fecharPainel();
     this.mundo.sinal('noite');
@@ -78,6 +85,11 @@ export class PartidaNaTela {
       if (contem({ minX: r.minX + 0.4, maxX: r.maxX - 0.4, minZ: r.minZ + 0.4, maxZ: r.maxZ - 0.4 }, x, z)) return l.id;
     }
     return null;
+  }
+
+  /** O lampiao esta vazio? */
+  get semQuerosene(): boolean {
+    return this.querosene <= 0;
   }
 
   /** Lugar aberto em que o jogador esta agora. null e a rua. */
@@ -105,6 +117,50 @@ export class PartidaNaTela {
     }
   }
 
+  /** O jogador pegou uma coisa largada num lugar. */
+  pegar(id: string): void {
+    if (this.modo !== 'andando') return;
+    const achado = this.estado.achados.find((a) => a.id === id);
+    const depois = pegar(this.estado, this.bib, EU, id);
+    if (!achado || depois === this.estado) return;
+    this.estado = depois;
+    if (achado.tipo === 'querosene') {
+      this.querosene = 1;
+      this.mundo.sinal('cena');
+      this.avisar('Uma lata de querosene. O lampião está cheio de novo.', 4500);
+    } else if (achado.tipo === 'atadura') {
+      this.mundo.sinal('cena');
+      this.avisar('Atadura guardada na bolsa. Q usa quando houver ferimento.', 5000);
+    } else if (achado.tipo === 'tonico') {
+      this.mundo.sinal('cena');
+      this.avisar('Um frasco de tônico, guardado na bolsa. T bebe quando o medo apertar.', 5000);
+    } else {
+      // O bilhete para o jogo para ser lido, como uma cena curta.
+      this.mundo.sinal('pista');
+      this.conferirObjetivos();
+      this.modo = 'resultado';
+      const pista = this.bib.pistas.find((p) => p.id === achado.pista);
+      this.painel(
+        `<h3>${escapar(lugarPorId(achado.lugar)!.nome)}</h3><h2>Um bilhete dobrado</h2><p>Alguém escreveu depressa, a lápis, e deixou aqui para quem viesse depois.</p>` +
+          `<div class="efeitos"><span class="pista">Pista: ${escapar(pista?.texto ?? '')}</span></div><div class="seguir"><kbd>Espaço</kbd> continuar</div>`,
+        'cena',
+      );
+    }
+  }
+
+  /** O jogador usa algo da bolsa. */
+  usarDaBolsa(tipo: 'atadura' | 'tonico'): void {
+    if (this.modo !== 'andando' || this.eu.bolsa[tipo] <= 0) return;
+    const depois = usar(this.estado, EU, tipo);
+    if (depois === this.estado) {
+      this.avisar(tipo === 'atadura' ? 'Não há ferimento para tratar.' : 'O medo ainda não pede o tônico.');
+      return;
+    }
+    this.estado = depois;
+    this.mundo.sinal('alivio');
+    this.avisar(tipo === 'atadura' ? 'A atadura segura o sangue.' : 'O tônico desce queimando. O medo cede.', 4500);
+  }
+
   /** Uma linha curta no meio da tela, que some sozinha. */
   avisar(texto: string, ms = 3500): void {
     if (!this.elAviso) return;
@@ -127,6 +183,14 @@ export class PartidaNaTela {
         // Pisar dentro so muda onde o personagem esta. A cena espera ele investigar.
         this.estado = lugar ? chegar(this.estado, [EU], lugar) : sair(this.estado, [EU]);
       }
+      // O lampiao gasta querosene enquanto o relogio anda. Vazio, apaga.
+      if (tempoCorre && this.querosene > 0 && this.mundo.lampiaoAceso()) {
+        this.querosene = Math.max(0, this.querosene - dt / SEGUNDOS_DE_QUEROSENE);
+        if (this.querosene === 0) {
+          this.mundo.apagarLampiao();
+          this.avisar('O querosene acabou. Há latas pelos lugares abertos.', 6000);
+        }
+      }
       if (tempoCorre && this.modo === 'andando') {
         this.restante -= dt;
         if (this.restante <= 0) this.virar();
@@ -148,6 +212,10 @@ export class PartidaNaTela {
     }
     if (codigo === 'KeyN' && this.modo === 'andando') {
       this.virar();
+      return true;
+    }
+    if ((codigo === 'KeyQ' || codigo === 'KeyT') && this.modo === 'andando') {
+      this.usarDaBolsa(codigo === 'KeyQ' ? 'atadura' : 'tonico');
       return true;
     }
     if (codigo === 'KeyJ') {
@@ -351,6 +419,10 @@ export class PartidaNaTela {
       `<div class="medidor">Medo <span>${bolinhas(eu.medo, MEDO_MAXIMO)}</span></div>` +
       `<div class="medidor">Ferimento <span class="${eu.ferimento > 0 ? 'ruim' : ''}">${bolinhas(eu.ferimento, FERIMENTO_FATAL)}</span></div>` +
       `<div class="medidor">Pistas <span>${new Set([...e.pistas, ...eu.pistas]).size}${sabeARegra(e, this.bib, EU) ? ' · dá para entender a regra' : ''}</span></div>` +
+      `<div class="medidor">Lampião <span class="${this.querosene <= 0.2 ? 'ruim' : ''}">${bolinhas(Math.ceil(this.querosene * 5), 5)}</span></div>` +
+      (eu.bolsa.atadura + eu.bolsa.tonico > 0
+        ? `<div class="medidor">Bolsa <span class="bolsa">${[eu.bolsa.atadura ? `atadura ${eu.bolsa.atadura} (Q)` : '', eu.bolsa.tonico ? `tônico ${eu.bolsa.tonico} (T)` : ''].filter(Boolean).join(' · ')}</span></div>`
+        : '') +
       `<h2>Objetivos</h2><ul class="objetivos">${this.listaDeObjetivos()}</ul>` +
       `<h2>Abertos esta hora</h2><ul>${lugares.join('')}</ul>`;
     if (html !== this.ultimoHud) {
