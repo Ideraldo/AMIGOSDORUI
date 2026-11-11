@@ -138,9 +138,16 @@ try {
   conferir((await ana.$eval('#cena', (el) => el.textContent!)).includes('O grupo decidiu'), 'quando os dois votam, a cena fecha para os dois com o resultado');
   // O que a escolha fez ver no mundo sai do estado: os dois veem o mesmo adereco, com o mesmo gesto.
   const esperado = cenasNoMundo((await partida(ana)).estado, EXEMPLO).map((c) => `${c.lugar}:${c.adereco}:${c.gesto}`);
-  for (const p of [ana, bento]) await p.waitForFunction((n) => window.__depurar!.palco().cenas.length === n, espera, esperado.length);
-  const vistos = await Promise.all([ana, bento].map((p) => p.evaluate(() => window.__depurar!.palco().cenas.map((c) => `${c.lugar}:${c.adereco}:${c.gesto}`))));
-  conferir(vistos[0]!.join() === esperado.join() && vistos[1]!.join() === esperado.join(), `os dois veem o mesmo no ponto investigado (${esperado.join(', ') || 'cena sem adereco'})`);
+  const vistos = await Promise.all(
+    [ana, bento].map((p) =>
+      p
+        .waitForFunction((certo) => window.__depurar!.palco().cenas.map((c) => `${c.lugar}:${c.adereco}:${c.gesto}`).join() === certo, { timeout: 30000 }, esperado.join())
+        .then(() => true)
+        .catch(() => false),
+    ),
+  );
+  await ana.screenshot({ path: 'capturas/sala-2-gesto.png' });
+  conferir(vistos[0]! && vistos[1]!, `os dois veem o mesmo no ponto investigado (${esperado.join(', ') || 'cena sem adereco'})`);
   for (const p of [ana, bento]) {
     await p.keyboard.press('Space');
     await modo(p, 'andando');

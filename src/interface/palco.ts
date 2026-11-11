@@ -359,7 +359,7 @@ export class Palco {
     // Quem mexe no cofre (ou acabou de abrir) ganha a luz em cima dele.
     if (mexendo || (this.abertura > 0 && this.abertura < 1) || (c.aberto && this.perto(ponto.x, ponto.z, 3))) {
       this.luz.position.set(ponto.pe[0], g.position.y + 0.75, ponto.pe[1]);
-      this.luz.intensity = 1.2 + this.abertura * 1.5;
+      this.luz.intensity = 1.2 - this.abertura * 0.6;
     }
   }
 

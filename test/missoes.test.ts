@@ -82,8 +82,8 @@ test('toda noite sorteada tem um cofre, com os numeros espalhados em outros luga
     assert.deepEqual(c.discos, [0, 0, 0]);
     assert.equal(new Set(c.numeros.map((n) => n.lugar)).size, 3, 'dois numeros no mesmo lugar');
     for (const n of c.numeros) assert.ok(e.abertos.includes(n.lugar) && n.lugar !== c.lugar);
-    // Sem movel nao ha onde pousar cofre nem tabua.
-    for (const lugar of [c.lugar, ...c.numeros.map((n) => n.lugar)]) assert.ok(lugar !== 'cemiterio' && lugar !== 'mina', `semente ${semente}: ${lugar}`);
+    // Onde ha um movel so, o cofre ou a tabua tomariam o lugar do que se investiga.
+    for (const lugar of [c.lugar, ...c.numeros.map((n) => n.lugar)]) assert.ok(lugar !== 'banco' && lugar !== 'mina', `semente ${semente}: ${lugar}`);
   }
 });
 

@@ -12,8 +12,11 @@ import { MEDO_MAXIMO, type Biblioteca, type Estado, type Personagem, type Tarefa
 
 /** Quantos numeros tem o segredo do cofre. */
 export const NUMEROS_DO_SEGREDO = 3;
-/** Lugares sem movel onde pousar coisa: o cofre e as tabuas ficam fora deles quando da. */
-const AO_AR_LIVRE: readonly LugarId[] = ['cemiterio', 'mina'];
+/**
+ * Lugares com um movel so (ver `pontosDoLugar`): o cofre ou uma tabua tomariam o unico ponto de
+ * investigar. Ficam fora deles quando da. O `npm run gestos` confere que nao ha choque.
+ */
+const POUCO_MOVEL: readonly LugarId[] = ['banco', 'mina'];
 
 const copiar = (e: Estado): Estado => structuredClone(e);
 const nomeDoLugar = (id: LugarId): string => LUGARES.find((l) => l.id === id)!.nome;
@@ -32,7 +35,7 @@ export function prepararMissoes(e: Estado, bib: Biblioteca): void {
 function prepararCofre(e: Estado, dado: ComRng): void {
   // O cofre num lugar e pelo menos um numero em outro: com menos de dois lugares nao ha o que juntar.
   if (e.abertos.length < 2) return;
-  const comMovel = e.abertos.filter((l) => !AO_AR_LIVRE.includes(l));
+  const comMovel = e.abertos.filter((l) => !POUCO_MOVEL.includes(l));
   const base = comMovel.length >= 2 ? comMovel : e.abertos;
   // De preferencia onde nao ha outra coisa largada, para nao empilhar tudo no mesmo movel.
   const ocupados = new Set(e.achados.map((a) => a.lugar));
@@ -64,7 +67,7 @@ function prepararFavor(e: Estado, bib: Biblioteca, dado: ComRng): void {
   const fora = e.abertos.filter((l) => l !== casa);
   if (fora.length === 0) return;
   const ocupados = new Set<LugarId>([...e.achados.map((a) => a.lugar), ...(e.cofre ? [e.cofre.lugar, ...e.cofre.numeros.map((n) => n.lugar)] : [])]);
-  const livres = fora.filter((l) => !ocupados.has(l) && !AO_AR_LIVRE.includes(l));
+  const livres = fora.filter((l) => !ocupados.has(l) && !POUCO_MOVEL.includes(l));
   const lugar = sortear(dado, livres.length ? livres : fora);
   e.achados.push({ id: 'encomenda-1', tipo: 'encomenda', lugar, vaga: 3 + Math.floor(proximo(dado) * 3), pego: false, npc });
   e.favor = { npc, entregue: false };

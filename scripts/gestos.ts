@@ -79,6 +79,13 @@ try {
         .catch(() => false);
     conferir(await naTela(`Segredo: ${cofre.segredo.join(' ')}`), 'com os tres anotados, a tela mostra o segredo inteiro');
     const lugarDoCofre = (await palco()).cofre!;
+    // Nem o cofre nem as tabuas tomam o movel do que se investiga nesta hora.
+    const choques: string[] = [];
+    for (const coisa of [lugarDoCofre, ...tabuas]) {
+      const ponto = await pagina.evaluate((l) => window.__depurar!.pontoDaCena(l), coisa.lugar);
+      if (ponto && Math.hypot(ponto.x - coisa.x, ponto.z - coisa.z) < 0.05) choques.push(coisa.lugar);
+    }
+    conferir(choques.length === 0, `o cofre e as tabuas nao ocupam o ponto de investigar${choques.length ? ` (choque em ${choques.join(', ')})` : ''}`);
     conferir(!lugarDoCofre.solto, `o cofre esta em cima de um movel (${lugarDoCofre.lugar})`);
     await irOlhando(lugarDoCofre.pe, lugarDoCofre.x, lugarDoCofre.z, -0.45);
     await noLugar(lugarDoCofre.lugar);
@@ -202,6 +209,31 @@ try {
       await foto(nome);
       await pagina.keyboard.press('Space');
       await modo('andando');
+    }
+  }
+
+  // Se algum lugar aberto nao tiver movel nenhum, o adereco vem em cima de um caixote, na passagem da porta.
+  if (filtros.length === 0 || filtros.includes('solto')) {
+    for (const lugar of estado.abertos) {
+      const ponto = await pagina.evaluate((l) => window.__depurar!.pontoDaCena(l), lugar);
+      if (!ponto?.solto) continue;
+      await irOlhando(ponto.pe, ponto.pe[0] + 1, ponto.pe[1] + 1, 0);
+      await noLugar(lugar);
+      await pagina.evaluate(() => window.__depurar!.encenar('retrato-virado'));
+      await modo('cena');
+      await pagina.waitForFunction(() => window.__depurar!.palco().cenas.some((c) => c.fragmento === 'retrato-virado' && c.gesto === null), espera);
+      await pausa(400);
+      await pagina.waitForFunction(() => !window.__depurar!.palco().mirando, espera);
+      await pausa(600);
+      const visto = (await palco()).cenas.find((c) => c.lugar === lugar);
+      const painel = await pagina.$eval('#cena', (el) => el.getBoundingClientRect().top);
+      conferir(!!visto?.tela && visto.tela[1] > 20 && visto.tela[1] < painel && Math.abs(visto.y - 0.83) < 0.01, `${lugar} (sem movel): o adereco fica num caixote, a vista (${visto?.tela?.map(Math.round).join(', ')})`);
+      await foto('solto-retrato');
+      await pagina.keyboard.press('Digit1');
+      await modo('resultado');
+      await pagina.keyboard.press('Space');
+      await modo('andando');
+      break;
     }
   }
 

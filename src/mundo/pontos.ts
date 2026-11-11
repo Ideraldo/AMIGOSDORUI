@@ -14,7 +14,7 @@ export interface Ponto {
   z: number;
   /** Onde o jogador fica de pe para alcancar. */
   pe: [number, number];
-  /** Nao ha movel embaixo: o ponto flutua no corredor da porta (cemiterio, mina). */
+  /** Nao ha movel embaixo: o ponto flutua no corredor da porta (lugar sem nada que sirva de mesa). */
   solto?: boolean;
 }
 

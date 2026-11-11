@@ -272,12 +272,13 @@ export const EXEMPLO: Biblioteca = {
     {
       id: 'barulho-no-escuro',
       lugares: 'qualquer',
+      adereco: 'lanterna',
       titulo: 'Barulho no escuro',
-      texto: 'Alguma coisa cai nos fundos. Depois, o som de algo sendo arrastado pelo assoalho, devagar.',
+      texto: 'Alguma coisa cai nos fundos, e a chama de um lampião esquecido treme. Depois, o som de algo sendo arrastado pelo assoalho, devagar.',
       repetivel: true,
       escolhas: [
-        { texto: 'Ir ver o que foi', resultado: 'Era só um gato magro, que foge com um rato na boca. O susto demora a passar.', efeitos: [{ tipo: 'medo', valor: 1 }] },
-        { texto: 'Ficar parado e escutar', resultado: 'O barulho para. O silêncio que vem depois é pior, mas dá para respirar fundo e se recompor.', efeitos: [{ tipo: 'medo', valor: -1 }] },
+        { texto: 'Erguer o lampião e ir ver', gesto: 'erguer', resultado: 'Era só um gato magro, que foge com um rato na boca. O susto demora a passar.', efeitos: [{ tipo: 'medo', valor: 1 }] },
+        { texto: 'Apagar a chama e escutar', gesto: 'apagar', resultado: 'O barulho para. O silêncio que vem depois é pior, mas dá para respirar fundo e se recompor.', efeitos: [{ tipo: 'medo', valor: -1 }] },
       ],
     },
     {
