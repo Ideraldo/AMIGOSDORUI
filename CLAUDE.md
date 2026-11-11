@@ -20,8 +20,12 @@ npm run colisao    # confere portas, caminhos, escadas e frestas num Chrome sem 
 npm run capturas   # capturas de tela em capturas/ (aceita filtros: npm run capturas -- rua dentro-bar)
 npm run simular    # bots jogam centenas de noites: sobrevivencia, descoberta e falta de cenas
 npm run partida    # joga uma noite inteira pelo teclado num Chrome sem janela (leva minutos)
+npm run sala       # poe dois navegadores na mesma sala e confere o jogo em grupo
+npm run abertura   # confere a abertura narrada da noite e a conversa com um NPC
+npm run dev:rede   # como o dev, mas aberto para quem esta na mesma rede
 npm run planta     # regenera docs/planta.*
 npm run sons       # gera na ElevenLabs os sons que faltam em public/sons/ (gasta credito da conta dele)
+npm run vozes      # grava na ElevenLabs a narracao e as falas que faltam em public/vozes/ (gasta credito da conta dele)
 npm run build      # build de produção
 ```
 
@@ -92,7 +96,7 @@ No fim de `construirCidade`, `fundir` troca as milhares de caixas e cilindros de
 - Decisão em grupo (combinado com o Ideraldo): quem está junto vota, quem está sozinho decide sozinho. `votar` registra o voto e fecha a cena quando todos votaram. `apurar` fecha com os votos que houver, quando o tempo acabar. Empate vai para sorteio. `escolher` decide de uma vez, para um jogador só e para os bots.
 - Efeito no corpo (medo, ferimento) e relação com NPC caem em personagens, conforme o `alvo` do efeito: `presentes` (padrão), `todos`, `quem-escolheu` (um dos que votaram na vencedora, sorteado), `sorteado`, ou `{ npc, prefere }`, em que o NPC escolhe pelo jeito que cada um o tratou. Marcas e lugares mudam o mundo para todos.
 - Pista pode ser do grupo (padrão) ou só de quem estava na cena (`para: 'presentes'`). A pista privada fica em `personagem.pistas` até a pessoa usar `contar`. `sabeARegra` é por personagem, e o epílogo de cada um depende disso.
-- O núcleo aceita vários personagens e várias cenas ao mesmo tempo. A tela, por enquanto, só tem um jogador (`voce`).
+- O núcleo aceita vários personagens e várias cenas ao mesmo tempo. A tela mostra um deles (`partida.eu`), sozinho ou numa sala.
 - A regra secreta é dado: `alvo` diz quem a ameaça alcança na virada (`sozinho`, `fora-de-abrigo`, `mais-medo`). Tipo novo de regra entra em `AlvoDaAmeaca`, em `naMira` e em `comoEscapar`.
 - Objetivos (`objetivos` em `partida.ts`) saem do estado, não são guardados: investigar `LUGARES_PARA_EXPLORAR` lugares, juntar as pistas da regra e ver o sol nascer. O terceiro só diz como escapar (`comoEscapar`) depois que o personagem entendeu a regra. Missões próprias de cada história ainda não existem.
 - O último sino: na virada da última rodada a ameaça ataca sempre e o golpe vale `DANO_DO_ULTIMO_SINO` (2). É o confronto final decidido em 10/11/2026. Quem segue a regra não é tocado. Depois de mexer nisso, olhe o `npm run simular`: ao acaso sobrevive-se de 10% a 33%, conhecendo a regra, 100%.
@@ -106,6 +110,18 @@ No fim de `construirCidade`, `fundir` troca as milhares de caixas e cilindros de
 - Janela acesa e chama são material (`brilho`), não luz. `brilhoGeral` em `base.ts` escurece todas junto com as luzes da cidade.
 - `historias/exemplo.ts` é conteúdo de teste escrito à mão, não história oficial. A de verdade vem do pipeline do Ideraldo.
 
+## Sala (jogo em grupo)
+
+- `servidor/sala.ts` é a sala sem rede nenhuma: jogadores, estado da noite, relógio e prazo de voto, aplicando as regras de `src/nucleo/`. É o que `test/sala.test.ts` testa. `servidor/ligar.ts` liga as salas ao WebSocket, e o `vite.config.ts` pendura isso no servidor de desenvolvimento, no caminho `/sala`. Ainda não existe servidor para hospedar fora do Vite.
+- `src/rede/protocolo.ts` tem tudo o que os dois lados dizem: `Intencao` (do jogo para o servidor) e `Aviso` (do servidor para o jogo). Mensagem nova entra ali primeiro.
+- O servidor manda no estado. O jogo manda intenções e recebe o estado inteiro a cada mudança. Posição não passa pelas regras: é só repassada aos outros, 12 vezes por segundo.
+- `partidaNaTela.ts` não aplica regra direto: pede a um `Condutor` (o local, com as regras ali mesmo, ou o da sala, que manda pela rede) e depois **reage** ao estado novo em `reagir(antes, novo)`, comparando os dois. Efeito novo de tela entra em `reagir`, nunca no ponto em que o jogador pediu, senão não acontece para quem está na sala.
+- Numa sala o relógio é do servidor e não para em painel. Sozinho, continua parando.
+- O id do jogador é `partida.eu` (sozinho, `'voce'`). Não use `personagens[0]`: use `partida.personagem`.
+- Os outros jogadores são figuras de `gente.ts` criadas em `main.ts` (`outros`), fora da cidade fundida, com uma luz pontual que vale zero quando o lampião está apagado.
+- O `npm run sala` depende de tempo. Não confira coisa que some sozinha da tela (legenda, aviso): confira o estado ou o texto que fica.
+- No Windows os scripts que abrem o Chrome precisam de `CHROME` apontando para o `chrome.exe`.
+
 ## Investigar (tecla E)
 
 - Entrar num lugar não abre cena. `partidaNaTela.ts` chama `chegar` (núcleo: só muda onde o personagem está, que é o que vale para a ameaça) e a cena só começa em `investigar`, que chama `entrar`. O Ideraldo achou estranho o diálogo abrir sozinho a cada porta, não volte a isso.
@@ -118,16 +134,38 @@ No fim de `construirCidade`, `fundir` troca as milhares de caixas e cilindros de
 
 - O Ideraldo pediu, em 11/11/2026: clareza do que fazer, retorno visual, menos texto e mais coisa acontecendo no mundo. Antes de acrescentar um painel de texto, procure outro jeito de mostrar.
 - `proximoPasso` (`partidaNaTela.ts`) dá a linha "Agora" do topo, tirada dos objetivos. A barra embaixo dela é o relógio da hora.
-- Guias (`atualizarGuias` em `main.ts`): elementos de tela projetados sobre as portas dos lugares com algo a investigar, sobre os abrigos (só para quem entendeu a regra) e sobre os NPCs por perto. Só os três lugares mais próximos levam nome. A tecla G esconde.
+- Guias (`atualizarGuias` em `main.ts`): só o nome de quem está por perto (NPCs e outros jogadores). A tecla G esconde. Já houve guia com distância sobre as portas dos lugares a investigar. O Ideraldo mandou tirar em 11/11/2026, depois que a abertura passou a dar o contexto: ele prefere que os jogadores descubram aonde ir investigando e discutindo. Não volte a apontar o caminho.
 - A virada da hora não abre painel nem congela o jogador: `virar` dispara os sinais, mostra o título da hora (`titular`) e põe o texto dos acontecimentos na fila de legendas (`legendar`). Só o último sino segura o jogador, por 5,5 segundos, antes da tela do fim.
 - Legenda espera enquanto houver painel aberto. Aviso (`avisar`) é para recado curto do jogo, legenda é para o que a história conta.
 - Medidor que muda pisca (`.medidor.mudou`). Efeito de escolha aparece em ficha, não em linha de texto.
+
+## A história: a carta
+
+- O Ideraldo achou a primeira abertura confusa (dois ganchos sorteados, sem dizer quem são os jogadores nem o que fazer) e pediu, em 11/11/2026: dizer quem somos, por que estamos ali, objetivo claro (ajudar quem escreveu a carta) e tarefas divididas entre os jogadores, para juntar no fim. Ele quer o jogo completo, divertido e fácil de entender.
+- Há um gancho só: os jogadores são a turma de socorro da ferrovia, que veio atender uma carta sem assinatura. Não volte a sortear ganchos sem falar com ele.
+- O mistério (`Estado.carta`, tipo `Carta`): um NPC do elenco escreveu a carta (`autor`). Os quatro do elenco são os suspeitos, e `novaPartida` abre a casa de cada um para dar para chegar neles.
+- Provas: achados do tipo `prova`, uma por suspeito inocente (três) ou uma por jogador, o que for maior. Cada uma tem um `dono` (o jogador encarregado, que vê o lugar dela em "Sua parte") e inocenta um NPC, com o texto de `Npc.carta.alibis`. Qualquer um pode pegar, mas só quem pegou lê: o grupo junta as provas conversando. Isso é de propósito, é a parte social.
+- Mostrar a carta (`mostrarCarta`, tecla V perto do NPC, com confirmação): cada jogador só mostra uma vez. Acertou: o NPC confessa (`carta.confessa`), o grupo ganha uma pista da regra e o objetivo se cumpre. Errou: medo, perda de confiança, e todos ficam sabendo que não foi aquele.
+- Objetivos agora: achar quem escreveu a carta, juntar 2 pistas da regra, ver o sol nascer. O de investigar 3 lugares saiu. Noite montada à mão (`abertos` forçados) com menos de 2 suspeitos em casa fica sem carta, e tudo tem de funcionar assim.
+- Alibi tem de dizer o nome do NPC e não pode depender de ele não saber fazer algo que a confissão dele desminta. `validarBiblioteca` confere o nome.
 
 ## Gente da cidade
 
 - `casaDoNpc` (núcleo) tira das cenas o lugar de cada NPC. `Npc.figura` (`homem`, `mulher`, `crianca`) diz como ele aparece, e é o único campo de aparência da biblioteca.
 - `atualizarGente` em `main.ts` põe quem está no elenco da noite de pé num móvel do próprio lugar que não tenha nada para o jogador mexer naquela hora. As figuras (`src/mundo/gente.ts`) não têm colisão.
-- Ainda não dá para falar com eles: a conversa continua sendo a escolha da cena que exige o NPC.
+- Conversa (11/11/2026): E perto de um NPC faz ele dizer a próxima fala, em legenda (`partida.dizer`) e em voz. As falas são dado da biblioteca (`Npc.falas`, tipo `Fala`): cada uma pode valer só em certos atos, só para quem ele confia ou desconfia (`para`) e só numa regra (`regras`). `falasDoNpc` (núcleo) escolhe e ordena. Fala com `regras` é a dica da regra da noite e tem de ter `para: 'bem'`, senão `validarBiblioteca` reprova: tratar bem o NPC nas cenas é o que destrava a dica.
+- A conversa é só da tela: não muda o estado e, numa sala, os outros não ouvem. O E dá preferência a pegar, depois investigar, depois conversar.
+
+## Abertura da noite e voz
+
+- Toda noite começa com uma abertura (`planosDaNoite` em `main.ts`), nesta ordem: a carta vista do alto, quem somos e o que a carta dizia (`Gancho.abertura`, uma frase por plano), quem ficou na cidade (sem dizer nomes: o Ideraldo quer que as pessoas sejam descobertas andando, e a lista de suspeitos só mostra o nome de quem o jogador já viu de perto) e a missão em três passos (`MISSAO` em `narracao.ts`). Cada plano é uma pose de câmera que anda devagar (`jogador.cinema`), com texto na tela e narração. Espaço avança, Enter pula. O relógio não anda durante ela (sozinho; numa sala o relógio é do servidor e anda).
+- Ela só começa quando o jogador entra de fato (mouse preso), então os scripts sem mouse não a veem. `?abertura=0` desliga. `window.__depurar.abrir()` força.
+- O Ideraldo pediu imagens na abertura. Por enquanto as "imagens" são planos da própria cidade. Imagem gerada (Higgsfield) entraria como fundo de um plano.
+- `src/som/voz.ts` é a voz do narrador e dos NPCs. As falas são gravadas na ElevenLabs por `npm run vozes` (`scripts/vozes.ts`), com vozes brasileiras da conta do Ideraldo (tabela `ELENCO` no script, uma por NPC e uma do narrador), e ficam em `public/vozes/`, um arquivo por fala. O nome do arquivo sai de quem fala e do texto (`arquivoDaFala`), então texto mudado pede gravação nova. `public/vozes/indice.json` diz ao jogo o que existe. Fala sem gravação cai na voz de leitura do navegador, que é robótica.
+- O Ideraldo pediu dublagem rápida, e depois o narrador ainda mais rápido: `RITMO` no script (1,12), o narrador gravado em 1,2 (o máximo da ElevenLabs) e tocado 10% mais depressa (`RITMO_AO_TOCAR` em `voz.ts`). Para trocar a voz de alguém, mude o `ELENCO` e rode `npm run vozes -- <id>`. `npm run vozes -- conta` mostra o custo sem gastar.
+- O que o narrador diz está em `src/nucleo/narracao.ts`, em pedaços, porque cada pedaço é um arquivo. A lista de quem ficou é um pedaço por pessoa. Texto de narração montado na hora (com número ou nome variável dentro da frase) não tem como ser gravado: quebre em pedaços fixos.
+- Com voz, cada plano da abertura dura o que a narração durar. Sem voz (`?som=0`), dura o tempo de ler.
+- `npm run abertura` confere os planos e uma conversa, e guarda capturas em `capturas/abertura-*.png`.
 
 ## Coisas para pegar
 
@@ -166,7 +204,7 @@ No fim de `construirCidade`, `fundir` troca as milhares de caixas e cilindros de
 - Nenhum modelo de IA gera texto durante a partida. A história vem de uma biblioteca pronta, feita antes.
 - Não troque de motor, não acrescente framework de interface e não traga modelos 3D prontos sem combinar com o Ideraldo.
 - Pulo e agachar existem desde 10/11/2026, a pedido do Ideraldo. Agachar ainda não tem uso na história: a ideia é servir para se esconder da ameaça.
-- Ainda faltam, na ordem de `docs/plano.md`: multiplayer (o Ideraldo quer o jogo online), conversa com os NPCs, chaves e quartos trancados, missões da história, ameaça que se move e menu.
+- Ainda faltam, na ordem de `docs/plano.md`: o resto do multiplayer (contar pista, chamados, assombração, reentrada e hospedagem, que o Ideraldo quer online), conversa com os NPCs, chaves e quartos trancados, missões da história, ameaça que se move e menu.
 - O Ideraldo cogita virar executável de PC se o navegador pesar. Em 10/11/2026 não pesava: 60 FPS travados na RTX 2060, com folga de 98 a 230 FPS sem limite (ver `docs/teste-2026-11-10.md`). Se um dia for preciso, empacotar com Electron ou Tauri aproveita o mesmo código.
 - Quartos trancados dos sobrados (2, 4 e 6 do bar, 2 da pensão, dois do casarão) estão vazios por dentro. São reserva para a história abrir depois.
 - Os textos de cartazes e placas (avisos, quadro da escola, linhas do telégrafo) são ambientação inventada no cenário, não história oficial. Quando o roteiro existir, eles devem passar a vir dele.

@@ -294,6 +294,9 @@
         background: radial-gradient(ellipse at center, rgba(10, 8, 6, 0.55), rgba(3, 3, 5, 0.92));
         cursor: pointer;
         text-align: center;
+        /* Em tela baixa a entrada rola, para a sala nunca ficar cortada. */
+        overflow-y: auto;
+        padding: 16px 0;
       }
       #entrada h1 {
         margin: 0;
@@ -313,10 +316,184 @@
         text-transform: uppercase;
         font-size: 14px;
       }
+      #sala {
+        margin: 28px auto 0;
+        width: fit-content;
+        cursor: default;
+        font-size: 14px;
+      }
+      #sala input,
+      #sala button {
+        padding: 7px 10px;
+        border: 1px solid #5a4a36;
+        background: rgba(8, 6, 5, 0.7);
+        color: var(--papel);
+        font: inherit;
+      }
+      #sala input {
+        width: 130px;
+      }
+      #sala #sala-nome {
+        width: 220px;
+        margin-left: 8px;
+      }
+      #sala #sala-nome.falta {
+        border-color: #e2553f;
+      }
+      #sala .linha {
+        display: block;
+        margin-top: 10px;
+      }
+      #sala .titulo-da-sala {
+        letter-spacing: 0.25em;
+        text-transform: uppercase;
+        font-size: 12px;
+        opacity: 0.7;
+      }
+      /* A abertura da noite: faixas de cinema, titulo e narracao. */
+      #abertura {
+        display: none;
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        z-index: 5;
+      }
+      #abertura::before,
+      #abertura::after {
+        content: '';
+        position: absolute;
+        left: 0;
+        right: 0;
+        height: 11vh;
+        background: #000;
+      }
+      #abertura::before {
+        top: 0;
+      }
+      #abertura::after {
+        bottom: 0;
+      }
+      #abertura .escuro {
+        position: absolute;
+        inset: 0;
+        background: #000;
+        opacity: 0;
+      }
+      #abertura.entrando .escuro {
+        animation: abertura-escuro 1.4s ease-out;
+      }
+      #abertura-plano {
+        position: absolute;
+        left: 50%;
+        bottom: 15vh;
+        transform: translateX(-50%);
+        width: min(820px, 88vw);
+        text-align: center;
+        text-shadow: 0 1px 4px #000, 0 0 18px #000;
+      }
+      #abertura.entrando #abertura-plano {
+        animation: abertura-texto 1.6s ease-out;
+      }
+      #abertura-plano h2 {
+        margin: 0 0 10px;
+        font-size: clamp(26px, 3.6vw, 44px);
+        font-weight: normal;
+        letter-spacing: 0.1em;
+        color: var(--brasa);
+      }
+      #abertura-plano p {
+        margin: 0;
+        padding: 10px 20px;
+        background: rgba(6, 5, 4, 0.55);
+        font-size: clamp(17px, 1.7vw, 22px);
+        line-height: 1.5;
+        font-style: italic;
+      }
+      #abertura .como-pular {
+        position: absolute;
+        right: 22px;
+        bottom: 3.5vh;
+        z-index: 1;
+        font-size: 13px;
+        letter-spacing: 0.08em;
+        opacity: 0.75;
+      }
+      @keyframes abertura-escuro {
+        from {
+          opacity: 1;
+        }
+        to {
+          opacity: 0;
+        }
+      }
+      @keyframes abertura-texto {
+        0%,
+        25% {
+          opacity: 0;
+        }
+        100% {
+          opacity: 1;
+        }
+      }
+      .em-abertura .hud,
+      .em-abertura #mapa {
+        display: none !important;
+      }
+      #sala #sala-codigo {
+        width: 84px;
+        text-transform: uppercase;
+        letter-spacing: 0.2em;
+        text-align: center;
+      }
+      #sala button {
+        cursor: pointer;
+        border-color: var(--brasa);
+        color: var(--brasa);
+      }
+      #sala button:hover {
+        background: rgba(255, 166, 77, 0.14);
+      }
+      #sala .ou {
+        margin: 0 8px;
+        opacity: 0.6;
+      }
+      #sala-codigo-da-sala {
+        margin: 6px 0 2px;
+        font-size: 46px;
+        letter-spacing: 0.3em;
+        color: var(--brasa);
+      }
+      #sala ul {
+        margin: 10px 0 14px;
+        padding: 0;
+        list-style: none;
+        font-size: 17px;
+      }
+      #sala-erro {
+        min-height: 1.2em;
+        color: #e2553f;
+      }
+      #noite ul.grupo small {
+        margin-left: 8px;
+        font-style: italic;
+        opacity: 0.75;
+      }
+      .painel .grupo {
+        font-size: 15px;
+        color: var(--brasa);
+      }
+      .painel ol li.meu {
+        color: var(--brasa);
+      }
+      .painel .votos {
+        margin-left: 8px;
+        letter-spacing: 0.2em;
+        color: var(--brasa);
+      }
       #entrada dl {
-        margin: 30px auto 0;
+        margin: 26px auto 0;
         display: grid;
-        grid-template-columns: auto auto;
+        grid-template-columns: auto auto auto auto;
         gap: 6px 18px;
         width: fit-content;
         font-size: 14px;
@@ -345,6 +522,27 @@
       .objetivos li.feito {
         opacity: 0.5;
         text-decoration: line-through;
+      }
+      .abertos {
+        margin: 0;
+        font-size: 13px;
+        line-height: 1.5;
+        opacity: 0.85;
+      }
+      .abertos s {
+        opacity: 0.5;
+      }
+      .suspeitos {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+      }
+      .suspeitos li.fora {
+        text-decoration: line-through;
+        opacity: 0.45;
+      }
+      .suspeitos li.feito {
+        color: #9fd08a;
       }
       .objetivos li.falhou {
         color: #e2553f;
@@ -533,6 +731,7 @@
       .sem-hud .painel,
       .sem-hud #diario,
       .sem-hud .hud,
+      .sem-hud #abertura,
       .sem-hud #entrada {
         display: none !important;
       }
@@ -549,7 +748,12 @@
     <div class="hud" id="titulo"></div>
     <div class="hud" id="legenda"></div>
     <div class="hud" id="guias"></div>
-    <div class="hud" id="teclas">WASD anda · Shift corre · Espaço pula · C agacha · E investiga e pega · Q atadura · T tônico · F lampião · G guias · M mapa · J diário · N passar a hora · R outra noite</div>
+    <div class="hud" id="teclas">WASD anda · Shift corre · Espaço pula · C agacha · E investiga, pega e conversa · V mostra a carta · Q atadura · T tônico · F lampião · G nomes · M mapa · J diário · N passar a hora · R outra noite</div>
+    <div id="abertura">
+      <div class="escuro"></div>
+      <div id="abertura-plano"></div>
+      <div class="como-pular"><kbd>Espaço</kbd> avança · <kbd>Enter</kbd> pula</div>
+    </div>
     <div id="mapa"></div>
     <div id="cena" class="painel"></div>
     <div id="diario"></div>
@@ -557,6 +761,27 @@
       <div>
         <h1>Amigos do Rui</h1>
         <p id="gancho" style="max-width: 560px; margin-left: auto; margin-right: auto"></p>
+        <div class="entrar" id="entrar">Clique para entrar na cidade</div>
+        <div id="sala">
+          <div id="sala-porta">
+            <div class="titulo-da-sala">Jogar em grupo</div>
+            <label class="linha">Seu nome <input id="sala-nome" placeholder="como os outros vão ver" maxlength="16" autocomplete="off" /></label>
+            <div class="linha">
+              <button id="sala-criar">Criar sala</button>
+              <span class="ou">ou</span>
+              <input id="sala-codigo" placeholder="código" maxlength="4" autocomplete="off" />
+              <button id="sala-juntar">Entrar na sala</button>
+            </div>
+          </div>
+          <div id="sala-espera" hidden>
+            <div>Sala</div>
+            <div id="sala-codigo-da-sala"></div>
+            <ul id="sala-lista"></ul>
+            <button id="sala-comecar">Começar a noite</button>
+            <div id="sala-nota"></div>
+          </div>
+          <p id="sala-erro"></p>
+        </div>
         <dl>
           <dt>WASD</dt>
           <dd>andar</dd>
@@ -585,7 +810,6 @@
           <dt>R</dt>
           <dd>começar outra noite</dd>
         </dl>
-        <div class="entrar">Clique para entrar na cidade</div>
       </div>
     </div>
     <script type="module" src="/src/main.ts"></script>

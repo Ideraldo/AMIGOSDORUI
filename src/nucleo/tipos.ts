@@ -112,6 +112,18 @@ export interface Gancho {
   id: string;
   titulo: string;
   texto: string;
+  /** O que aconteceu antes de a noite comecar, em frases curtas. A abertura narra uma por plano. */
+  abertura?: string[];
+}
+
+/** Uma coisa que um NPC diz quando alguem fala com ele. Campo ausente nao restringe. */
+export interface Fala {
+  texto: string;
+  atos?: (1 | 2 | 3)[];
+  /** 'bem': so para quem o NPC confia. 'mal': so para quem ele desconfia. */
+  para?: 'bem' | 'mal';
+  /** So quando a regra secreta da noite e uma destas. E como o NPC da uma dica. */
+  regras?: string[];
 }
 
 export interface Npc {
@@ -120,6 +132,17 @@ export interface Npc {
   papel: string;
   /** Como a pessoa aparece na cidade. Sem valor, e um homem de chapeu. */
   figura?: 'homem' | 'mulher' | 'crianca';
+  /** O que ele diz quando falam com ele (E na pessoa). */
+  falas?: Fala[];
+  /** O papel dele na historia da carta: ver `Carta`, no estado. */
+  carta: {
+    /** Provas de que NAO foi ele quem escreveu. Cada uma diz o nome dele e a razao. */
+    alibis: string[];
+    /** O que ele diz quando lhe mostram a carta e foi ele quem escreveu. */
+    confessa: string;
+    /** O que ele diz quando lhe mostram a carta e nao foi ele. */
+    nega: string;
+  };
 }
 
 export interface Pista {
@@ -170,7 +193,7 @@ export interface Cena {
 
 export interface Registro {
   rodada: number;
-  tipo: 'gancho' | 'cena' | 'escolha' | 'pista' | 'pressagio' | 'ameaca' | 'lugar' | 'fim';
+  tipo: 'gancho' | 'cena' | 'escolha' | 'pista' | 'pressagio' | 'ameaca' | 'lugar' | 'carta' | 'fim';
   texto: string;
   quem?: string[];
   lugar?: LugarId;
@@ -180,10 +203,10 @@ export interface Registro {
   privada?: boolean;
 }
 
-export type TipoDeAchado = 'querosene' | 'bilhete' | 'atadura' | 'tonico';
+export type TipoDeAchado = 'querosene' | 'bilhete' | 'atadura' | 'tonico' | 'prova';
 
-/** Quantos de cada coisa a noite espalha pelos lugares abertos. */
-export const ACHADOS_POR_NOITE: Record<TipoDeAchado, number> = { querosene: 3, bilhete: 1, atadura: 1, tonico: 2 };
+/** Quantos de cada coisa a noite espalha pelos lugares abertos. As provas dependem de quantos jogam. */
+export const ACHADOS_POR_NOITE: Record<Exclude<TipoDeAchado, 'prova'>, number> = { querosene: 3, bilhete: 1, atadura: 1, tonico: 2 };
 /** Quanto de medo um tonico tira. */
 export const ALIVIO_DO_TONICO = 2;
 
@@ -192,6 +215,7 @@ export const ALIVIO_DO_TONICO = 2;
  * - querosene: enche o lampiao (o lampiao e da tela, as regras so marcam que a lata foi pega).
  * - bilhete: traz escrita uma pista da regra da noite, que vai para o grupo.
  * - atadura e tonico: vao para a bolsa de quem pegou, para usar quando quiser.
+ * - prova: mostra que um dos suspeitos nao escreveu a carta. So quem pegou fica sabendo.
  */
 export interface Achado {
   id: string;
@@ -200,13 +224,39 @@ export interface Achado {
   /** Em qual movel do lugar a coisa esta. A tela escolhe entre os moveis que existem. */
   vaga: number;
   pego: boolean;
+  /** Quem pegou, depois de pego. */
+  pegoPor?: string;
   /** So no bilhete: a pista escrita nele. */
   pista?: string;
+  /** So na prova: o jogador encarregado de busca-la (qualquer um pode pegar). */
+  dono?: string;
+  /** So na prova: o NPC que ela inocenta, e qual dos alibis dele ela e. */
+  npc?: string;
+  variante?: number;
+}
+
+/**
+ * A historia da carta. Alguem da cidade escreveu pedindo socorro e nao assinou. O grupo junta
+ * provas, cada uma inocentando um suspeito, ate sobrar um nome, e mostra a carta a essa pessoa.
+ */
+export interface Carta {
+  /** Quem escreveu. Vazio se a noite nao tem gente bastante para o misterio. */
+  autor: string;
+  /** Quem pode ter escrito: a gente da cidade que esta em casa nesta noite. */
+  suspeitos: string[];
+  /** A quem cada jogador ja mostrou a carta. Cada um so mostra uma vez. */
+  mostradas: { quem: string; npc: string }[];
+}
+
+/** Uma tarefa de um jogador nesta noite, do jeito que a tela mostra. Sai do estado. */
+export interface Tarefa {
+  texto: string;
+  feita: boolean;
 }
 
 /** Um objetivo da noite, do jeito que a tela mostra. Sai do estado, nao e guardado nele. */
 export interface Objetivo {
-  id: 'explorar' | 'entender' | 'amanhecer';
+  id: 'carta' | 'entender' | 'amanhecer';
   texto: string;
   feito: boolean;
   /** Nao da mais para cumprir (o personagem morreu). */
@@ -219,6 +269,8 @@ export interface Fim {
   /** Alguem juntou pistas suficientes para entender a regra. */
   descobriu: boolean;
   revelacao: string;
+  /** Quem escreveu a carta, e se o grupo chegou a essa pessoa. */
+  carta: { autor: string; achou: boolean };
   epilogos: { id: string; nome: string; vivo: boolean; sabia: boolean; texto: string }[];
 }
 
@@ -241,6 +293,7 @@ export interface Estado extends ComRng {
   aFechar: LugarId[];
   /** As coisas espalhadas pela cidade nesta noite. */
   achados: Achado[];
+  carta: Carta;
   diario: Registro[];
   fim: Fim | null;
 }

@@ -6,6 +6,7 @@
 //   ?cam=x,y,z,giro,inc  prende a camera numa pose (usado pelas capturas automaticas)
 //   ?hud=0               esconde a interface
 //   ?dia=1               luz de dia, para inspecionar a geometria
+//   ?abertura=0          pula a abertura narrada de cada noite
 
 import * as THREE from 'three';
 import { alcance, alcancePulando, caminhar, livre, type Alcance, type AlcancePulando, type Caminhada } from './jogador/colisao.ts';
@@ -15,14 +16,19 @@ import { ambiente } from './mundo/cenario.ts';
 import { construirCidade, descartarCidade, type Cidade } from './mundo/cidade.ts';
 import { Efeitos, type Sinal } from './interface/efeitos.ts';
 import { PartidaNaTela } from './interface/partidaNaTela.ts';
-import { FIGURANTES, LIMITES, LUGARES, contem, lugarPorId, pegada, type LugarId } from './mundo/planta.ts';
+import { FIGURANTES, LIMITES, LUGARES, contem, direcao, lugarPorId, pegada, type LugarId } from './mundo/planta.ts';
+import { Voz } from './som/voz.ts';
+import { MISSAO, NARRADOR, QUEM_FICOU, narrar, narrarGancho } from './nucleo/narracao.ts';
 import { pontoDaHora, pontosDoLugar, type Ponto } from './mundo/pontos.ts';
 import { plantaSvg } from './mundo/plantaSvg.ts';
 import { Som } from './som/som.ts';
+import { POSICOES_POR_SEGUNDO, type Pose, type Presenca } from './rede/protocolo.ts';
+import { Rede } from './rede/rede.ts';
+import { NASCIMENTO } from './mundo/planta.ts';
 import { Segredos } from './interface/segredos.ts';
 import { Vulto } from './mundo/vulto.ts';
 import { figura } from './mundo/gente.ts';
-import { casaDoNpc } from './nucleo/partida.ts';
+import { casaDoNpc, falasDoNpc } from './nucleo/partida.ts';
 import { EXEMPLO } from './nucleo/historias/exemplo.ts';
 import type { Achado, Estado } from './nucleo/tipos.ts';
 
@@ -73,7 +79,16 @@ declare global {
       /** Onde o jogador esta (pes) e se esta agachado. */
       jogador: () => { x: number; y: number; z: number; agachado: boolean };
       /** Estado da partida e em que tela ela esta. */
-      partida: () => { estado: Estado; modo: string; restante: number };
+      partida: () => { estado: Estado; modo: string; restante: number; eu: string; sala: string | null };
+      /** Os outros jogadores da sala que estao visiveis, e onde. */
+      outros: () => { id: string; nome: string; x: number; y: number; z: number }[];
+      /** A abertura da noite: se esta passando, em que plano, e o que a voz disse por ultimo. */
+      /** Mostra a carta a um NPC, sem a confirmacao do teclado. */
+      mostrarCarta: (npc: string) => void;
+      abertura: () => { ativa: boolean; plano: number; planos: number; voz: string; falando: boolean };
+      /** Comeca a abertura sem esperar o mouse preso, e fala com um NPC. Para os scripts. */
+      abrir: () => void;
+      falar: (npc: string) => string;
     };
   }
 }
@@ -100,10 +115,14 @@ cena.add(camera);
 const clima = ambiente(cena, parametros.get('dia') === '1');
 const efeitos = new Efeitos();
 // ?som=0 deixa mudo, ?som=0.4 abaixa. Camera presa (capturas) nunca toca.
-const som = new Som(parametros.get('cam') ? 0 : parametros.has('som') ? Number(parametros.get('som')) : 0.8);
+const volume = parametros.get('cam') ? 0 : parametros.has('som') ? Number(parametros.get('som')) : 0.8;
+const som = new Som(volume);
+const voz = new Voz(volume > 0 ? 1 : 0);
 
 const jogador = new Jogador(camera, canvas);
 const vulto = new Vulto(cena);
+/** A partida avisa de coisas ja enquanto e criada. Antes disso ela ainda nao pode ser usada. */
+let partidaPronta = false;
 /** O vulto espera o painel da virada fechar para aparecer. */
 let aparicao: 'longe' | 'perto' | null = null;
 const segredos: Segredos = new Segredos({
@@ -154,6 +173,13 @@ const marcas = new Map<LugarId, THREE.Sprite>();
 let alvo: Ponto | null = null;
 /** O que o jogador pode pegar agora. Tem a preferencia sobre investigar. */
 let aoAlcance: Achado | null = null;
+/** Com quem o jogador pode falar agora (perto e na mira). */
+let interlocutor: { id: string; nome: string } | null = null;
+/** O que cada NPC ja disse nesta noite, para nao repetir enquanto tiver coisa nova. */
+const ditas = new Map<string, Set<string>>();
+// A abertura narrada de cada noite. Camera presa (capturas) e ?abertura=0 ficam sem.
+const comAbertura = !parametros.get('cam') && parametros.get('abertura') !== '0';
+let aberturaPendente = comAbertura;
 let textoDoAgir = '';
 const paraAMarca = new THREE.Vector3();
 const olhar = new THREE.Vector3();
@@ -198,7 +224,7 @@ function atualizarMarcas(t: number): void {
 }
 
 // As coisas da noite: objetos pequenos em cima dos moveis, cada um com um reflexo frio para chamar o olho.
-const NOME_DO_ACHADO: Record<Achado['tipo'], string> = { querosene: 'pegar o querosene', bilhete: 'ler o bilhete', atadura: 'pegar a atadura', tonico: 'pegar o tônico' };
+const NOME_DO_ACHADO: Record<Achado['tipo'], string> = { querosene: 'pegar o querosene', bilhete: 'ler o bilhete', atadura: 'pegar a atadura', tonico: 'pegar o tônico', prova: 'examinar a prova' };
 const materialDoReflexo = new THREE.SpriteMaterial({ map: materialDaMarca.map, color: 0xbfd8ff, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.8 });
 const objetos = new Map<string, THREE.Group>();
 
@@ -219,6 +245,10 @@ function modeloDoAchado(tipo: Achado['tipo']): THREE.Group {
     peca(new THREE.BoxGeometry(0.22, 0.004, 0.15), 0xe9dfc2, 0, 0.004, 0).rotation.y = 0.4;
     peca(new THREE.BoxGeometry(0.15, 0.002, 0.008), 0x4a4038, 0, 0.008, -0.02).rotation.y = 0.4;
     peca(new THREE.BoxGeometry(0.12, 0.002, 0.008), 0x4a4038, 0.01, 0.008, 0.02).rotation.y = 0.4;
+  } else if (tipo === 'prova') {
+    // Papel dobrado com um lacre vermelho, para nao se confundir com o bilhete.
+    peca(new THREE.BoxGeometry(0.24, 0.012, 0.16), 0xd9c9a0, 0, 0.006, 0).rotation.y = -0.3;
+    peca(new THREE.CylinderGeometry(0.028, 0.028, 0.012, 10), 0xb3261e, 0, 0.018, 0);
   } else if (tipo === 'atadura') {
     // Rolo de pano deitado, com a ponta solta.
     peca(new THREE.CylinderGeometry(0.045, 0.045, 0.08, 12), 0xf1ede2, 0, 0.045, 0).rotation.x = Math.PI / 2;
@@ -273,9 +303,9 @@ function atualizarAchados(t: number): void {
   });
   if (partida.modo !== 'andando') aoAlcance = null;
 
-  // Um aviso so para as duas coisas: pegar vem antes de investigar.
+  // Um aviso so para as tres coisas: pegar vem antes de investigar, e investigar antes de conversar.
   const pegavel = aoAlcance as Achado | null;
-  const texto = pegavel ? NOME_DO_ACHADO[pegavel.tipo] : alvo ? 'investigar' : '';
+  const texto = pegavel ? NOME_DO_ACHADO[pegavel.tipo] : alvo ? 'investigar' : interlocutor ? `falar com ${interlocutor.nome}${podeMostrarA(interlocutor.id) ? ' <kbd>V</kbd>mostrar a carta' : ''}` : '';
   if (texto !== textoDoAgir) {
     textoDoAgir = texto;
     if (texto) elAgir.innerHTML = `<kbd>E</kbd>${texto}`;
@@ -293,6 +323,10 @@ const partida = new PartidaNaTela(EXEMPLO, semente, { abertos: abertosForcados, 
     jogador.lampiao.visible = false;
     som.tocar('lampiao', { volume: 0.5, tom: 0.8 });
   },
+  falar: (id, texto) => {
+    const npc = EXEMPLO.npcs.find((n) => n.id === id);
+    if (npc) voz.falar(texto, npc.id, npc.figura ?? 'homem', EXEMPLO.npcs.indexOf(npc));
+  },
   sinal: (sinal) => {
     efeitos.sinal(sinal);
     som.sinal(sinal);
@@ -302,16 +336,213 @@ const partida = new PartidaNaTela(EXEMPLO, semente, { abertos: abertosForcados, 
     else if (sinal === 'noite' || sinal === 'morte' || sinal === 'amanhecer') {
       aparicao = null;
       vulto.sumir();
-      if (sinal === 'noite') segredos.noite();
+      if (sinal === 'noite') {
+        segredos.noite();
+        ditas.clear();
+        aberturaPendente = comAbertura;
+        aoComecarNoite();
+      }
     }
   },
 });
 montarCidade(partida.estado.abertos);
+partidaPronta = true;
 
 function novaNoite(): void {
+  // Numa sala, quem decide outra noite e o dono, pelo servidor.
+  if (partida.sala) {
+    partida.outraNoite();
+    return;
+  }
   semente += 1;
-  jogador.reiniciar();
   partida.nova(semente);
+}
+
+/** Toda noite nova poe o jogador de volta na chegada. Numa sala, cada um um pouco para o lado. */
+function aoComecarNoite(): void {
+  // Na primeira noite a partida ainda esta sendo criada e o jogador ja esta na chegada.
+  if (!partidaPronta) return;
+  jogador.reiniciar();
+  const todos = partida.estado.personagens;
+  const i = Math.max(0, todos.findIndex((p) => p.id === partida.eu));
+  if (todos.length > 1) jogador.teleportar(NASCIMENTO.x + (i - (todos.length - 1) / 2) * 1.3, 0, NASCIMENTO.z);
+}
+
+// ---------- sala: jogar em grupo ----------
+const rede = new Rede();
+interface Outro {
+  id: string;
+  nome: string;
+  grupo: THREE.Group;
+  luz: THREE.PointLight;
+  pose: Pose | null;
+}
+const outros = new Map<string, Outro>();
+let presencas: Presenca[] = [];
+let donoDaSala = '';
+/** Na sala, esperando o dono comecar a noite: o clique ainda nao entra na cidade. */
+let emEspera = false;
+let desdeAPose = 0;
+
+const elSala = document.querySelector<HTMLElement>('#sala')!;
+const elPorta = document.querySelector<HTMLElement>('#sala-porta')!;
+const elEspera = document.querySelector<HTMLElement>('#sala-espera')!;
+const elErro = document.querySelector<HTMLElement>('#sala-erro')!;
+const elNome = document.querySelector<HTMLInputElement>('#sala-nome')!;
+const elCodigo = document.querySelector<HTMLInputElement>('#sala-codigo')!;
+const elEntrar = document.querySelector<HTMLElement>('#entrar')!;
+try {
+  elNome.value = sessionStorage.getItem('nome') ?? '';
+} catch {
+  // Sem armazenamento, o nome so nao fica guardado.
+}
+
+function desenharSala(codigo: string, comecou: boolean): void {
+  elPorta.hidden = true;
+  elEspera.hidden = comecou;
+  elErro.textContent = '';
+  document.querySelector<HTMLElement>('#sala-codigo-da-sala')!.textContent = codigo;
+  document.querySelector<HTMLElement>('#sala-lista')!.innerHTML = presencas.map((p) => `<li>${p.nome.replace(/&/g, '&amp;').replace(/</g, '&lt;')}${p.id === donoDaSala ? ' · criou a sala' : ''}${p.id === partida.idNaSala ? ' · você' : ''}</li>`).join('');
+  const souDono = partida.idNaSala === donoDaSala;
+  document.querySelector<HTMLElement>('#sala-comecar')!.hidden = !souDono;
+  document.querySelector<HTMLElement>('#sala-nota')!.textContent = souDono ? 'Passe o código para os outros e comece quando todos entrarem.' : 'Esperando quem criou a sala começar a noite.';
+  elEntrar.textContent = comecou ? `Sala ${codigo}. A noite começou: clique para entrar na cidade` : '';
+  emEspera = !comecou;
+  // Na espera, a lista de teclas sai para a sala caber em qualquer tela.
+  document.querySelector<HTMLElement>('#entrada dl')!.style.display = comecou ? '' : 'none';
+}
+
+rede.aoAviso = (aviso) => {
+  switch (aviso.t) {
+    case 'sala': {
+      presencas = aviso.jogadores;
+      donoDaSala = aviso.dono;
+      if (!partida.idNaSala) {
+        partida.entrarNaSala(aviso.codigo, aviso.voce, {
+          chegar: (lugar) => rede.enviar({ t: 'chegar', lugar }),
+          sair: () => rede.enviar({ t: 'sair' }),
+          investigar: (lugar) => rede.enviar({ t: 'investigar', lugar }),
+          votar: (indice) => rede.enviar({ t: 'votar', indice }),
+          pegar: (id) => rede.enviar({ t: 'pegar', id }),
+          usar: (tipo) => rede.enviar({ t: 'usar', tipo }),
+          mostrar: (npc) => rede.enviar({ t: 'mostrar', npc }),
+          virar: () => rede.enviar({ t: 'virar' }),
+          outra: () => rede.enviar({ t: 'outra' }),
+        });
+      }
+      // Quem saiu da sala some da cidade.
+      for (const [id, outro] of outros) {
+        if (presencas.some((p) => p.id === id)) continue;
+        outro.grupo.removeFromParent();
+        outros.delete(id);
+      }
+      desenharSala(aviso.codigo, aviso.comecou);
+      break;
+    }
+    case 'estado':
+      partida.adotar(aviso.estado, aviso.restante, aviso.voto);
+      break;
+    case 'relogio':
+      partida.acertarRelogio(aviso.restante, aviso.voto);
+      break;
+    case 'pos': {
+      const presenca = presencas.find((p) => p.id === aviso.de);
+      if (!presenca) break;
+      let outro = outros.get(aviso.de);
+      if (!outro) {
+        // Cada jogador e uma figura com o lampiao na mao. A luz fica sempre na cena (apagada
+        // vale zero), para o Three.js nao recompilar tudo cada vez que alguem aperta F.
+        const grupo = figura('homem', outros.size + 1);
+        const luz = new THREE.PointLight(0xffb066, 0, 14, 1.5);
+        luz.position.set(0.3, 1.35, 0.3);
+        grupo.add(luz);
+        grupo.position.set(aviso.x, aviso.y, aviso.z);
+        cena.add(grupo);
+        outro = { id: aviso.de, nome: presenca.nome, grupo, luz, pose: null };
+        outros.set(aviso.de, outro);
+      }
+      outro.pose = aviso;
+      break;
+    }
+    case 'erro':
+      elErro.textContent = aviso.texto;
+      break;
+  }
+};
+rede.aoCair = () => {
+  if (!partida.idNaSala) return;
+  for (const outro of outros.values()) outro.grupo.removeFromParent();
+  outros.clear();
+  partida.sairDaSala();
+  elPorta.hidden = false;
+  elEspera.hidden = true;
+  elEntrar.textContent = 'Clique para entrar na cidade';
+  elErro.textContent = 'A ligação com a sala caiu. O jogo voltou para um jogador.';
+  emEspera = false;
+};
+
+async function pedirSala(pedido: 'criar' | 'entrar'): Promise<void> {
+  const nome = elNome.value.trim();
+  const codigo = elCodigo.value.trim().toUpperCase();
+  // Sem nome ninguem entra: depois de entrar nao ha onde escrever.
+  elNome.classList.toggle('falta', !nome);
+  if (!nome) {
+    elErro.textContent = 'Escreva seu nome antes, para os outros saberem quem é você.';
+    elNome.focus();
+    return;
+  }
+  if (pedido === 'entrar' && codigo.length !== 4) {
+    elErro.textContent = 'O código da sala tem 4 letras.';
+    return;
+  }
+  try {
+    sessionStorage.setItem('nome', nome);
+  } catch {
+    // Sem armazenamento, segue sem guardar.
+  }
+  try {
+    await rede.ligar();
+  } catch (erro) {
+    elErro.textContent = erro instanceof Error ? erro.message : 'Não deu para ligar.';
+    return;
+  }
+  rede.enviar(pedido === 'criar' ? { t: 'criar', nome } : { t: 'entrar', codigo, nome });
+}
+// Clique dentro do bloco da sala nao e "entrar na cidade".
+elSala.addEventListener('click', (e) => e.stopPropagation());
+document.querySelector('#sala-criar')!.addEventListener('click', () => void pedirSala('criar'));
+document.querySelector('#sala-juntar')!.addEventListener('click', () => void pedirSala('entrar'));
+document.querySelector('#sala-comecar')!.addEventListener('click', () => rede.enviar({ t: 'comecar' }));
+elCodigo.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') void pedirSala('entrar');
+});
+
+/** Os outros jogadores andam ate a ultima posicao que mandaram, e mandamos a nossa. */
+function atualizarOutros(dt: number): void {
+  for (const outro of outros.values()) {
+    const p = outro.pose;
+    const personagem = partida.estado.personagens.find((x) => x.id === outro.id);
+    outro.grupo.visible = !!p && !!personagem?.vivo;
+    if (!p || !outro.grupo.visible) continue;
+    const k = Math.min(1, 12 * dt);
+    outro.grupo.position.x += (p.x - outro.grupo.position.x) * k;
+    outro.grupo.position.y += (p.y - outro.grupo.position.y) * k;
+    outro.grupo.position.z += (p.z - outro.grupo.position.z) * k;
+    // A figura olha para +Z. O giro do jogador em zero olha para -Z.
+    let giro = p.giro + Math.PI - outro.grupo.rotation.y;
+    giro = Math.atan2(Math.sin(giro), Math.cos(giro));
+    outro.grupo.rotation.y += giro * k;
+    outro.grupo.scale.y += ((p.agachado ? 0.62 : 1) - outro.grupo.scale.y) * k;
+    outro.luz.intensity = p.lampiao ? 11 : 0;
+    const d = Math.hypot(p.x - jogador.posicao.x, p.z - jogador.posicao.z);
+    guiar(`jogador:${outro.id}`, 'pessoa', outro.grupo.position.x, outro.grupo.position.y + 1.95, outro.grupo.position.z, d < 45 && partida.modo === 'andando' ? outro.nome : '', 1);
+  }
+  for (const [chave, g] of guias) if (chave.startsWith('jogador:') && !outros.get(chave.slice(8))?.grupo.visible) g.el.style.display = 'none';
+  if (!partida.sala || emEspera || !rede.ligada) return;
+  desdeAPose += dt;
+  if (desdeAPose < 1 / POSICOES_POR_SEGUNDO) return;
+  desdeAPose = 0;
+  rede.enviar({ t: 'pos', x: jogador.posicao.x, y: jogador.posicao.y, z: jogador.posicao.z, giro: jogador.giro, lampiao: jogador.lampiao.visible, agachado: jogador.agachado });
 }
 
 function ajustarTamanho(): void {
@@ -332,8 +563,16 @@ jogador.aoPisar = (tipo) => {
 document.addEventListener('pointerdown', () => som.iniciar());
 
 document.addEventListener('keydown', (e) => {
-  if (cam) return;
+  // Quem esta digitando o nome ou o codigo da sala nao esta jogando.
+  if (cam || e.target instanceof HTMLInputElement) return;
   som.iniciar();
+  // Na abertura so valem duas teclas: Espaco passa o plano e Enter pula tudo.
+  if (abertura) {
+    if (e.code === 'Space' && !e.repeat) mostrarPlano(abertura.i + 1);
+    else if (e.code === 'Enter') fecharAbertura();
+    e.preventDefault();
+    return;
+  }
   if (e.code === 'KeyF' && !e.repeat) {
     som.tocar('lampiao', { volume: 0.5 });
     segredos.lampiao();
@@ -342,6 +581,8 @@ document.addEventListener('keydown', (e) => {
   else if (e.code === 'KeyG') guiasLigadas = !guiasLigadas;
   else if (e.code === 'KeyE' && aoAlcance) partida.pegar(aoAlcance.id);
   else if (e.code === 'KeyE' && alvo) partida.investigar(alvo.lugar);
+  else if (e.code === 'KeyE' && interlocutor && !e.repeat) falarCom(interlocutor.id);
+  else if (e.code === 'KeyV' && interlocutor && !e.repeat && !aoAlcance && !alvo) mostrarCartaA(interlocutor.id);
   if (e.code === 'KeyF' && !e.repeat && partida.semQuerosene) partida.avisar('O lampião está seco. Há latas de querosene pelos lugares abertos.', 4500);
   else if (partida.tecla(e.code)) e.preventDefault();
   if (e.code === 'KeyM') elMapa.style.display = elMapa.style.display === 'block' ? 'none' : 'block';
@@ -349,7 +590,10 @@ document.addEventListener('keydown', (e) => {
 document.addEventListener('pointerlockchange', () => {
   elEntrada.style.display = document.pointerLockElement === canvas ? 'none' : 'grid';
 });
-elEntrada.addEventListener('click', () => void canvas.requestPointerLock());
+elEntrada.addEventListener('click', () => {
+  // Na sala de espera o clique nao entra na cidade: a noite ainda nao comecou.
+  if (!emEspera) void canvas.requestPointerLock();
+});
 
 // Modo de captura: camera presa e sem interface.
 const cam = parametros.get('cam');
@@ -412,9 +656,174 @@ window.__depurar = {
     jogador.inclinacao = inclinacao;
   },
   jogador: () => ({ x: jogador.posicao.x, y: jogador.posicao.y, z: jogador.posicao.z, agachado: jogador.agachado }),
-  partida: () => ({ estado: partida.estado, modo: partida.modo, restante: partida.restante }),
+  partida: () => ({ estado: partida.estado, modo: partida.modo, restante: partida.restante, eu: partida.eu, sala: partida.sala }),
+  outros: () => [...outros.values()].filter((o) => o.grupo.visible).map((o) => ({ id: o.id, nome: o.nome, x: o.grupo.position.x, y: o.grupo.position.y, z: o.grupo.position.z })),
   desenho: () => ({ chamadas: renderizador.info.render.calls, triangulos: renderizador.info.render.triangles }),
+  abertura: () => ({ ativa: abertura !== null, plano: abertura?.i ?? -1, planos: abertura?.planos.length ?? 0, voz: voz.ultima, falando: voz.falando }),
+  abrir: () => comecarAbertura(),
+  falar: (npc) => falarCom(npc),
+  mostrarCarta: (npc) => partida.mostrarCarta(npc),
 };
+
+// ---------- conversa com a gente da cidade ----------
+
+/** O jogador fala com um NPC: ele responde com a proxima coisa que tem a dizer, em legenda e em voz. */
+function falarCom(id: string): string {
+  const npc = EXEMPLO.npcs.find((n) => n.id === id);
+  if (!npc) return '';
+  const falas = falasDoNpc(partida.estado, EXEMPLO, id, partida.eu);
+  let jaDisse = ditas.get(id);
+  if (!jaDisse) ditas.set(id, (jaDisse = new Set()));
+  // Disse tudo o que tinha: comeca de novo.
+  if (falas.every((f) => jaDisse!.has(f.texto))) jaDisse.clear();
+  const fala = falas.find((f) => !jaDisse!.has(f.texto));
+  const texto = fala?.texto ?? '...';
+  jaDisse.add(texto);
+  partida.dizer(`${npc.nome}: “${texto}”`);
+  if (fala) voz.falar(texto, npc.id, npc.figura ?? 'homem', EXEMPLO.npcs.indexOf(npc));
+  return texto;
+}
+
+/** Da para mostrar a carta a esta pessoa agora? */
+function podeMostrarA(id: string): boolean {
+  return partida.podeMostrarCarta && partida.estado.carta.suspeitos.includes(id);
+}
+
+/** Mostrar a carta e a unica chance do jogador: o primeiro V avisa, o segundo (em 5 segundos) mostra. */
+let confirmando: { id: string; ate: number } | null = null;
+function mostrarCartaA(id: string): void {
+  if (!podeMostrarA(id)) return;
+  const nome = EXEMPLO.npcs.find((n) => n.id === id)?.nome ?? '';
+  if (confirmando?.id === id && performance.now() < confirmando.ate) {
+    confirmando = null;
+    partida.mostrarCarta(id);
+    return;
+  }
+  confirmando = { id, ate: performance.now() + 5000 };
+  partida.avisar(`Mostrar a carta a ${nome}? Você só tem uma chance. Aperte V de novo para mostrar.`, 5000);
+}
+
+// ---------- abertura: o que aconteceu e o que fazer, narrado sobre planos da cidade ----------
+
+type PoseDeCamera = [x: number, y: number, z: number, giro: number, inclinacao: number];
+interface Plano {
+  titulo?: string;
+  texto: string;
+  /** O que o narrador diz, em pedacos (cada pedaco e um arquivo gravado). */
+  fala: string[];
+  de: PoseDeCamera;
+  ate: PoseDeCamera;
+}
+let abertura: { planos: Plano[]; i: number; t: number; duracao: number; silencio: number } | null = null;
+const elAbertura = document.querySelector<HTMLElement>('#abertura')!;
+const elPlano = document.querySelector<HTMLElement>('#abertura-plano')!;
+const OLHOS = 1.7;
+const SUL = Math.PI;
+/** O giro de quem esta em (x, z) e olha para (tx, tz). */
+const giroPara = (x: number, z: number, tx: number, tz: number) => Math.atan2(-(tx - x), -(tz - z));
+
+function planosDaNoite(): Plano[] {
+  const e = partida.estado;
+  const gancho = EXEMPLO.ganchos.find((g) => g.id === e.gancho) ?? EXEMPLO.ganchos[0]!;
+  // A cidade vista do alto, vindo do norte, como quem chega.
+  const planos: Plano[] = [{ titulo: gancho.titulo, texto: gancho.texto, fala: [narrarGancho(gancho)], de: [0, 30, -80, SUL, -0.46], ate: [0, 22, -62, SUL, -0.38] }];
+  // O que aconteceu: a rua, ao nivel de quem anda.
+  const ruas: [PoseDeCamera, PoseDeCamera][] = [
+    [[0, OLHOS, -54, SUL, 0.02], [0, OLHOS, -44, SUL, 0.02]],
+    [[2, OLHOS, -24, SUL + 0.25, 0.05], [1, OLHOS, -17, SUL + 0.1, 0.05]],
+    [[0, OLHOS, 14, SUL, 0.08], [0, OLHOS, 21, SUL, 0.1]],
+  ];
+  (gancho.abertura ?? []).forEach((texto, i) => {
+    const [de, ate] = ruas[i % ruas.length]!;
+    planos.push({ texto, fala: [texto], de, ate });
+  });
+  // Quem ainda esta na cidade: a porta de um deles.
+  const gente = EXEMPLO.npcs.filter((n) => e.elenco.includes(n.id) && casas.get(n.id) && e.abertos.includes(casas.get(n.id)!));
+  const comCarta = e.carta.autor !== '';
+  if (gente.length) {
+    const l = lugarPorId(casas.get(gente[0]!.id)!)!;
+    const d = direcao(l.frente);
+    // Reto na frente da porta, que e o unico caminho que a planta garante livre.
+    const de: PoseDeCamera = [l.x + d.dx * 8, 1.9, l.z + d.dz * 8, 0, 0.05];
+    const ate: PoseDeCamera = [l.x + d.dx * 4.5, 1.8, l.z + d.dz * 4.5, 0, 0.05];
+    de[3] = giroPara(de[0], de[2], l.x, l.z);
+    ate[3] = giroPara(ate[0], ate[2], l.x, l.z);
+    planos.push({ titulo: QUEM_FICOU.titulo, texto: QUEM_FICOU.texto, fala: [narrar(QUEM_FICOU)], de, ate });
+  }
+  // A missao, um passo por plano, descendo a rua ate a igreja, que e de onde vem o sino.
+  const passos: [PoseDeCamera, PoseDeCamera][] = [
+    [[0, OLHOS, 0, SUL, 0.04], [0, OLHOS, 7, SUL, 0.06]],
+    [[0, OLHOS, 10, SUL, 0.08], [0, OLHOS, 17, SUL, 0.1]],
+    [[0, OLHOS, 20, SUL, 0.14], [0, OLHOS, 29, SUL, 0.24]],
+  ];
+  // Sem carta (noite montada a mao, com pouca gente), sobra so o ultimo passo.
+  MISSAO.forEach((trecho, i) => {
+    if (!comCarta && i < MISSAO.length - 1) return;
+    const [de, ate] = passos[i % passos.length]!;
+    planos.push({ titulo: trecho.titulo, texto: trecho.texto, fala: [narrar(trecho)], de, ate });
+  });
+  return planos;
+}
+
+function comecarAbertura(): void {
+  aberturaPendente = false;
+  if (partida.estado.fim) return;
+  abertura = { planos: planosDaNoite(), i: -1, t: 0, duracao: 0, silencio: 0 };
+  document.body.classList.add('em-abertura');
+  elAbertura.style.display = 'block';
+  mostrarPlano(0);
+}
+
+function mostrarPlano(i: number): void {
+  if (!abertura) return;
+  const plano = abertura.planos[i];
+  if (!plano) {
+    fecharAbertura();
+    return;
+  }
+  abertura.i = i;
+  abertura.t = 0;
+  abertura.silencio = 0;
+  // Tempo de ouvir e de ler: a voz diz umas 17 letras por segundo.
+  abertura.duracao = 2.5 + (plano.texto.length + (plano.titulo?.length ?? 0)) * 0.06;
+  elPlano.innerHTML = `${plano.titulo ? `<h2>${plano.titulo}</h2>` : ''}<p>${plano.texto}</p>`;
+  // Recomeca a animacao de entrada do texto e do escuro entre um plano e outro.
+  elAbertura.classList.remove('entrando');
+  void elAbertura.offsetWidth;
+  elAbertura.classList.add('entrando');
+  voz.falar(plano.fala, NARRADOR, 'narrador');
+}
+
+function fecharAbertura(): void {
+  abertura = null;
+  jogador.cinema = null;
+  voz.calar();
+  document.body.classList.remove('em-abertura');
+  elAbertura.style.display = 'none';
+}
+
+function atualizarAbertura(dt: number): void {
+  if (!abertura) {
+    // Espera o jogador entrar de fato na cidade (mouse preso) para comecar.
+    if (aberturaPendente && jogador.travado && partidaPronta) comecarAbertura();
+    return;
+  }
+  abertura.t += dt;
+  // Com voz, o plano dura o que a narracao durar (e um respiro). Sem voz, o tempo de ler.
+  if (voz.falando) abertura.silencio = 0;
+  else abertura.silencio += dt;
+  const acabou = voz.ligada ? abertura.t > 2 && (abertura.silencio > 0.7 || abertura.t > abertura.duracao * 2) : abertura.t >= abertura.duracao;
+  if (acabou) {
+    mostrarPlano(abertura.i + 1);
+    if (!abertura) return;
+  }
+  const { de, ate } = abertura.planos[abertura.i]!;
+  // A camera anda devagar, de uma pose a outra, sem parar de vez no fim.
+  const k = Math.min(1, abertura.t / abertura.duracao);
+  const s = k * (2 - k) * 0.85 + k * 0.15;
+  const entre = (n: 0 | 1 | 2 | 3 | 4) => de[n] + (ate[n] - de[n]) * s;
+  jogador.cinema = { x: entre(0), y: entre(1), z: entre(2), giro: entre(3), inclinacao: entre(4) };
+}
 
 const construcoes = [...LUGARES, ...FIGURANTES].map(pegada);
 // Gente da cidade: quem esta no elenco da noite fica de pe no lugar em que a historia o poe.
@@ -456,10 +865,24 @@ function atualizarGente(t: number): void {
     pessoa.scale.y = (npc.figura === 'crianca' ? 0.72 : 1) * (1 + Math.sin(t * 1.3 + i) * 0.006);
     presentes.push({ id: npc.id, nome: npc.nome, papel: npc.papel, lugar: casa, x: ponto.pe[0], z: ponto.pe[1] });
   });
+  // Com quem da para falar: o mais perto, a um passo e meio, na direcao em que o jogador olha.
+  interlocutor = null;
+  let melhor = 2.6;
+  if (partida.modo === 'andando' && !abertura && partida.personagem.vivo) {
+    for (const p of presentes) {
+      const dx = p.x - jogador.posicao.x;
+      const dz = p.z - jogador.posicao.z;
+      const d = Math.hypot(dx, dz);
+      if (d < melhor && (d < 1.1 || (dx * olhar.x + dz * olhar.z) / d > 0.6)) {
+        melhor = d;
+        interlocutor = { id: p.id, nome: p.nome };
+      }
+    }
+  }
 }
 
-// Guias: marcas na tela por cima das portas dos lugares que ainda tem o que investigar,
-// dos abrigos (para quem ja entendeu a regra) e o nome de quem esta por perto. A tecla G esconde.
+// Guias: o nome de quem esta por perto (gente da cidade e outros jogadores). A tecla G esconde.
+// Nao ha marca sobre os lugares: achar aonde ir faz parte de investigar.
 const elGuias = document.querySelector<HTMLElement>('#guias')!;
 const guias = new Map<string, { el: HTMLElement; texto: string }>();
 let guiasLigadas = true;
@@ -491,31 +914,13 @@ function guiar(chave: string, classe: string, x: number, y: number, z: number, t
 }
 
 function atualizarGuias(): void {
-  const mostrar = guiasLigadas && partida.modo === 'andando' && !cam;
-  const pendentes = partida.pendentes();
-  const abrigos = partida.abrigosConhecidos();
-  const dentro = partida.dentro;
-  // De longe as guias se amontoam: so os tres lugares mais perto e os abrigos levam nome.
-  const distancia = (l: { x: number; z: number }) => Math.hypot(l.x - jogador.posicao.x, l.z - jogador.posicao.z);
-  const comNome = new Set(
-    LUGARES.filter((l) => pendentes.includes(l.id))
-      .sort((a, b) => distancia(a) - distancia(b))
-      .slice(0, 3)
-      .map((l) => l.id),
-  );
-  for (const l of LUGARES) {
-    const abrigo = abrigos.includes(l.id);
-    const d = distancia(l);
-    // Dentro de um lugar as guias dos outros atrapalham mais do que ajudam.
-    const vale = mostrar && dentro === null && d > 6 && (abrigo || pendentes.includes(l.id));
-    const nome = abrigo || comNome.has(l.id) ? `${abrigo ? 'abrigo · ' : ''}${l.nome}<small>${Math.round(d)} m</small>` : '&nbsp;';
-    guiar(`lugar:${l.id}`, abrigo ? 'abrigo' : '', l.x, 4, l.z, vale ? nome : '', Math.max(0.4, Math.min(1, 1.15 - d / 120)));
-  }
+  const mostrar = guiasLigadas && partida.modo === 'andando' && !cam && !abertura;
   for (const npc of EXEMPLO.npcs) {
     const p = presentes.find((x) => x.id === npc.id);
     const d = p ? Math.hypot(p.x - jogador.posicao.x, p.z - jogador.posicao.z) : Infinity;
-    const relacao = partida.estado.personagens[0]!.relacoes[npc.id] ?? 0;
+    const relacao = partida.personagem.relacoes[npc.id] ?? 0;
     const humor = relacao > 0 ? 'confia em você' : relacao < 0 ? 'desconfia de você' : npc.papel;
+    if (p && mostrar && d < 6) partida.conhecer(npc.id);
     guiar(`npc:${npc.id}`, 'pessoa', p?.x ?? 0, npc.figura === 'crianca' ? 1.45 : 2.0, p?.z ?? 0, p && mostrar && d < 6 ? `${npc.nome}<small>${humor}</small>` : '', 1);
   }
 }
@@ -550,17 +955,18 @@ function quadro(): void {
   const dt = Math.min(relogio.getDelta(), 0.05);
   const t = relogio.elapsedTime;
   if (!cidade) return;
+  atualizarAbertura(dt);
   jogador.atualizar(dt, cidade.solidos);
-  // O relogio da noite so anda com o jogo em foco. Camera presa (capturas) nao joga.
-  if (!cam) partida.atualizar(dt, jogador.posicao.x, jogador.posicao.z, jogador.travado);
+  // O relogio da noite so anda com o jogo em foco e depois da abertura. Camera presa (capturas) nao joga.
+  if (!cam) partida.atualizar(dt, jogador.posicao.x, jogador.posicao.z, jogador.travado && !abertura);
   // O que a partida faz sentir: luzes que falham, lampiao nervoso, tranco, neblina e amanhecer.
-  const eu = medidoresForcados ?? partida.estado.personagens[0]!;
+  const eu = medidoresForcados ?? partida.personagem;
   const fx = efeitos.atualizar(dt, eu.medo, eu.ferimento);
   jogador.tremor = fx.tremor;
   jogador.brilhoDoLampiao(fx.lampiao);
   clima.neblina(fx.neblina);
   clima.amanhecer(fx.amanhecer);
-  som.atualizar(dt, eu.medo, partida.dentro !== null, partida.estado.personagens[0]!.vivo);
+  som.atualizar(dt, eu.medo, partida.dentro !== null, partida.personagem.vivo);
   if (!cam && partida.modo === 'andando') {
     if (aparicao) {
       invocarVulto(aparicao);
@@ -582,9 +988,10 @@ function quadro(): void {
     l.luz.intensity = l.base * (0.9 + tremor) * fx.luzes;
   }
   atualizarMarcas(t);
-  atualizarAchados(t);
   atualizarGente(t);
+  atualizarAchados(t);
   atualizarGuias();
+  atualizarOutros(dt);
   // Numa cena a vista fecha um pouco sobre o que esta sendo investigado.
   const foco = partida.modo === 'cena' || partida.modo === 'resultado' ? 62 : 72;
   if (Math.abs(camera.fov - foco) > 0.05) {

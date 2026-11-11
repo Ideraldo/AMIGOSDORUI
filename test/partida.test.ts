@@ -3,8 +3,8 @@ import { test } from 'node:test';
 import { LUGARES } from '../src/mundo/planta.ts';
 import { jogar } from '../src/nucleo/bot.ts';
 import { EXEMPLO } from '../src/nucleo/historias/exemplo.ts';
-import { apurar, candidatos, casaDoNpc, cenaDe, chegar, comoEscapar, contar, descobriuARegra, entrar, escolher, escolhasDisponiveis, novaPartida, objetivos, passarRodada, pegar, regraDe, sabeARegra, usar, validarBiblioteca, votar } from '../src/nucleo/partida.ts';
-import { ACHADOS_POR_NOITE, ALIVIO_DO_TONICO, DANO_DO_ULTIMO_SINO, FERIMENTO_FATAL, LUGARES_PARA_EXPLORAR, MEDO_MAXIMO, RODADAS, type Biblioteca, type Estado } from '../src/nucleo/tipos.ts';
+import { achouOAutor, apurar, candidatos, casaDoNpc, cenaDe, chegar, comoEscapar, contar, descobriuARegra, entrar, escolher, escolhasDisponiveis, inocentados, mostrarCarta, novaPartida, objetivos, passarRodada, pegar, podeMostrar, regraDe, sabeARegra, tarefas, textoDaProva, usar, validarBiblioteca, votar } from '../src/nucleo/partida.ts';
+import { ACHADOS_POR_NOITE, ALIVIO_DO_TONICO, DANO_DO_ULTIMO_SINO, FERIMENTO_FATAL, MEDO_MAXIMO, RODADAS, type Biblioteca, type Estado } from '../src/nucleo/tipos.ts';
 
 const UM = [{ id: 'a', nome: 'Ana' }];
 const TRES = [...UM, { id: 'b', nome: 'Beto' }, { id: 'c', nome: 'Caio' }];
@@ -289,19 +289,13 @@ function ateOUltimoSino(inicio: Estado, ficar: (e: Estado) => Estado): Estado {
   return e;
 }
 
-test('os objetivos acompanham a noite: investigar, entender e ver o sol nascer', () => {
-  let e = novaPartida(EXEMPLO, 11, [{ id: 'a', nome: 'A' }], { regra: 'chao-consagrado' });
-  const [explorar, entender, amanhecer] = objetivos(e, EXEMPLO, 'a');
-  assert.ok(!explorar!.feito && !entender!.feito && !amanhecer!.feito);
-  assert.ok(explorar!.texto.includes(`0 de ${LUGARES_PARA_EXPLORAR}`));
+test('os objetivos acompanham a noite: a carta, entender e ver o sol nascer', () => {
+  const e = novaPartida(EXEMPLO, 11, [{ id: 'a', nome: 'A' }], { regra: 'chao-consagrado' });
+  const [carta, entender, amanhecer] = objetivos(e, EXEMPLO, 'a');
+  assert.equal(carta!.id, 'carta');
+  assert.ok(!carta!.feito && !entender!.feito && !amanhecer!.feito);
+  assert.ok(carta!.texto.includes('0 de 3'));
   assert.ok(!amanhecer!.texto.includes('Igreja'), 'o objetivo entregou a regra antes da hora');
-
-  // Investigar lugares diferentes cumpre o primeiro.
-  for (const lugar of e.abertos.slice(0, LUGARES_PARA_EXPLORAR)) {
-    e = entrar(e, EXEMPLO, ['a'], lugar);
-    e = escolher(e, EXEMPLO, 'a', escolhasDisponiveis(e, EXEMPLO, cenaDe(e, 'a')!)[0]!.indice);
-  }
-  assert.ok(objetivos(e, EXEMPLO, 'a')[0]!.feito);
 
   // Com as pistas da regra, o terceiro objetivo passa a dizer como escapar.
   const regra = regraDe(e, EXEMPLO);
@@ -321,7 +315,7 @@ test('no ultimo sino a ameaca vem com certeza: quem segue a regra ve o sol, quem
     const fimAbrigado = passarRodada(chegar(abrigado, ['a'], 'igreja'), EXEMPLO).estado;
     assert.ok(fimAbrigado.fim?.amanheceu, `semente ${semente}: morreu dentro do abrigo`);
     assert.equal(fimAbrigado.personagens[0]!.ferimento, 0);
-    assert.ok(objetivos(fimAbrigado, EXEMPLO, 'a')[2]!.feito);
+    assert.ok(objetivos(fimAbrigado, EXEMPLO, 'a').at(-1)!.feito);
 
     // Chega inteiro ao fim, mas fora do abrigo: o ultimo sino acerta sempre, e vale por dois.
     const naRua = passarRodada(abrigado, EXEMPLO);
@@ -334,7 +328,7 @@ test('no ultimo sino a ameaca vem com certeza: quem segue a regra ve o sol, quem
     ferido.personagens[0]!.ferimento = FERIMENTO_FATAL - DANO_DO_ULTIMO_SINO;
     const morto = passarRodada(ferido, EXEMPLO).estado;
     assert.ok(!morto.personagens[0]!.vivo && !morto.fim!.amanheceu);
-    const [, , amanhecer] = objetivos(morto, EXEMPLO, 'a');
+    const amanhecer = objetivos(morto, EXEMPLO, 'a').at(-1);
     assert.ok(!amanhecer!.feito && amanhecer!.falhou);
   }
 });
@@ -348,8 +342,9 @@ test('a noite espalha as coisas pelos lugares abertos, sempre do mesmo jeito par
     }
     assert.ok(e.achados.every((a) => e.abertos.includes(a.lugar) && !a.pego));
     assert.equal(new Set(e.achados.map((a) => a.id)).size, e.achados.length);
-    // Com nove lugares abertos, cada coisa fica num lugar diferente.
-    assert.equal(new Set(e.achados.map((a) => a.lugar)).size, e.achados.length);
+    // Com nove lugares abertos, cada coisa fica num lugar diferente (as provas tem a propria conta).
+    const coisas = e.achados.filter((a) => a.tipo !== 'prova');
+    assert.equal(new Set(coisas.map((a) => a.lugar)).size, coisas.length);
     const bilhete = e.achados.find((a) => a.tipo === 'bilhete')!;
     assert.ok(regraDe(e, EXEMPLO).pistas.includes(bilhete.pista!), 'o bilhete traz pista de outra regra');
   }
@@ -398,4 +393,89 @@ test('cada NPC da historia tem um lugar na cidade, tirado das cenas em que apare
   const casas = Object.fromEntries(EXEMPLO.npcs.map((n) => [n.id, casaDoNpc(EXEMPLO, n.id)]));
   assert.deepEqual(casas, { coveiro: 'cemiterio', viuva: 'casarao', xerife: 'delegacia', boticario: 'botica', menina: 'escola', barman: 'bar' });
   assert.equal(casaDoNpc(EXEMPLO, 'ninguem'), null);
+});
+
+test('o NPC fala conforme o ato, e a dica da regra so sai para quem ele confia', async () => {
+  const { falasDoNpc } = await import('../src/nucleo/partida.ts');
+  const e = novaPartida(EXEMPLO, 7, [{ id: 'a', nome: 'A' }], { regra: 'fareja-o-medo' });
+  for (const npc of EXEMPLO.npcs) {
+    const falas = falasDoNpc(e, EXEMPLO, npc.id, 'a');
+    assert.ok(falas.length >= 2, `${npc.id} tem pouco a dizer no comeco`);
+    assert.ok(falas.every((f) => !f.regras && !f.para && (!f.atos || f.atos.includes(1))), `${npc.id} disse o que nao devia a um estranho`);
+  }
+  const amigo = structuredClone(e);
+  amigo.personagens[0]!.relacoes.barman = 1;
+  const primeira = falasDoNpc(amigo, EXEMPLO, 'barman', 'a')[0]!;
+  assert.deepEqual(primeira.regras, ['fareja-o-medo'], 'para quem ele confia, a dica da regra da noite vem primeiro');
+  const desafeto = structuredClone(e);
+  desafeto.personagens[0]!.relacoes.barman = -1;
+  assert.equal(falasDoNpc(desafeto, EXEMPLO, 'barman', 'a')[0]!.para, 'mal');
+  assert.deepEqual(validarBiblioteca(EXEMPLO), []);
+});
+
+test('a carta: toda noite tem quem escreveu, em casa, e uma prova para cada inocente e para cada jogador', () => {
+  for (let semente = 1; semente <= 60; semente++) {
+    for (const jogadores of [1, 2, 3, 5]) {
+      const gente = Array.from({ length: jogadores }, (_, i) => ({ id: `j${i}`, nome: `J${i}` }));
+      const e = novaPartida(EXEMPLO, semente, gente);
+      const onde = `semente ${semente}, ${jogadores} jogador(es)`;
+      // O elenco inteiro esta em casa, entao todos sao suspeitos e da para chegar a qualquer um.
+      assert.deepEqual(e.carta.suspeitos, e.elenco, onde);
+      for (const n of e.elenco) assert.ok(e.abertos.includes(casaDoNpc(EXEMPLO, n)!), `${onde}: a casa de ${n} esta fechada`);
+      assert.ok(e.carta.suspeitos.includes(e.carta.autor), onde);
+      const provas = e.achados.filter((a) => a.tipo === 'prova');
+      assert.equal(provas.length, Math.max(3, jogadores), onde);
+      // Juntando as provas, sobra so quem escreveu.
+      const inocentes = new Set(provas.map((a) => a.npc));
+      assert.deepEqual([...e.carta.suspeitos.filter((n) => !inocentes.has(n))], [e.carta.autor], onde);
+      // Cada jogador tem pelo menos uma para buscar, e nenhuma esta na casa de quem ela inocenta.
+      for (const j of gente) assert.ok(provas.some((a) => a.dono === j.id), `${onde}: ${j.id} ficou sem prova`);
+      for (const a of provas) {
+        assert.ok(e.abertos.includes(a.lugar) && a.lugar !== casaDoNpc(EXEMPLO, a.npc!), onde);
+        assert.ok(textoDaProva(EXEMPLO, a).includes(EXEMPLO.npcs.find((n) => n.id === a.npc)!.nome), onde);
+      }
+      // Duas provas do mesmo inocente nao dizem a mesma coisa.
+      assert.equal(new Set(provas.map((a) => textoDaProva(EXEMPLO, a))).size, provas.length, onde);
+    }
+  }
+});
+
+test('a carta: cada um so mostra uma vez, errar custa caro e acertar faz quem escreveu contar o que sabe', () => {
+  const inicio = novaPartida(EXEMPLO, 5, [{ id: 'a', nome: 'A' }, { id: 'b', nome: 'B' }]);
+  const { autor, suspeitos } = inicio.carta;
+  const errado = suspeitos.find((n) => n !== autor)!;
+  assert.equal(tarefas(inicio, EXEMPLO, 'a').filter((t) => t.feita).length, 0);
+
+  // Pegar uma prova risca um suspeito so para quem pegou.
+  const prova = inicio.achados.find((x) => x.tipo === 'prova' && x.dono === 'a')!;
+  const comProva = pegar(inicio, EXEMPLO, 'a', prova.id);
+  assert.deepEqual(inocentados(comProva, 'a'), [prova.npc]);
+  assert.deepEqual(inocentados(comProva, 'b'), []);
+  assert.ok(tarefas(comProva, EXEMPLO, 'a')[0]!.feita);
+  assert.ok(objetivos(comProva, EXEMPLO, 'b')[0]!.texto.includes('1 de'));
+
+  // A mostra a carta a pessoa errada: perde a chance, a confianca e a calma. Todos ficam sabendo que nao foi ela.
+  const errou = mostrarCarta(comProva, EXEMPLO, 'a', errado);
+  assert.equal(errou.personagens[0]!.medo, 1);
+  assert.equal(errou.personagens[0]!.relacoes[errado], -1);
+  assert.ok(!podeMostrar(errou, 'a') && podeMostrar(errou, 'b'));
+  assert.ok(inocentados(errou, 'b').includes(errado));
+  assert.equal(mostrarCarta(errou, EXEMPLO, 'a', autor), errou, 'mostrou a carta duas vezes');
+  assert.ok(!achouOAutor(errou) && !objetivos(errou, EXEMPLO, 'a')[0]!.falhou);
+
+  // B acerta: o objetivo se cumpre e o grupo ganha uma pista da regra.
+  const acertou = mostrarCarta(errou, EXEMPLO, 'b', autor);
+  assert.ok(achouOAutor(acertou) && objetivos(acertou, EXEMPLO, 'a')[0]!.feito);
+  assert.equal(acertou.pistas.length, 1);
+  assert.ok(regraDe(acertou, EXEMPLO).pistas.includes(acertou.pistas[0]!));
+  assert.ok(!podeMostrar(acertou, 'b'));
+
+  // Se todos erram, o objetivo falha.
+  const outro = suspeitos.find((n) => n !== autor && n !== errado)!;
+  const todosErraram = mostrarCarta(errou, EXEMPLO, 'b', outro);
+  assert.ok(objetivos(todosErraram, EXEMPLO, 'a')[0]!.falhou);
+  // E o fim da noite diz quem era.
+  let fim = todosErraram;
+  while (!fim.fim) fim = passarRodada(fim, EXEMPLO).estado;
+  assert.deepEqual(fim.fim.carta, { autor, achou: false });
 });

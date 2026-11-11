@@ -2,7 +2,7 @@
 
 Jogo de terror e mistério para 3 a 6 amigos. Cada partida sorteia uma história nova dentro da mesma cidade de faroeste sombrio, e a história decide quais lugares estão abertos naquela noite.
 
-**Estado atual: cenário pronto e a primeira noite jogável sozinho.** Dá para andar pela cidade e pelo vale do sítio em primeira pessoa. Em cada lugar aberto há algo brilhando para investigar com a tecla E, que abre uma cena com 2 ou 3 escolhas, o relógio da noite anda em 8 horas, uma ameaça age seguindo uma regra secreta e a noite termina com um epílogo. A história usada é uma **biblioteca de exemplo**, escrita só para o molde funcionar. Ainda não existe multiplayer.
+**Estado atual: cenário pronto, a noite jogável sozinho e a primeira versão do jogo em grupo, por sala.** Dá para andar pela cidade e pelo vale do sítio em primeira pessoa. Em cada lugar aberto há algo brilhando para investigar com a tecla E, que abre uma cena com 2 ou 3 escolhas, o relógio da noite anda em 8 horas, uma ameaça age seguindo uma regra secreta e a noite termina com um epílogo. A história usada é uma **biblioteca de exemplo**, escrita só para o molde funcionar. Em grupo, um jogador cria uma sala, os outros entram com o código de 4 letras, todos se veem na cidade e quem está no mesmo lugar decide a cena por voto.
 
 ![Chegada pela rua principal](docs/01-chegada.png)
 
@@ -26,6 +26,16 @@ npm run dev
 
 Abra o endereço que aparecer no terminal (normalmente http://localhost:5173) e clique para entrar.
 
+### Jogar em grupo
+
+O servidor de salas roda junto com o `npm run dev`, na mesma porta. Para testar sozinho, abra o jogo em duas janelas. Para jogar com quem está na mesma rede, rode `npm run dev:rede` e passe o endereço de rede que aparecer no terminal.
+
+1. Na tela de entrada, escreva o nome e clique em **Criar sala**. Aparece um código de 4 letras.
+2. Os outros escrevem o nome, o código e clicam em **Entrar na sala** (até 6 pessoas).
+3. Quem criou clica em **Começar a noite**. Depois disso ninguém mais entra.
+
+Na sala o relógio é de todos e não para durante as cenas. Quem aperta E chama a cena para todos que estão no lugar, e o voto fecha em 30 segundos. Só quem criou a sala adianta a hora (N) e pede outra noite (R). Ainda não há hospedagem na internet: por enquanto é mesma máquina ou mesma rede.
+
 | Tecla | O que faz |
 | --- | --- |
 | WASD ou setas | andar |
@@ -37,7 +47,8 @@ Abra o endereço que aparecer no terminal (normalmente http://localhost:5173) e 
 | Q | usar a atadura da bolsa |
 | T | beber o tônico da bolsa |
 | F | acender ou apagar o lampião |
-| G | mostrar ou esconder as guias sobre as portas |
+| V | mostrar a carta a quem está na sua frente (uma chance por jogador) |
+| G | mostrar ou esconder o nome de quem está por perto |
 | 1, 2, 3 | escolher numa cena |
 | Espaço | pular. Com um painel aberto, continuar |
 | J | diário e pistas |
@@ -87,7 +98,7 @@ A planta inteira está em dados em `src/mundo/planta.ts`. O mapa do jogo, a coli
 - A noite tem 8 horas (rodadas) de 2 minutos e meio, em 3 atos. O relógio só anda com o jogo em foco e para durante as cenas.
 - Entrar num lugar não abre nada sozinho. Lá dentro, um brilho flutua sobre um móvel: chegar perto e apertar E abre a cena. O brilho muda de móvel a cada hora.
 - Cada hora, cada lugar aberto rende no máximo uma cena. Toda escolha mexe em medo, ferimento, pistas, relações ou lugares, e o painel sempre diz o que mudou.
-- **O que fazer agora** fica escrito no topo da tela, com o tempo que falta para o sino numa barra. Sobre as portas dos lugares que ainda têm o que investigar aparece uma guia (◆) com a distância.
+- **O que fazer agora** fica escrito no topo da tela, com o tempo que falta para o sino numa barra. Não há marca apontando o caminho: a abertura da noite conta o que aconteceu e o resto se descobre andando.
 - **A virada da hora não para o jogo**: o sino bate, o número da hora aparece grande, as luzes reagem e o que aconteceu passa em legenda. O texto inteiro fica no diário (J).
 - **Gente da cidade**: quem está no elenco da noite fica de pé no lugar em que a história o põe, com o nome por cima e o que acha de você.
 - **Objetivos**, sempre no canto da tela: investigar 3 lugares, juntar 2 pistas sobre a ameaça e ver o sol nascer. Quando a regra é entendida, o terceiro passa a dizer o que fazer.
@@ -122,6 +133,7 @@ npm run colisao    # anda pela cidade num Chrome sem janela: portas, becos, cami
 npm run capturas   # tira capturas de tela da cidade, na pasta capturas/
 npm run planta     # regenera docs/planta.svg e docs/planta.png
 npm run sons       # gera na ElevenLabs os efeitos de som que faltam em public/sons/
+npm run vozes      # grava na ElevenLabs a narração e as falas que faltam em public/vozes/
 ```
 
 `capturas` aceita filtros pelo nome da vista, e todo lugar ganha duas vistas de dentro automaticamente:
@@ -160,6 +172,7 @@ src/mundo/gente.ts        as figuras dos NPCs
 src/interface/segredos.ts coisas escondidas que não mudam as regras
 src/som/som.ts            efeitos gravados, vento e coração (Web Audio)
 public/sons/              efeitos de som gerados por `npm run sons`
+public/vozes/             narração e falas gravadas por `npm run vozes`
 src/mundo/base.ts         materiais, texturas, textos pintados e formas básicas
 src/mundo/objetos.ts      móveis e objetos reaproveitados (mesa, cama, estante, carroça...)
 src/mundo/predios.ts      casca dos prédios, igreja, mina e cemitério
@@ -177,6 +190,6 @@ test/                     testes da planta, do sorteio, da colisão e da partida
 1. Você andar pela cidade e dizer o que mudar: escala, distâncias, clima, lugares, e o FPS que a sua máquina faz.
 2. Ligar o pipeline do Roteirista e do Crítico ao formato de `tipos.ts` e trocar a biblioteca de exemplo por uma de verdade (a simulação mostra onde falta cena).
 3. Objetivo final e missões da noite, enfrentamento do amanhecer e NPCs visíveis na cidade.
-4. Multiplayer: servidor, salas, votos e os outros jogadores visíveis na cidade.
+4. Multiplayer: sala, presença, noite compartilhada e voto já existem. Faltam contar pista privada, chamados, assombração, reentrada e hospedagem.
 
 O que falta e o plano do multiplayer estão em `docs/plano.md`. O documento de conceito do jogo tem o desenho completo. As convenções para quem for mexer no código estão em `CLAUDE.md`.

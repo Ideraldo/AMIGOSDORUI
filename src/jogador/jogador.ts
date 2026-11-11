@@ -26,6 +26,8 @@ export class Jogador {
   seco = false;
   /** Tranco da camera, em radianos. Quem cuida do valor sao os efeitos de tela. */
   tremor = 0;
+  /** Camera de cinema (a abertura da noite): enquanto houver, o jogador fica onde esta e a camera vai para esta pose. */
+  cinema: { x: number; y: number; z: number; giro: number; inclinacao: number } | null = null;
   /** Avisado a cada passo, pulo e queda, para o som. */
   aoPisar: ((tipo: 'passo' | 'pulo' | 'pouso') => void) | null = null;
   readonly lampiao: THREE.PointLight;
@@ -55,12 +57,14 @@ export class Jogador {
       if (!this.travado) this.teclas.clear();
     });
     document.addEventListener('mousemove', (e) => {
-      if (!this.travado) return;
+      if (!this.travado || this.cinema) return;
       this.giro -= e.movementX * SENSIBILIDADE;
       this.inclinacao -= e.movementY * SENSIBILIDADE;
       this.inclinacao = Math.max(-1.45, Math.min(1.45, this.inclinacao));
     });
     document.addEventListener('keydown', (e) => {
+      // Quem esta digitando o nome ou o codigo da sala nao esta jogando.
+      if (e.target instanceof HTMLInputElement) return;
       this.teclas.add(e.code);
       if (e.code === 'KeyF') this.lampiao.visible = !this.lampiao.visible && !this.seco;
       // O pulo vale so no toque da tecla, e nunca com um painel aberto (ali o Espaco e "continuar").
@@ -110,6 +114,13 @@ export class Jogador {
 
   atualizar(dt: number, solidos: readonly Solido[]): void {
     if (this.camFixa) return;
+    if (this.cinema) {
+      const c = this.cinema;
+      this.querPular = false;
+      this.camera.position.set(c.x, c.y, c.z);
+      this.camera.rotation.set(c.inclinacao, c.giro, 0);
+      return;
+    }
     let andar = 0;
     let lado = 0;
     if (this.teclas.has('KeyW') || this.teclas.has('ArrowUp')) andar += 1;

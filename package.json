@@ -6,6 +6,7 @@
   "description": "Jogo de terror e misterio em grupo numa cidade de faroeste sombrio (nome provisorio)",
   "scripts": {
     "dev": "vite",
+    "dev:rede": "vite --host",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
@@ -16,7 +17,10 @@
     "colisao": "tsx scripts/colisao.ts",
     "simular": "tsx scripts/simular.ts",
     "partida": "tsx scripts/partida.ts",
-    "sons": "tsx scripts/sons.ts"
+    "sons": "tsx scripts/sons.ts",
+    "vozes": "tsx scripts/vozes.ts",
+    "sala": "tsx scripts/sala.ts",
+    "abertura": "tsx scripts/abertura.ts"
   },
   "dependencies": {
     "three": "^0.187.0"
@@ -25,9 +29,11 @@
     "@resvg/resvg-js": "^2.6.2",
     "@types/node": "^26.6.6",
     "@types/three": "^0.187.0",
+    "@types/ws": "^8.18.2",
     "puppeteer-core": "^25.16.0",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
-    "vite": "^8.3.7"
+    "vite": "^8.3.7",
+    "ws": "^8.22.2"
   }
 }

@@ -9,26 +9,168 @@ import type { Biblioteca } from '../tipos.ts';
 export const EXEMPLO: Biblioteca = {
   nome: 'Exemplo: a noite da diligência',
 
+  // Uma historia so: a carta. A abertura da noite narra o gancho, depois cada frase de `abertura`.
   ganchos: [
     {
-      id: 'diligencia',
-      titulo: 'A diligência quebrou',
-      texto: 'O eixo partiu na entrada da cidade. O cocheiro foi buscar ajuda com o lampião na mão e não voltou. Faltam oito horas para amanhecer.',
-    },
-    {
       id: 'carta',
-      titulo: 'A carta sem assinatura',
-      texto: 'Uma carta pedia socorro e dava o nome desta cidade. Na estação, ninguém. As mesas ainda estão postas, como se todos tivessem levantado no meio do jantar.',
+      titulo: 'A carta',
+      texto: 'Há três dias chegou uma carta ao posto de socorro da estrada de ferro. Alguém desta cidade pedia ajuda, com a letra tremida, e não assinou.',
+      abertura: [
+        'Vocês são a turma de socorro da ferrovia. Quando uma cidade da linha pede ajuda, são vocês que vão. O último trem deixou todos na estação e seguiu viagem.',
+        'A carta dizia pouco. Alguma coisa anda pelas ruas depois que escurece, e leva gente. Quem ficou não abre a porta para ninguém. Venham antes do amanhecer.',
+      ],
     },
   ],
 
   npcs: [
-    { id: 'coveiro', nome: 'Seu Honório', papel: 'coveiro' },
-    { id: 'viuva', nome: 'Dona Carlota', papel: 'viúva do casarão', figura: 'mulher' },
-    { id: 'xerife', nome: 'Xerife Brandão', papel: 'xerife' },
-    { id: 'boticario', nome: 'Dr. Amâncio', papel: 'boticário' },
-    { id: 'menina', nome: 'Lia', papel: 'órfã que dorme na escola', figura: 'crianca' },
-    { id: 'barman', nome: 'Tião', papel: 'dono do bar' },
+    {
+      id: 'coveiro',
+      nome: 'Seu Honório',
+      papel: 'coveiro',
+      carta: {
+        alibis: [
+          'Um recibo de enterro assinado por Seu Honório. A letra dele é grande e redonda, de quem aprendeu tarde. Não é a letra da carta.',
+          'O caderno de covas de Seu Honório é todo escrito a carvão. A carta foi escrita a tinta, e ele não tem tinteiro.',
+        ],
+        confessa: 'Fui eu que escrevi. Cansei de abrir cova para gente que eu conhecia. Agora escute, que eu só digo uma vez.',
+        nega: 'Carta? Não é minha. E não me mostre papel de gente desesperada, que dá azar.',
+      },
+      falas: [
+        { texto: 'Gente de fora, a esta hora. Cova eu tenho pronta, cama é que não.', atos: [1] },
+        { texto: 'Trinta anos enterrando esta cidade. Nunca enterrei tanto em tão pouco tempo.' },
+        { texto: 'Escutou o sino? Cada batida é uma hora a menos. São oito até o sol.', atos: [1, 2] },
+        { texto: 'Ela já passou por aqui hoje. A terra ficou fria onde ela pisou.', atos: [2, 3] },
+        { texto: 'Falta pouco para clarear. É a hora em que ela tem mais pressa.', atos: [3] },
+        { texto: 'Não gosto de quem mexe no que é dos mortos. Vá andando.', para: 'mal' },
+        { texto: 'Pode ficar por perto, se quiser. Companhia de vivo anda rara.', para: 'bem' },
+        { texto: 'Repare numa coisa. Em trinta anos, nunca achei rastro dela do lado de dentro desta cerca.', para: 'bem', regras: ['chao-consagrado'] },
+        { texto: 'Os que eu enterrei morreram de olho arregalado. Os que não se assustaram, eu nunca precisei enterrar.', para: 'bem', regras: ['fareja-o-medo'] },
+        { texto: 'Toda cova que eu abri este mês foi de gente que saiu sozinha. Toda.', para: 'bem', regras: ['caca-o-sozinho'] },
+      ],
+    },
+    {
+      id: 'viuva',
+      nome: 'Dona Carlota',
+      papel: 'viúva do casarão',
+      figura: 'mulher',
+      carta: {
+        alibis: [
+          'Um cartão de pêsames de Dona Carlota, em letra fina e inclinada, sem um borrão. A carta é toda borrada e tremida. Não é dela.',
+          'Dona Carlota só escreve em papel de luto, com tarja preta. A carta veio em papel de embrulho.',
+        ],
+        confessa: 'Fui eu. Uma senhora não assina pedido de socorro, mas escreve. Sente, que eu conto o que sei.',
+        nega: 'Essa letra horrorosa não é minha. Guarde isso e tenha modos.',
+      },
+      falas: [
+        { texto: 'Visita. Faz tempo que esta casa não recebe. Limpe os pés.', atos: [1] },
+        { texto: 'Meu marido dizia que a cidade tinha uma dívida. Morreu sem dizer com quem.' },
+        { texto: 'Não olhe tanto para as janelas. Quem olha muito acaba vendo.', atos: [2, 3] },
+        { texto: 'Quando o galo cantar, acabou. Se houver quem escute.', atos: [3] },
+        { texto: 'Gente sem modos eu não sirvo. A porta é ali.', para: 'mal' },
+        { texto: 'Sente um pouco. Aqui dentro o relógio parece andar mais devagar.', para: 'bem' },
+        { texto: 'Eu só saio de casa para a missa e para o túmulo dele. Nunca me aconteceu nada em nenhum dos dois.', para: 'bem', regras: ['chao-consagrado'] },
+        { texto: 'Eu bordo para não tremer. Mão firme, cabeça firme. Ela passa pela minha janela e não para.', para: 'bem', regras: ['fareja-o-medo'] },
+        { texto: 'A criada foi buscar lenha sozinha. Mandei esperar a outra. Não esperou.', para: 'bem', regras: ['caca-o-sozinho'] },
+      ],
+    },
+    {
+      id: 'xerife',
+      nome: 'Xerife Brandão',
+      papel: 'xerife',
+      carta: {
+        alibis: [
+          'Um mandado assinado pelo Xerife Brandão. Ele escreve com a mão esquerda, e a letra cai para trás. A da carta cai para a frente.',
+          'O livro da cadeia mostra que o Xerife Brandão estava fora, atrás de um ladrão de gado, no dia em que a carta foi posta no correio.',
+        ],
+        confessa: 'Fui eu. Xerife que pede ajuda perde o respeito, por isso não assinei. Preste atenção no que eu descobri.',
+        nega: 'Não escrevi isso. E quem acusa errado, aqui, perde a minha paciência.',
+      },
+      falas: [
+        { texto: 'Forasteiro em noite ruim. Fique onde eu possa ver.', atos: [1] },
+        { texto: 'Bala não resolve. Já tentei. Seis tiros e ela nem virou a cabeça.' },
+        { texto: 'Perdi dois ajudantes esta semana. Não vou perder mais ninguém hoje.', atos: [2, 3] },
+        { texto: 'Última hora é a pior. Ela sabe que o tempo dela acaba.', atos: [3] },
+        { texto: 'Mais uma dessas e passa a noite na cela. Lá, pelo menos, eu sei onde está.', para: 'mal' },
+        { texto: 'Precisando, é só gritar. Eu escuto longe.', para: 'bem' },
+        { texto: 'Anotei no livro onde cada um foi pego. Rua, quintal, beco. Nenhum na igreja, nenhum no cemitério.', para: 'bem', regras: ['chao-consagrado'] },
+        { texto: 'O ajudante que rezava de medo, ela levou. O bêbado que dormia na calçada, ela pulou por cima.', para: 'bem', regras: ['fareja-o-medo'] },
+        { texto: 'Ronda, agora, só de dois em dois. Desde que eu mandei assim, não perdi mais ninguém.', para: 'bem', regras: ['caca-o-sozinho'] },
+      ],
+    },
+    {
+      id: 'boticario',
+      nome: 'Dr. Amâncio',
+      papel: 'boticário',
+      carta: {
+        alibis: [
+          'Uma receita do Dr. Amâncio. A letra é um rabisco que só ele entende. A carta se lê do começo ao fim. Não é dele.',
+          'O Dr. Amâncio só escreve com tinta roxa, feita na própria botica. A carta é de tinta preta.',
+        ],
+        confessa: 'Fui eu, e caprichei na letra para alguém conseguir ler. Ainda bem que vieram. Ouça o que eu observei.',
+        nega: 'Não é minha letra. E lá se foi a única pergunta que você tinha.',
+      },
+      falas: [
+        { texto: 'Se veio por remédio, tenho pouco. Se veio por explicação, tenho menos.', atos: [1] },
+        { texto: 'Os cortes que ela deixa não inflamam. Ficam frios. Nunca vi nada igual.' },
+        { texto: 'Tônico acalma, atadura fecha. Há dos dois largados pela cidade, de quem não voltou para buscar.' },
+        { texto: 'A noite vai no meio. Guarde as forças para o fim.', atos: [2] },
+        { texto: 'Estou contando os minutos. Recomendo o mesmo.', atos: [3] },
+        { texto: 'Não tenho nada para gente apressada e mal educada.', para: 'mal' },
+        { texto: 'Volte se alguém se machucar. Não cobro de quem chega vivo.', para: 'bem' },
+        { texto: 'O padre me pediu água benta para um doente. Achei bobagem. O doente foi o único daquela rua que amanheceu.', para: 'bem', regras: ['chao-consagrado'] },
+        { texto: 'Medi o pulso de quem sobreviveu a ela. Todos lentos. Gente calma. Não é coincidência.', para: 'bem', regras: ['fareja-o-medo'] },
+        { texto: 'Nunca me trouxeram dois feridos da mesma vez. É sempre um, e sempre achado sozinho.', para: 'bem', regras: ['caca-o-sozinho'] },
+      ],
+    },
+    {
+      id: 'menina',
+      nome: 'Lia',
+      papel: 'órfã que dorme na escola',
+      figura: 'crianca',
+      carta: {
+        alibis: [
+          'O caderno de escola de Lia. Ela ainda copia o alfabeto, letra por letra. Não conseguiria escrever uma carta inteira.',
+          'O agente do correio anotou quem comprou selo no mês. Lia não está na lista, e nunca teve um tostão.',
+        ],
+        confessa: 'Fui eu. A professora ajudou com as palavras difíceis, antes de ir embora. Eu sei um segredo, quer ouvir?',
+        nega: 'Não fui eu. Eu nem sei escrever tudo isso.',
+      },
+      falas: [
+        { texto: 'A professora foi embora e não levou a chave. Agora a escola é minha.', atos: [1] },
+        { texto: 'Eu sei contar até oito. É quantas vezes o sino bate antes de ficar claro.' },
+        { texto: 'Ela é alta. Mais alta que a porta. Eu vi pelo buraco da fechadura.', atos: [2, 3] },
+        { texto: 'Já está quase. O céu fica cinza primeiro, bem ali.', atos: [3] },
+        { texto: 'Não falo com gente que grita.', para: 'mal' },
+        { texto: 'Quer ver meu esconderijo? É embaixo da mesa grande. Cabe mais um.', para: 'bem' },
+        { texto: 'Quando eu tenho medo, eu corro para o lado da igreja. Ela vem atrás e para no portão.', para: 'bem', regras: ['chao-consagrado'] },
+        { texto: 'Eu canto baixinho para o coração não bater forte. Quando bate forte, ela escuta.', para: 'bem', regras: ['fareja-o-medo'] },
+        { texto: 'Ela só chega perto quando eu estou sozinha. Com gente do lado, fica olhando de longe.', para: 'bem', regras: ['caca-o-sozinho'] },
+      ],
+    },
+    {
+      id: 'barman',
+      nome: 'Tião',
+      papel: 'dono do bar',
+      carta: {
+        alibis: [
+          'A lousa de fiados do bar, escrita por Tião, é toda em letra de forma, maiúscula. A carta é em letra de mão.',
+          'Uma anotação do boticário: Tião passou a semana da carta de cama, com febre, sem levantar nem para abrir o bar.',
+        ],
+        confessa: 'Fui eu. Escrevi no balcão, com a mão tremendo. Chegue mais perto, que isto não é para falar alto.',
+        nega: 'Minha não é. Guarde esse papel antes que alguém veja.',
+      },
+      falas: [
+        { texto: 'Bar aberto, freguês nenhum. Hoje a casa paga, que amanhã não sei.', atos: [1] },
+        { texto: 'Servi seis ontem. Hoje tem seis copos sobrando na prateleira.' },
+        { texto: 'Cada vez que o sino bate, eu conto quem ainda está na rua. A conta só diminui.', atos: [2, 3] },
+        { texto: 'Mais uma hora. Aguente mais uma hora.', atos: [3] },
+        { texto: 'Para encrenqueiro, o bar está fechado.', para: 'mal' },
+        { texto: 'Fique o tempo que quiser. Balcão cheio espanta pensamento ruim.', para: 'bem' },
+        { texto: 'O sacristão bebe aqui toda noite e volta para a igreja de madrugada. Nunca viu nada. Nunca.', para: 'bem', regras: ['chao-consagrado'] },
+        { texto: 'Bêbado ela não leva. Sabe por quê? Bêbado não tem medo de nada.', para: 'bem', regras: ['fareja-o-medo'] },
+        { texto: 'Os seis de ontem saíram um de cada vez, para o quintal. Se tivessem ido juntos, estavam aqui.', para: 'bem', regras: ['caca-o-sozinho'] },
+      ],
+    },
   ],
 
   pistas: [
