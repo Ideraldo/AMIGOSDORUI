@@ -6,6 +6,7 @@ import type { IncomingMessage, Server } from 'node:http';
 import type { Duplex } from 'node:stream';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { EXEMPLO } from '../src/nucleo/historias/exemplo.ts';
+import { limparPose } from '../src/rede/aparencia.ts';
 import { CAMINHO_DA_SALA, type Aviso, type Intencao } from '../src/rede/protocolo.ts';
 import { Sala } from './sala.ts';
 
@@ -79,7 +80,7 @@ export function ligarSalas(http: Server): void {
           mandar(ws, { t: 'erro', texto: 'Não existe sala com esse código.' });
           return;
         }
-        const entrou = alvo.sala.entrar(String(m.nome ?? ''));
+        const entrou = alvo.sala.entrar(String(m.nome ?? ''), m.aparencia);
         if ('erro' in entrou) {
           mandar(ws, { t: 'erro', texto: entrou.erro });
           return;
@@ -91,10 +92,11 @@ export function ligarSalas(http: Server): void {
         return;
       }
       if (m.t === 'pos') {
-        // Posicao nao passa pelas regras: vai direto para os outros.
-        const { x, y, z, giro, lampiao, agachado } = m;
-        if (![x, y, z, giro].every(Number.isFinite)) return;
-        for (const [outro, w] of mesa.ligados) if (outro !== id) mandar(w, { t: 'pos', de: id, x, y, z, giro, lampiao: !!lampiao, agachado: !!agachado });
+        // Posicao nao passa pelas regras: vai direto para os outros, tambem na sala de espera,
+        // antes de a noite comecar.
+        const pose = limparPose(m);
+        if (!pose) return;
+        for (const [outro, w] of mesa.ligados) if (outro !== id) mandar(w, { t: 'pos', de: id, ...pose });
         return;
       }
       const comecou = mesa.sala.estado !== null;

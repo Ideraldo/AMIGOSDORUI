@@ -4,6 +4,7 @@ import { Sala } from '../servidor/sala.ts';
 import { EXEMPLO } from '../src/nucleo/historias/exemplo.ts';
 import { cenaDe, escolhasDisponiveis } from '../src/nucleo/partida.ts';
 import { RODADAS, SEGUNDOS_POR_RODADA } from '../src/nucleo/tipos.ts';
+import { GESTOS, OPCOES, limparPose } from '../src/rede/aparencia.ts';
 import { MAXIMO_DE_JOGADORES, SEGUNDOS_DE_VOTO } from '../src/rede/protocolo.ts';
 
 /** Sala com `n` jogadores, ja com a noite comecada. Devolve tambem quantas vezes ela avisou mudanca. */
@@ -147,4 +148,52 @@ test('quem sai da sala no meio da noite deixa o personagem para tras', () => {
   // Pedido de quem nao esta na noite e ignorado.
   sala.receber('fantasma', { t: 'virar' });
   assert.equal(sala.estado!.rodada, 1);
+});
+
+test('sala de espera: cada um entra com a aparencia que criou, e quem chega depois ve quem ja estava', () => {
+  const sala = new Sala('TEST', 7, EXEMPLO);
+  const dela = { figura: 2, pele: 3, chapeu: 3, roupa: 4, lenco: 5, rosto: 3 };
+  const a = sala.entrar('Ana', dela) as { id: string };
+  assert.deepEqual(sala.jogadores[0]!.aparencia, dela);
+  // Aparencia que nao veio, ou veio estragada, vira uma valida. Campo bom e aproveitado.
+  const b = sala.entrar('Bento') as { id: string };
+  const c = sala.entrar('Caio', { figura: 99, chapeu: -1, lenco: 2, rosto: 'barba', roupa: 1.5 }) as { id: string };
+  for (const j of sala.jogadores) {
+    for (const [campo, total] of Object.entries(OPCOES)) {
+      const v = j.aparencia[campo as keyof typeof OPCOES];
+      assert.ok(Number.isInteger(v) && v >= 0 && v < total, `${j.nome}: ${campo} = ${v}`);
+    }
+  }
+  assert.equal(sala.jogadores[2]!.aparencia.lenco, 2);
+  assert.notDeepEqual(sala.jogadores[1]!.aparencia, sala.jogadores[2]!.aparencia, 'quem nao escolheu ficou igual ao vizinho');
+  // A lista que o servidor manda a quem entra tem todos, na ordem de chegada, e a noite nao comecou.
+  assert.deepEqual(sala.jogadores.map((j) => j.id), [a.id, b.id, c.id]);
+  assert.equal(sala.estado, null);
+  // Na espera nao ha noite: pedido de jogo e ignorado e o relogio nao anda.
+  sala.receber(b.id, { t: 'chegar', lugar: 'bar' });
+  sala.receber(a.id, { t: 'virar' });
+  sala.avancar(SEGUNDOS_POR_RODADA * 3);
+  assert.equal(sala.estado, null);
+  assert.equal(sala.restante, SEGUNDOS_POR_RODADA);
+  // Quem sai some da lista. Se era o dono, o seguinte passa a poder comecar.
+  sala.sair(a.id);
+  assert.deepEqual(sala.jogadores.map((j) => j.nome), ['Bento', 'Caio']);
+  sala.receber(c.id, { t: 'comecar' });
+  assert.equal(sala.estado, null);
+  sala.receber(b.id, { t: 'comecar' });
+  assert.deepEqual(sala.estado!.personagens.map((p) => p.nome), ['Bento', 'Caio']);
+  // A aparencia e da sala, nao da noite: o estado continua sendo so as regras.
+  assert.ok(!JSON.stringify(sala.estado).includes('aparencia'));
+});
+
+test('a posicao que o servidor repassa: numero estragado derruba, gesto desconhecido vira nenhum', () => {
+  const boa = limparPose({ x: 1, y: 0, z: -60, giro: 3, lampiao: 1, agachado: 0, gesto: 'quadrilha', espia: 4 });
+  assert.deepEqual(boa, { x: 1, y: 0, z: -60, giro: 3, lampiao: true, agachado: false, gesto: 'quadrilha', espia: 1 });
+  // Jogo antigo, sem os campos novos, continua valendo.
+  assert.deepEqual(limparPose({ x: 1, y: 0, z: 2, giro: 0, lampiao: false, agachado: true }), { x: 1, y: 0, z: 2, giro: 0, lampiao: false, agachado: true, gesto: null, espia: 0 });
+  assert.equal(limparPose({ x: 1, y: 0, z: 2, giro: 0, gesto: '<b>voar</b>', espia: 'muito' })!.gesto, null);
+  assert.equal(limparPose({ x: Number.NaN, y: 0, z: 2, giro: 0 }), null);
+  assert.equal(limparPose({ x: '1', y: 0, z: 2, giro: 0 }), null);
+  for (const g of GESTOS) assert.equal(limparPose({ x: 0, y: 0, z: 0, giro: 0, gesto: g })!.gesto, g);
+  assert.ok(GESTOS.filter((g) => g === 'sapateado' || g === 'quadrilha').length === 2, 'faltou danca');
 });
