@@ -14,6 +14,8 @@ export type Sinal =
   /** O medo desceu. */
   | 'alivio'
   | 'ferimento'
+  /** Um adereco assustou (o gato saltou, a porta bateu). So o tranco, sem clarao nem som. */
+  | 'susto'
   | 'pista'
   /** A escolha mudou outra coisa: o que um NPC acha do jogador, ou algo na cidade. */
   | 'mudanca'
@@ -47,7 +49,7 @@ export interface Quadro {
 }
 
 /** Quanto dura cada sinal, em segundos. */
-const DURACAO: Partial<Record<Sinal, number>> = { medo: 1.4, alivio: 1.6, ferimento: 0.8, pressagio: 3.4, ronda: 2.6, ataque: 3.8 };
+const DURACAO: Partial<Record<Sinal, number>> = { medo: 1.4, alivio: 1.6, ferimento: 0.8, susto: 0.5, pressagio: 3.4, ronda: 2.6, ataque: 3.8 };
 const SEGUNDOS_DO_AMANHECER = 9;
 
 /** Clarao na tela: cor, forca e duracao em milissegundos. */
@@ -161,6 +163,10 @@ export class Efeitos {
           break;
         case 'ferimento':
           q.tremor += 0.06 * resto * resto;
+          break;
+        case 'susto':
+          q.tremor += 0.03 * resto * resto;
+          q.lampiao *= 1 - 0.4 * resto * ruido(t, 18, 6);
           break;
         case 'pressagio':
           // As luzes da cidade falham e voltam aos poucos.

@@ -63,10 +63,22 @@ export interface Condicao {
  * O objeto que aparece no ponto de investigacao enquanto a cena esta aberta.
  * A tela sabe montar cada um (src/mundo/aderecos.ts).
  */
-export type Adereco = 'retrato' | 'vela' | 'lanterna' | 'gaveta' | 'cofre' | 'alcapao' | 'livro' | 'papel' | 'copo' | 'chave' | 'terco' | 'botas';
+export type Adereco =
+  // Em cima do movel.
+  | 'retrato' | 'vela' | 'lanterna' | 'gaveta' | 'livro' | 'papel' | 'copo' | 'terco' | 'botas'
+  | 'gato' | 'relogio' | 'fiado' | 'copos' | 'cela' | 'jantar' | 'ferradura' | 'hospedes' | 'frascos' | 'lousa' | 'viga' | 'desenho'
+  // Em cima do movel, com uma parte no chao.
+  | 'cofre' | 'mesaPosta'
+  // No chao.
+  | 'alcapao' | 'bancoDaIgreja' | 'cova' | 'cavalo' | 'rede' | 'cachorro' | 'pegadas' | 'armario'
+  // Numa janela do lugar.
+  | 'janela' | 'tabuas';
 
 /** O que se ve acontecer com o adereco da cena quando uma escolha vence. */
-export type Gesto = 'virar' | 'abrir' | 'fechar' | 'acender' | 'apagar' | 'erguer' | 'bater' | 'cobrir' | 'pegar' | 'jogar' | 'ler' | 'rasgar' | 'beber';
+export type Gesto =
+  | 'virar' | 'abrir' | 'fechar' | 'acender' | 'apagar' | 'erguer' | 'bater' | 'cobrir' | 'pegar' | 'jogar' | 'ler' | 'rasgar' | 'beber'
+  | 'arrastar' | 'afagar' | 'espantar' | 'arrancar' | 'olhar' | 'esperar' | 'acertar' | 'servir' | 'enfaixar' | 'derrubar'
+  | 'comer' | 'descobrir' | 'fincar' | 'afastar' | 'estourar' | 'correr';
 
 export interface Escolha {
   texto: string;

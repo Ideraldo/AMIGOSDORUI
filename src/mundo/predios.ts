@@ -4,7 +4,7 @@
 // Os interiores ficam em interiores.ts e os objetos reaproveitados em objetos.ts.
 
 import * as THREE from 'three';
-import { ALPENDRE, PAREDE, PISO_DE_CIMA, PORTA, alturaDoTeto, type Construcao } from './planta.ts';
+import { ALPENDRE, PAREDE, PISO_DE_CIMA, PORTA, alturaDoTeto, zDasJanelasLaterais, type Construcao } from './planta.ts';
 import {
   COR,
   barreira,
@@ -182,7 +182,7 @@ export function predioBase(c: Construcao, aberto: boolean, est: Estilo, luzes: L
 
   // Janelas laterais: vidro por fora e por dentro.
   const vidro = aberto ? brilho(COR.janelaAcesa, 0.9) : fosco(COR.janelaApagada);
-  const posicoes = D >= 10 ? [-D / 3, (-2 * D) / 3] : [-D / 2];
+  const posicoes = zDasJanelasLaterais(D);
   for (const lado of [-1, 1]) {
     for (const z of posicoes) {
       caixa(g, 0.06, 1.5, 1.4, escura, lado * (W / 2 + 0.01), 1.75, z, { sombra: false });

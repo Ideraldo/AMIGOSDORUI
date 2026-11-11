@@ -10,18 +10,39 @@ import type { Adereco, Biblioteca, Estado, Gesto } from './tipos.ts';
 
 /** O que cada adereco sabe fazer. Gesto fora desta lista e reprovado por `validarBiblioteca`. */
 export const GESTOS_DO_ADERECO: Record<Adereco, readonly Gesto[]> = {
-  retrato: ['virar', 'pegar', 'erguer'],
+  retrato: ['virar', 'cobrir', 'pegar', 'erguer'],
   vela: ['acender', 'apagar', 'pegar', 'erguer'],
-  lanterna: ['acender', 'apagar', 'pegar', 'erguer'],
+  lanterna: ['acender', 'apagar', 'estourar', 'pegar', 'erguer'],
   gaveta: ['abrir', 'fechar', 'bater'],
-  cofre: ['abrir', 'fechar', 'bater'],
+  cofre: ['abrir', 'fechar', 'bater', 'olhar'],
   alcapao: ['abrir', 'bater', 'cobrir'],
   livro: ['ler', 'fechar', 'rasgar', 'pegar', 'erguer'],
   papel: ['ler', 'rasgar', 'pegar', 'erguer'],
-  copo: ['beber', 'pegar', 'erguer', 'jogar'],
-  chave: ['pegar', 'erguer', 'jogar'],
-  terco: ['pegar', 'erguer', 'jogar'],
+  copo: ['beber', 'afastar', 'pegar', 'erguer', 'jogar'],
+  terco: ['virar', 'pegar', 'erguer', 'jogar'],
   botas: ['pegar', 'erguer', 'jogar'],
+  gato: ['erguer', 'apagar'],
+  relogio: ['acertar', 'pegar'],
+  fiado: ['acender', 'ler'],
+  copos: ['beber', 'servir', 'bater'],
+  cela: ['pegar', 'ler', 'bater'],
+  jantar: ['ler', 'pegar', 'erguer'],
+  ferradura: ['acender', 'derrubar'],
+  hospedes: ['rasgar', 'pegar'],
+  frascos: ['beber', 'pegar', 'enfaixar'],
+  lousa: ['apagar', 'ler', 'acender'],
+  desenho: ['ler', 'virar'],
+  viga: ['correr', 'esperar'],
+  mesaPosta: ['comer', 'descobrir'],
+  bancoDaIgreja: ['arrastar', 'acender'],
+  cova: ['olhar', 'arrancar', 'fincar'],
+  cavalo: ['afagar', 'espantar', 'abrir', 'erguer'],
+  rede: ['acender', 'apagar'],
+  cachorro: ['erguer', 'afagar'],
+  pegadas: ['olhar', 'apagar'],
+  armario: ['abrir', 'fechar'],
+  janela: ['arrancar', 'cobrir'],
+  tabuas: ['arrancar', 'esperar'],
 };
 
 /** O que se ve num lugar: o adereco de uma cena e, depois da escolha, o gesto feito com ele. */
@@ -62,14 +83,18 @@ export function cenasNoMundo(e: Estado, bib: Biblioteca): CenaNoMundo[] {
 export function validarGestos(bib: Biblioteca): string[] {
   const erros: string[] = [];
   for (const f of bib.fragmentos) {
+    // Toda cena mostra do que fala, e toda escolha faz alguma coisa acontecer a vista.
+    if (!f.adereco) erros.push(`fragmento ${f.id}: sem adereco`);
     if (f.adereco && !(f.adereco in GESTOS_DO_ADERECO)) erros.push(`fragmento ${f.id}: adereco desconhecido ${f.adereco}`);
     f.escolhas.forEach((esc, i) => {
-      if (!esc.gesto) return;
       const aqui = `fragmento ${f.id}, escolha ${i + 1}`;
+      if (!esc.gesto) {
+        if (f.adereco) erros.push(`${aqui}: sem gesto`);
+        return;
+      }
       if (!f.adereco) erros.push(`${aqui}: gesto ${esc.gesto} sem adereco no fragmento`);
       else if (!GESTOS_DO_ADERECO[f.adereco]?.includes(esc.gesto)) erros.push(`${aqui}: o adereco ${f.adereco} nao sabe ${esc.gesto}`);
     });
-    if (f.adereco && !f.escolhas.some((esc) => esc.gesto)) erros.push(`fragmento ${f.id}: adereco ${f.adereco} sem nenhuma escolha com gesto`);
   }
   return erros;
 }
