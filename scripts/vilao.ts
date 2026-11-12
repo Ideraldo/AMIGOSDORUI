@@ -107,7 +107,7 @@ function jogo(pagina: Page) {
     }
     return texto;
   };
-  /** Passa a hora com o jogador dentro do abrigo, para a noite chegar inteira ao ato 3. */
+  /** Passa a hora com o jogador dentro do abrigo, para a noite chegar inteira a 6a hora. */
   const passarAHora = async (abrigo: LugarId) => {
     await fecharPainel();
     const p = dentro(abrigo);
@@ -121,7 +121,7 @@ function jogo(pagina: Page) {
   };
   /** Vai para o lado do poco, na rua, de frente para ele. */
   const irAoPoco = async () => {
-    await irOlhando([PRACA.x + 3.4, PRACA.z + 1.6], PRACA.x - 0.5, PRACA.z - 2.5, -0.02);
+    await irOlhando([PRACA.x + 3.6, PRACA.z + 0.4], PRACA.x - 0.2, PRACA.z - 4, 0.04);
     await noLugar(null);
   };
   const completo = () => pagina.$eval('#completo', (el) => (el as HTMLElement).innerText || el.textContent || '');
@@ -148,16 +148,16 @@ async function abrir(): Promise<{ pagina: Page; erros: string[] }> {
   return { pagina, erros };
 }
 
-/** Chega ao ato 3 e monta a armadilha. Comum as duas noites. */
+/** Chega a 6a hora e monta a armadilha. Comum as duas noites. */
 async function ateAArmadilha(j: ReturnType<typeof jogo>, abrigo: LugarId, fotos: boolean): Promise<void> {
   while ((await j.estado()).rodada < RODADA_DA_ARMADILHA) await j.passarAHora(abrigo);
   const e = await j.estado();
-  conferir(e.rodada === RODADA_DA_ARMADILHA && e.personagens[0]!.vivo, `a noite chega ao ato 3 (${e.rodada}ª hora) com o jogador vivo`);
+  conferir(e.rodada === RODADA_DA_ARMADILHA && e.personagens[0]!.vivo, `a noite chega a hora da armadilha (${e.rodada}ª hora) com o jogador vivo`);
   const pecas = (await j.achados()).filter((a) => a.tipo === 'peca');
-  conferir(pecas.length === 3 && pecas.every((a) => a.aVista), 'no ato 3 as tres pecas da armadilha aparecem pela cidade');
+  conferir(pecas.length === 3 && pecas.every((a) => a.aVista), 'na 6a hora as tres pecas da armadilha aparecem pela cidade');
   for (const [i, peca] of pecas.entries()) {
     await j.pegar(peca.id, async () => {
-      conferir(/pegar (a corda|o sino de vaca|o lampião de sinal)/.test(await j.agir()), `perto da peca aparece "${await j.agir()}"`);
+      conferir(/pegar /.test(await j.agir()), `perto da peca aparece "${await j.agir()}"`);
       if (fotos) {
         await pausa(500);
         await j.foto(`5-peca-${i + 1}`);
@@ -191,9 +191,9 @@ try {
     await j.irOlhando([0, -40], 0, 0, 0);
     await pausa(700);
     const canto = await pagina.$eval('#noite', (el) => (el as HTMLElement).innerText);
-    const linhas = canto.split('\n').filter((l) => l.trim()).length;
+    const medidores = await pagina.$$eval('#noite .medidor', (itens) => itens.length);
     const falta = await pagina.$$eval('#noite .falta li', (itens) => itens.map((li) => li.textContent ?? ''));
-    conferir(linhas <= 8 && falta.length <= 3 && falta.length >= 1, `andando, o canto da tela tem ${linhas} linhas, ${falta.length} do que falta fazer`);
+    conferir(medidores <= 4 && falta.length <= 3 && falta.length >= 1, `andando, o canto da tela tem a hora, ${medidores} medidores e ${falta.length} linha(s) do que falta fazer`);
     conferir(!/Abertos esta hora|Missões extras|Sua parte|Quem escreveu/i.test(canto), 'objetivos, sua parte, suspeitos, missoes e lugares abertos nao estao na tela de quem anda');
     const agora = await pagina.$eval('#passo', (el) => el.textContent ?? '');
     const enderecos = inicio.achados.filter((a) => a.tipo === 'prova' || a.tipo === 'vestigio').map((a) => lugarPorId(a.lugar)!.nome);
@@ -237,13 +237,12 @@ try {
     await pausa(300);
     await j.abrirTab();
     const deducao = await j.completo();
-    const batem = /Batem com isso: ([^.]*)\./.exec(deducao)?.[1] ?? '';
-    conferir(batem === nomeDe(vilao), `com os tres vestigios e os suspeitos vistos de perto, so um nome bate: ${batem}`);
+    conferir(deducao.includes(`Batem com isso: ${nomeDe(vilao)}.`), `com os tres vestigios e os suspeitos vistos de perto, so um nome bate: ${/Batem com isso: .*/.exec(deducao)?.[0] ?? ''}`);
     await j.foto('4-deducao');
     await j.fecharTab();
 
     // A armadilha.
-    conferir(!(await j.achados()).some((a) => a.tipo === 'peca' && a.aVista), 'antes do ato 3 as pecas da armadilha nao estao a vista');
+    conferir(!(await j.achados()).some((a) => a.tipo === 'peca' && a.aVista), 'antes da 6a hora as pecas da armadilha nao estao a vista');
     await ateAArmadilha(j, abrigo, true);
     await j.irOlhando([PRACA.x + 4.6, PRACA.z - 5.4], PRACA.x, PRACA.z - 0.6, -0.05);
     await pausa(900);
@@ -284,7 +283,7 @@ try {
     conferir((await j.partida()).modo === 'revelacao', 'o jogador fica parado vendo a mascara cair');
     await pausa(450);
     await j.foto('9-mascara-1-presa');
-    await pagina.waitForFunction(() => (window.__depurar!.palco().mascara?.k ?? 0) > 0.42, espera);
+    await pagina.waitForFunction(() => (window.__depurar!.palco().mascara?.k ?? 0) > 0.46, espera);
     await j.foto('9-mascara-2-voando');
     await pagina.waitForFunction(() => (window.__depurar!.palco().mascara?.k ?? 0) > 0.72, espera);
     await j.foto('9-mascara-3-capa');

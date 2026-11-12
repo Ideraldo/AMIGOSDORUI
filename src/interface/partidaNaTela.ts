@@ -110,6 +110,8 @@ export interface Condutor {
 }
 
 const escapar = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+/** "a, b e c". */
+const enumerar = (itens: readonly string[]) => (itens.length > 1 ? `${itens.slice(0, -1).join(', ')} e ${itens.at(-1)}` : (itens[0] ?? ''));
 const bolinhas = (valor: number, total: number) => '●'.repeat(valor) + '○'.repeat(total - valor);
 const mesmaCena = (a: Cena | null, b: Cena | null) => !!a && !!b && a.fragmento === b.fragmento && a.lugar === b.lugar && a.quem.join() === b.quem.join();
 
@@ -341,12 +343,12 @@ export class PartidaNaTela {
     const ultima = e.rodada === RODADAS;
     const escapar = { curto: 'Estar a salvo quando o sino bater', agora: sabe ? comoEscapar(regra, e.abertos) : 'Última hora: ache um lugar que pareça seguro antes do sino.' };
     if (ultima) lista.push(escapar);
-    // A armadilha e do fim da noite e tem hora: no ato 3 ela passa na frente do resto.
+    // A armadilha e do fim da noite e tem hora: da 6a hora em diante ela passa na frente do resto.
     const a = e.armadilha;
     if (a && !a.perdida && e.rodada >= RODADA_DA_ARMADILHA) {
       const naMao = pecasNaMao(e, this.eu);
       const solta = e.achados.find((x) => x.tipo === 'peca' && !x.pego);
-      if (naMao.length) lista.push({ curto: 'Montar a armadilha no poço da praça (E)', agora: `Leve ${naMao.map((p) => NOME_DA_PECA[p]).join(' e ')} ao poço da praça e monte a armadilha (E).` });
+      if (naMao.length) lista.push({ curto: 'Montar a armadilha no poço da praça (E)', agora: `Leve ${enumerar(naMao.map((p) => NOME_DA_PECA[p]))} ao poço da praça e monte a armadilha (E).` });
       if (solta?.peca) lista.push({ curto: `Armadilha, ${NOME_DA_PECA[solta.peca].replace(/^[ao] /, '')}: ${this.onde(solta.lugar)}`, agora: `Para a armadilha falta ${NOME_DA_PECA[solta.peca]}. Procure ${this.onde(solta.lugar)}.` });
       if (armadilhaArmada(e)) {
         if (!a.acusacoes[this.eu]) lista.push({ curto: 'Acusar quem é a Coisa (K)', agora: 'A armadilha está armada. Diga quem é a Coisa (K) antes de puxar a corda.' });
@@ -391,7 +393,7 @@ export class PartidaNaTela {
     const a = e.armadilha;
     if (this.modo !== 'andando' || !a || a.perdida || e.desmascarado || e.fim || !this.personagem.vivo || e.rodada < RODADA_DA_ARMADILHA || !this.pertoDoPoco) return null;
     const naMao = pecasNaMao(e, this.eu);
-    if (naMao.length) return { tecla: 'E', texto: `montar a armadilha: ${naMao.map((p) => NOME_DA_PECA[p]).join(' e ')}` };
+    if (naMao.length) return { tecla: 'E', texto: `montar a armadilha: ${enumerar(naMao.map((p) => NOME_DA_PECA[p]))}` };
     if (!armadilhaArmada(e)) return null;
     if (!a.acusacoes[this.eu]) return { tecla: 'K', texto: 'acusar quem é a Coisa' };
     return { tecla: 'L', texto: coisaNoAlcance(e, this.bib, this.restante) ? 'puxar a corda: a Coisa está no laço' : 'puxar a corda, quando a Coisa chegar' };
@@ -631,7 +633,7 @@ export class PartidaNaTela {
     }
 
     // A hora virou (ou o ultimo sino bateu).
-    const virou = novo.rodada !== antes.rodada || (novo.fim !== null && antes.fim === null && novos.some((r) => r.tipo === 'pressagio' || r.tipo === 'ameaca'));
+    const virou = novo.rodada !== antes.rodada || (novo.fim !== null && antes.fim === null && novos.some((r) => r.tipo === 'pressagio' || r.tipo === 'ameaca' || r.tipo === 'calma'));
     if (virou || !souEu.vivo) this.largarOCofre();
     if ((virou || !souEu.vivo) && this.modo === 'acusar') {
       this.modo = 'andando';
@@ -778,7 +780,7 @@ export class PartidaNaTela {
         this.legendar('A armadilha está armada. O lampião de sinal acendeu, e a Coisa vem ver.', 'lugar');
       } else {
         const faltam = PECAS.filter((p) => !a.montadas.includes(p));
-        this.legendar(`Peça posta no poço. Falta ${faltam.map((p) => NOME_DA_PECA[p]).join(' e ')}.`, 'lugar');
+        this.legendar(`Peça posta no poço. Falta ${enumerar(faltam.map((p) => NOME_DA_PECA[p]))}.`, 'lugar');
       }
     }
     for (const [quem, npc] of Object.entries(a.acusacoes)) {
@@ -821,7 +823,10 @@ export class PartidaNaTela {
       }
       this.mundo.sinal('susto');
       this.mundo.sinal('pista');
-      this.titular('A máscara caiu', `${this.nomeDe(novo.desmascarado.por)} puxou a corda`);
+      // O que a ronda e os pressagios ainda tinham para contar nao vale mais.
+      this.legendas = this.legendas.filter((l) => !['pressagio', 'ameaca', 'ataque'].includes(l.classe));
+      // Quem esta vendo a cena nao precisa de titulo por cima dela.
+      if (this.modo !== 'revelacao') this.titular('A máscara caiu', `${this.nomeDe(novo.desmascarado.por)} puxou a corda`);
       const npc = this.bib.npcs.find((n) => n.id === novo.desmascarado!.npc);
       if (npc) {
         this.conhecidos.add(npc.id);
@@ -923,7 +928,7 @@ export class PartidaNaTela {
       else if (r.tipo === 'ameaca') this.mundo.sinal(r.quem?.includes(this.eu) ? 'ataque' : 'ronda');
       if (r.tipo === 'pressagio' || r.tipo === 'ameaca' || r.tipo === 'lugar') this.legendar(r.texto, classe(r));
       // Com a Coisa desmascarada, o sino bate e ninguem vem.
-      if (r.tipo === 'vilao') this.legendar(r.texto, 'lugar');
+      if (r.tipo === 'calma') this.legendar(r.texto, 'lugar');
     }
     if (novo.fim) {
       // O ultimo sino: o jogador fica parado vendo o mundo reagir, e o fim vem em seguida.
@@ -1310,7 +1315,7 @@ export class PartidaNaTela {
       `<section><h2>Quem é a Coisa?</h2>` +
       (sei.length ? `<ul class="objetivos">${sei.map((t) => `<li>Quem veste a fantasia: ${escapar(t.sinal)}</li>`).join('')}</ul><p class="abertos">Batem com isso: ${nomes.join(', ') || 'ninguém'}.</p>` : '<p class="abertos">Nenhum vestígio achado ainda. Cada um mostra algo de quem veste a fantasia.</p>') +
       `</section><section><h2>A armadilha</h2>` +
-      (passos.length ? `<ul class="objetivos">${passos.join('')}</ul>` : `<p class="abertos">Só no ato 3, da ${RODADA_DA_ARMADILHA}ª hora em diante: três peças montadas no poço da praça, um nome acusado (K) e a corda (L).</p>`) +
+      (passos.length ? `<ul class="objetivos">${passos.join('')}</ul>` : `<p class="abertos">Só da ${RODADA_DA_ARMADILHA}ª hora em diante: três peças montadas no poço da praça, um nome acusado (K) e a corda (L).</p>`) +
       '</section>'
     );
   }

@@ -299,7 +299,18 @@ function modeloDoAchado(achado: Achado): THREE.Group {
   const reflexo = new THREE.Sprite(materialDoReflexo);
   reflexo.position.y = 0.2;
   reflexo.name = 'reflexo';
-  g.add(reflexo);
+  if (tipo === 'vestigio' || tipo === 'peca') {
+    // Estes sao objetos para se ver: maiores, com o reflexo pequeno e acima, para nao tapar.
+    const alto = new THREE.Group();
+    alto.position.y = 0.36;
+    alto.scale.setScalar(0.3);
+    reflexo.position.y = 0;
+    alto.add(reflexo);
+    g.add(alto);
+    g.scale.setScalar(1.5);
+  } else {
+    g.add(reflexo);
+  }
   return g;
 }
 
@@ -315,7 +326,7 @@ function atualizarAchados(t: number): void {
   partida.estado.achados.forEach((a, i) => {
     // O id repete de uma noite para a outra: o tipo vai junto para o modelo nao trocar de forma.
     const chave = `${a.tipo}:${a.id}:${a.traco ?? a.peca ?? ''}`;
-    // As pecas da armadilha so aparecem no ato 3.
+    // As pecas da armadilha so aparecem da 6a hora em diante.
     const vaga = achadoDisponivel(partida.estado, a) ? vagaDoAchado(a) : null;
     let objeto = objetos.get(chave);
     if (!vaga) {
@@ -874,7 +885,7 @@ window.__depurar = {
   achados: () =>
     partida.estado.achados.map((a) => {
       const vaga = vagaDoAchado(a);
-      // `em` e onde a coisa esta pousada, e `aVista` diz se ela esta no mundo agora (as pecas da armadilha so no ato 3).
+      // `em` e onde a coisa esta pousada, e `aVista` diz se ela esta no mundo agora (as pecas da armadilha so da 6a hora em diante).
       return { id: a.id, tipo: a.tipo, lugar: a.lugar, pego: a.pego, pe: vaga?.pe ?? null, em: vaga ? [vaga.x, vaga.y - 0.32, vaga.z] : null, aVista: !!vaga && achadoDisponivel(partida.estado, a) };
     }),
   olhar: (giro, inclinacao) => {

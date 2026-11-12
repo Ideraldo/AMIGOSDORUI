@@ -265,7 +265,7 @@ export interface Cena {
 
 export interface Registro {
   rodada: number;
-  tipo: 'gancho' | 'cena' | 'escolha' | 'pista' | 'pressagio' | 'ameaca' | 'lugar' | 'carta' | 'cofre' | 'favor' | 'vilao' | 'fim';
+  tipo: 'gancho' | 'cena' | 'escolha' | 'pista' | 'pressagio' | 'ameaca' | 'lugar' | 'carta' | 'cofre' | 'favor' | 'vilao' | 'calma' | 'fim';
   texto: string;
   quem?: string[];
   lugar?: LugarId;
@@ -315,7 +315,7 @@ export interface Achado {
 }
 
 /**
- * A armadilha do ato 3: tres pecas montadas no poco da praca, um nome acusado por cada jogador
+ * A armadilha do fim da noite (da 6a hora em diante): tres pecas montadas no poco da praca, um nome acusado por cada jogador
  * e a corda, que alguem puxa quando a Coisa chega perto. Existe em toda noite que tem vilao.
  */
 export interface Armadilha {

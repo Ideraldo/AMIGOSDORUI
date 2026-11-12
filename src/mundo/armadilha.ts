@@ -21,7 +21,7 @@ function peca(pai: THREE.Object3D, geo: THREE.BufferGeometry, material: THREE.Ma
 
 const CORDA = 0xb89a62;
 const PRETO = 0x08080a;
-const COURO = 0x4a3020;
+const COURO = 0x8a5a34;
 const PAU = 0x6a4a2c;
 const LATAO = 0xc9a23c;
 
@@ -45,8 +45,8 @@ export function modeloDoVestigio(objeto: ObjetoDoVestigio, traco = ''): THREE.Gr
   if (objeto === 'bota') {
     // Uma bota deitada, pregada numa perna de pau, com a sola virada para quem olha.
     const tudo = new THREE.Group();
-    const couro = mat(0x2a1c14);
-    peca(tudo, new THREE.CylinderGeometry(0.022, 0.026, 0.5, 7), mat(PAU), 0, 0, -0.34).rotation.x = Math.PI / 2;
+    const couro = mat(0x5a3c26);
+    peca(tudo, new THREE.CylinderGeometry(0.022, 0.026, 0.5, 7), mat(0x9a7446), 0, 0, -0.34).rotation.x = Math.PI / 2;
     peca(tudo, new THREE.CylinderGeometry(0.055, 0.06, 0.2, 9), couro, 0, 0, -0.1).rotation.x = Math.PI / 2;
     peca(tudo, new THREE.BoxGeometry(0.1, 0.2, 0.09), couro, 0, 0.05, 0.03);
     // A sola, com o que ficou nela.
@@ -159,7 +159,7 @@ const TRAVE = 2.2;
 /** Onde o laço fica aberto no chao, esperando: ao norte do poco, que e de onde a rua chega. */
 export const LACO = { x: 0, z: -3.4, raio: 0.95 };
 /** O poste do lampiao de sinal, ao lado do poco. */
-const POSTE = { x: 1.9, z: -1.5, altura: 2.3 };
+const POSTE = { x: -2.1, z: 1.3, altura: 2.3 };
 
 export function criarArmadilha(): ArmadilhaNoMundo {
   const grupo = new THREE.Group();
@@ -283,7 +283,9 @@ export function criarRevelacao(pessoa: THREE.Group, cabeca: number): Revelacao {
   });
   grupo.add(capa);
   const mascara = new THREE.Group();
-  peca(mascara, new THREE.SphereGeometry(0.2, 12, 9), escuro, 0, 0, 0);
+  // Por fora, preta como o resto. Por dentro, estopa clara: e o que se ve quando ela voa e cai virada.
+  peca(mascara, new THREE.SphereGeometry(0.2, 12, 9, 0, Math.PI), escuro, 0, 0, 0);
+  peca(mascara, new THREE.SphereGeometry(0.2, 12, 9, Math.PI, Math.PI), new THREE.MeshBasicMaterial({ color: 0xb9a884 }), 0, 0, 0);
   peca(mascara, new THREE.SphereGeometry(0.026, 6, 6), olhos, -0.07, 0.03, 0.18);
   peca(mascara, new THREE.SphereGeometry(0.026, 6, 6), olhos, 0.07, 0.03, 0.18);
   grupo.add(mascara);

@@ -5,7 +5,7 @@
 // - `Estado.vilao`: um suspeito que nao escreveu a carta.
 // - Vestigios (achados `vestigio`): tres pedacos da fantasia, cada um mostrando um traco de quem a
 //   veste. Cada traco e dividido por dois NPCs, entao so os tres juntos apontam uma pessoa.
-// - A armadilha (achados `peca`, `Estado.armadilha`): no ato 3, corda, sino de vaca e lampiao de
+// - A armadilha (achados `peca`, `Estado.armadilha`): da 6a hora em diante, corda, sino de vaca e lampiao de
 //   sinal sao montados no poco da praca. Cada jogador acusa um nome e alguem puxa a corda quando
 //   a Coisa chega perto. Nome certo: a mascara cai. Nome errado: a armadilha se perde e custa caro.
 //
@@ -19,7 +19,7 @@ import { achouOAutor, casaDoNpc, cenaDe, encerrarSeAcabou } from './partida.ts';
 import { embaralhar, escolher as sortear, proximo, type ComRng } from './rng.ts';
 import { FERIMENTO_FATAL, MEDO_MAXIMO, type Achado, type Biblioteca, type Estado, type PecaDaArmadilha, type Personagem, type Tarefa, type Traco } from './tipos.ts';
 
-/** A armadilha so se monta no ato 3: e nessa hora que as pecas aparecem. */
+/** A armadilha so se monta da 6a hora em diante (o pedido falava em ato 3, mas o ato 3 do jogo sao as horas 7 e 8): e nessa hora que as pecas aparecem. */
 export const RODADA_DA_ARMADILHA = 6;
 /** A que distancia do poco a Coisa tem de estar para a corda pegar, em metros. */
 export const ALCANCE_DA_ARMADILHA = 6;
@@ -128,7 +128,7 @@ export function prepararVilao(e: Estado, bib: Biblioteca): void {
   });
 }
 
-/** Esta coisa esta no mundo para ser pega agora? As pecas da armadilha so aparecem no ato 3. */
+/** Esta coisa esta no mundo para ser pega agora? As pecas da armadilha so aparecem da 6a hora em diante. */
 export function achadoDisponivel(e: Estado, a: Achado): boolean {
   if (a.pego) return false;
   if (a.tipo !== 'peca') return true;
@@ -171,7 +171,7 @@ export function montar(estado: Estado, quem: string, restante: number): Estado {
   const p = e.personagens.find((x) => x.id === quem)!;
   const postas = pecasNaMao(e, quem);
   a.montadas.push(...postas);
-  e.diario.push({ rodada: e.rodada, tipo: 'vilao', texto: `${p.nome} pôs ${postas.map((x) => NOME_DA_PECA[x]).join(' e ')} no poço da praça.` });
+  e.diario.push({ rodada: e.rodada, tipo: 'vilao', texto: `${p.nome} pôs ${postas.length > 1 ? `${postas.slice(0, -1).map((x) => NOME_DA_PECA[x]).join(', ')} e ${NOME_DA_PECA[postas.at(-1)!]}` : NOME_DA_PECA[postas[0]!]} no poço da praça.` });
   if (PECAS.every((x) => a.montadas.includes(x))) {
     a.armadaEm = { rodada: e.rodada, restante: Number.isFinite(restante) ? restante : 0 };
     e.diario.push({ rodada: e.rodada, tipo: 'vilao', texto: 'A armadilha está armada. O lampião de sinal acendeu, e a Coisa vem ver.' });
@@ -279,7 +279,7 @@ export function tarefasDoVilao(e: Estado, quem: string, sabidos: readonly LugarI
     });
 }
 
-/** Os passos da armadilha, do jeito que este personagem os ve. Vazio antes do ato 3 e em noite sem vilao. */
+/** Os passos da armadilha, do jeito que este personagem os ve. Vazio antes da 6a hora e em noite sem vilao. */
 export function passosDaArmadilha(e: Estado, bib: Biblioteca, quem: string, sabidos: readonly LugarId[] = []): Tarefa[] {
   const a = e.armadilha;
   if (!a || e.rodada < RODADA_DA_ARMADILHA) return [];

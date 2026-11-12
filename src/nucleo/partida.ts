@@ -763,7 +763,7 @@ export function passarRodada(estado: Estado, bib: Biblioteca): { estado: Estado;
   const sorteio = proximo(e);
   if (e.desmascarado) {
     // Sem mascara nao ha mais Coisa: o sino bate e ninguem vem.
-    e.diario.push({ rodada: e.rodada, tipo: 'vilao', texto: 'O sino bate e ninguém vem. A fantasia ficou no chão da praça, e a rua é só uma rua.' });
+    e.diario.push({ rodada: e.rodada, tipo: 'calma', texto: 'O sino bate e ninguém vem. A fantasia ficou no chão da praça, e a rua é só uma rua.' });
   } else if (ultimoSino || e.armadilha?.furia === e.rodada || sorteio < chanceDeAtaque(e.rodada)) {
     const vitimas = naMira(e, regra);
     if (vitimas.length === 0) {
