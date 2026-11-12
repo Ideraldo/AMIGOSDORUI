@@ -7,7 +7,7 @@
 // para uma sala, com as regras rodando no servidor e o estado chegando pela rede.
 // E DOM puro, sem framework. O Three.js nao aparece aqui.
 
-import { LUGARES, contem, direcao, lugarPorId, pegada, type LugarId } from '../mundo/planta.ts';
+import { LUGARES, PRACA, contem, direcao, lugarPorId, pegada, type LugarId } from '../mundo/planta.ts';
 import {
   achouOAutor,
   cenaDe,
@@ -34,13 +34,43 @@ import {
 } from '../nucleo/partida.ts';
 import { anotarNumero, cofreEmperrado, entregar, girarDisco, levandoAEncomenda, missoes, puxarAlavanca, segredoAnotado } from '../nucleo/missoes.ts';
 import { chancesRestantes, oQueImpedeMostrar, ouvirDica, temChance } from '../nucleo/partida.ts';
+import { ondeProcurar } from '../nucleo/indicacoes.ts';
+import {
+  ALCANCE_DO_POCO,
+  FERIMENTO_DO_ERRO,
+  MEDO_DO_ERRO,
+  NOME_DA_PECA,
+  PECAS,
+  RODADA_DA_ARMADILHA,
+  acusar,
+  acusaveis,
+  armadilhaArmada,
+  coisaNoAlcance,
+  dicaDoAutor,
+  montar,
+  oQueImpedePuxar,
+  passosDaArmadilha,
+  pecasNaMao,
+  puxar,
+  suspeitosDaCoisa,
+  textoDoVestigio,
+  tracosDe,
+  tracosSabidos,
+} from '../nucleo/vilao.ts';
 import { FERIMENTO_FATAL, MEDO_MAXIMO, PISTAS_PARA_DESCOBRIR, RODADAS, SEGUNDOS_POR_RODADA, atoDaRodada, type Achado, type Biblioteca, type Cena, type Estado, type Personagem, type Registro } from '../nucleo/tipos.ts';
 import type { Sinal } from './efeitos.ts';
 
 /** Quanto tempo de chama um lampiao cheio aguenta, em segundos de relogio. */
 const SEGUNDOS_DE_QUEROSENE = 300;
 
-type Modo = 'andando' | 'cena' | 'resultado' | 'cofre' | 'virada' | 'fim';
+type Modo = 'andando' | 'cena' | 'resultado' | 'cofre' | 'acusar' | 'revelacao' | 'virada' | 'fim';
+
+/** Por quantos segundos de jogo a linha de teclas do rodape fica na tela. Depois, so com a tecla H. */
+const SEGUNDOS_DE_TECLAS = 60;
+/** Quanto dura a cena da mascara caindo antes de o painel dizer quem era, em milissegundos. */
+const MS_DA_REVELACAO = 4600;
+/** Quantas linhas do que falta fazer cabem na tela de quem esta andando. */
+const LINHAS_DO_QUE_FALTA = 3;
 
 export interface Mundo {
   /** Os lugares abertos mudaram: refazer a cidade. */
@@ -71,6 +101,10 @@ export interface Condutor {
   disco(disco: number, passo: number): void;
   alavanca(): void;
   entregar(): void;
+  /** A armadilha da praca (src/nucleo/vilao.ts). */
+  montar(): void;
+  acusar(npc: string): void;
+  puxar(): void;
   virar(): void;
   outra(): void;
 }
@@ -129,6 +163,20 @@ export class PartidaNaTela {
   private readonly elCofre = document.querySelector<HTMLElement>('#cofre-dica');
   private ultimaCena = '';
   private ultimoCofre = '';
+  /** O painel completo (objetivos, sua parte, suspeitos, armadilha, missoes, lugares): so com o Tab apertado. */
+  private readonly elCompleto = document.querySelector<HTMLElement>('#completo');
+  private completoAberto = false;
+  private ultimoCompleto = '';
+  /** Os lugares em que este jogador ja pisou nesta noite: desses a tela diz o nome, dos outros so da uma indicacao. */
+  private sabidos = new Set<LugarId>();
+  /** Onde o jogador esta, para saber se ele esta ao lado do poco. */
+  private x = 0;
+  private z = 0;
+  /** Segundos de jogo nesta sessao, e ate quando a linha de teclas fica na tela a pedido (H). */
+  private jogado = 0;
+  private teclasAte = 0;
+  /** A cena da mascara caindo: quando o painel com o nome aparece. */
+  private revelacaoEm = 0;
 
   constructor(
     private readonly bib: Biblioteca,
@@ -150,6 +198,9 @@ export class PartidaNaTela {
       disco: (disco, passo) => this.receber(girarDisco(this.estado, this.eu, disco, passo)),
       alavanca: () => this.receber(puxarAlavanca(this.estado, this.bib, this.eu)),
       entregar: () => this.receber(entregar(this.estado, this.bib, this.eu)),
+      montar: () => this.receber(montar(this.estado, this.eu, this.restante)),
+      acusar: (npc) => this.receber(acusar(this.estado, this.eu, npc)),
+      puxar: () => this.receber(puxar(this.estado, this.bib, this.eu, this.restante)),
       virar: () => {
         this.restante = SEGUNDOS_POR_RODADA;
         this.receber(passarRodada(this.estado, this.bib).estado);
@@ -157,6 +208,11 @@ export class PartidaNaTela {
       outra: () => this.nova(this.estado.semente + 1),
     };
     this.condutor = this.local;
+    // O painel completo fecha quando o Tab solta, e tambem se a janela perder o foco com ele apertado.
+    document.addEventListener('keyup', (e) => {
+      if (e.code === 'Tab') this.completoAberto = false;
+    });
+    window.addEventListener('blur', () => (this.completoAberto = false));
     this.nova(semente, false);
   }
 
@@ -223,6 +279,9 @@ export class PartidaNaTela {
     if (this.elLegenda) this.elLegenda.style.opacity = '0';
     this.cumpridos = new Set();
     this.conhecidos = new Set();
+    this.sabidos = new Set();
+    this.revelacaoEm = 0;
+    this.completoAberto = false;
     this.fecharPainel();
     this.mundo.sinal('noite');
     this.elDiario.style.display = 'none';
@@ -262,21 +321,132 @@ export class PartidaNaTela {
     return regra.alvo.abrigos.filter((id) => this.estado.abertos.includes(id));
   }
 
+  /** Onde procurar uma coisa: "em Bar" para quem ja pisou la, a indicacao vaga para quem nao pisou. */
+  private onde(lugar: LugarId): string {
+    return this.sabidos.has(lugar) ? `em ${lugarPorId(lugar)!.nome}` : ondeProcurar(lugar);
+  }
+
+  /**
+   * O que ainda falta fazer, na ordem em que convem fazer. O primeiro vira a linha "Agora" do
+   * topo e os seguintes a lista curta do canto. Item cumprido sai daqui, e some da tela.
+   */
+  pendencias(): { curto: string; agora: string }[] {
+    const e = this.estado;
+    const eu = this.personagem;
+    if (e.fim || !eu.vivo) return [];
+    if (e.desmascarado) return [{ curto: 'Esperar o sol nascer', agora: 'A Coisa está amarrada na praça. Agora é só esperar o sol nascer.' }];
+    const lista: { curto: string; agora: string }[] = [];
+    const regra = regraDe(e, this.bib);
+    const sabe = sabeARegra(e, this.bib, this.eu);
+    const ultima = e.rodada === RODADAS;
+    const escapar = { curto: 'Estar a salvo quando o sino bater', agora: sabe ? comoEscapar(regra, e.abertos) : 'Última hora: ache um lugar que pareça seguro antes do sino.' };
+    if (ultima) lista.push(escapar);
+    // A armadilha e do fim da noite e tem hora: no ato 3 ela passa na frente do resto.
+    const a = e.armadilha;
+    if (a && !a.perdida && e.rodada >= RODADA_DA_ARMADILHA) {
+      const naMao = pecasNaMao(e, this.eu);
+      const solta = e.achados.find((x) => x.tipo === 'peca' && !x.pego);
+      if (naMao.length) lista.push({ curto: 'Montar a armadilha no poço da praça (E)', agora: `Leve ${naMao.map((p) => NOME_DA_PECA[p]).join(' e ')} ao poço da praça e monte a armadilha (E).` });
+      if (solta?.peca) lista.push({ curto: `Armadilha, ${NOME_DA_PECA[solta.peca].replace(/^[ao] /, '')}: ${this.onde(solta.lugar)}`, agora: `Para a armadilha falta ${NOME_DA_PECA[solta.peca]}. Procure ${this.onde(solta.lugar)}.` });
+      if (armadilhaArmada(e)) {
+        if (!a.acusacoes[this.eu]) lista.push({ curto: 'Acusar quem é a Coisa (K)', agora: 'A armadilha está armada. Diga quem é a Coisa (K) antes de puxar a corda.' });
+        else lista.push({ curto: 'Puxar a corda no poço (L)', agora: 'Fique ao lado do poço e puxe a corda (L) quando a Coisa chegar perto.' });
+      }
+    }
+    // A carta: a parte de cada um, depois juntar tudo.
+    if (!achouOAutor(e) && e.carta.autor !== '') {
+      const prova = e.achados.find((x) => x.tipo === 'prova' && x.dono === this.eu && !x.pego);
+      if (prova) lista.push({ curto: `Prova: ${this.onde(prova.lugar)}`, agora: `Sua parte: procurar uma prova ${this.onde(prova.lugar)}.` });
+      if (this.podeMostrarCarta) lista.push({ curto: 'Mostrar a carta a quem a escreveu (V)', agora: e.personagens.length > 1 ? 'Junte as provas com o grupo e mostre a carta (V) a quem a escreveu.' : 'Mostre a carta (V) ao suspeito que sobrou.' });
+    }
+    const vestigio = e.achados.find((x) => x.tipo === 'vestigio' && x.dono === this.eu && !x.pego);
+    if (vestigio) lista.push({ curto: `Vestígio da Coisa: ${this.onde(vestigio.lugar)}`, agora: `Sua parte: procurar um vestígio da Coisa ${this.onde(vestigio.lugar)}.` });
+    if (!sabe) {
+      const achadas = regra.pistas.filter((x) => e.pistas.includes(x) || eu.pistas.includes(x)).length;
+      lista.push({ curto: `Pistas do que ronda a cidade: ${achadas} de ${PISTAS_PARA_DESCOBRIR}`, agora: 'Procure pistas do que ronda a cidade: investigue o que brilha nos lugares abertos.' });
+    } else if (!ultima) {
+      lista.push(escapar);
+    }
+    return lista;
+  }
+
   /** O que fazer agora, numa linha, para o topo da tela. */
   proximoPasso(): string {
-    if (this.estado.fim || !this.personagem.vivo) return '';
-    const lista = objetivos(this.estado, this.bib, this.eu);
-    const entender = lista.find((o) => o.id === 'entender')!;
-    const regra = regraDe(this.estado, this.bib);
-    if (this.estado.rodada === RODADAS) return entender.feito ? comoEscapar(regra, this.estado.abertos) : 'Última hora: ache um lugar que pareça seguro antes do sino.';
-    // A carta vem primeiro: a parte de cada um, depois juntar tudo.
-    if (!achouOAutor(this.estado) && this.estado.carta.autor !== '') {
-      const prova = this.estado.achados.find((a) => a.tipo === 'prova' && a.dono === this.eu && !a.pego);
-      if (prova) return `Sua parte: achar a prova que está em ${lugarPorId(prova.lugar)!.nome}.`;
-      if (this.podeMostrarCarta) return this.estado.personagens.length > 1 ? 'Junte as provas com o grupo e mostre a carta (V) a quem a escreveu.' : 'Mostre a carta (V) ao suspeito que sobrou.';
+    return this.pendencias()[0]?.agora ?? '';
+  }
+
+  // ---------- a armadilha ----------
+
+  /** O jogador esta na rua, ao lado do poco da praca? */
+  get pertoDoPoco(): boolean {
+    return this.aqui === null && Math.hypot(this.x - PRACA.x, this.z - PRACA.z) <= ALCANCE_DO_POCO;
+  }
+
+  /**
+   * O que da para fazer no poco agora, para o aviso do meio da tela: montar (E), acusar (K) ou
+   * puxar a corda (L). null: nada, ou o jogador esta longe.
+   */
+  noPoco(): { tecla: string; texto: string } | null {
+    const e = this.estado;
+    const a = e.armadilha;
+    if (this.modo !== 'andando' || !a || a.perdida || e.desmascarado || e.fim || !this.personagem.vivo || e.rodada < RODADA_DA_ARMADILHA || !this.pertoDoPoco) return null;
+    const naMao = pecasNaMao(e, this.eu);
+    if (naMao.length) return { tecla: 'E', texto: `montar a armadilha: ${naMao.map((p) => NOME_DA_PECA[p]).join(' e ')}` };
+    if (!armadilhaArmada(e)) return null;
+    if (!a.acusacoes[this.eu]) return { tecla: 'K', texto: 'acusar quem é a Coisa' };
+    return { tecla: 'L', texto: coisaNoAlcance(e, this.bib, this.restante) ? 'puxar a corda: a Coisa está no laço' : 'puxar a corda, quando a Coisa chegar' };
+  }
+
+  /** O jogador poe no poco as pecas que carrega. */
+  montarArmadilha(): void {
+    if (this.noPoco()?.tecla === 'E') this.condutor.montar();
+  }
+
+  /** O jogador abre a lista de suspeitos para dizer quem e a Coisa. */
+  private abrirAcusacao(): void {
+    const e = this.estado;
+    if (!e.vilao || !e.armadilha || e.fim || !this.personagem.vivo) return;
+    if (e.desmascarado || e.armadilha.perdida) {
+      this.avisar(e.desmascarado ? 'A máscara já caiu.' : 'A armadilha se perdeu. Não há mais o que acusar.');
+      return;
     }
-    if (entender.feito) return comoEscapar(regra, this.estado.abertos);
-    return 'Procure pistas do que ronda a cidade: investigue o que brilha nos lugares abertos.';
+    this.modo = 'acusar';
+    this.desenharAcusacao();
+  }
+
+  private desenharAcusacao(): void {
+    const e = this.estado;
+    const meu = e.armadilha?.acusacoes[this.eu];
+    const batem = suspeitosDaCoisa(e, this.bib, this.eu);
+    const sei = tracosSabidos(e, this.bib, this.eu);
+    const linhas = acusaveis(e).map((id, i) => {
+      const npc = this.bib.npcs.find((n) => n.id === id)!;
+      const visto = this.conhecidos.has(id);
+      const sinais = visto ? tracosDe(this.bib, id).map((t) => `<span class="${sei.some((s) => s.id === t.id) ? 'bate' : ''}">${escapar(t.sinal)}</span>`).join(' · ') : 'você ainda não viu esta pessoa de perto';
+      const votos = Object.values(e.armadilha?.acusacoes ?? {}).filter((v) => v === id).length;
+      return `<li class="${meu === id ? 'meu' : ''}${batem.includes(id) ? '' : ' fora'}"><kbd>${i + 1}</kbd>${visto ? escapar(npc.nome) : '<i>alguém que você ainda não encontrou</i>'}${e.personagens.length > 1 && votos ? ` <span class="votos">${'●'.repeat(votos)}</span>` : ''}<small>${sinais}</small></li>`;
+    });
+    const html =
+      `<h3>A armadilha</h3><h2>Quem é a Coisa?</h2>` +
+      `<p>${sei.length ? `O que você sabe de quem veste a fantasia: <b>${sei.map((t) => escapar(t.sinal)).join(' · ')}</b>.` : 'Você ainda não achou nenhum vestígio da fantasia.'}` +
+      `${e.personagens.length > 1 ? ' Vale o nome mais votado.' : ''} Nome errado na hora da corda custa caro.</p>` +
+      `<ol class="acusar">${linhas.join('')}</ol><div class="seguir"><kbd>K</kbd> fecha</div>`;
+    if (html === this.ultimaCena) return;
+    this.painel(html, 'cena');
+    this.ultimaCena = html;
+  }
+
+  /** O jogador puxa a corda da armadilha. */
+  private puxarACorda(): void {
+    const e = this.estado;
+    if (!e.armadilha || e.armadilha.perdida || e.desmascarado || !armadilhaArmada(e)) return;
+    if (!this.pertoDoPoco) {
+      this.avisar('A corda fica na praça, ao lado do poço.');
+      return;
+    }
+    const impede = oQueImpedePuxar(e, this.bib, this.eu, this.restante);
+    if (impede) this.avisar(impede, 4000);
+    else this.condutor.puxar();
   }
 
   /** O jogador chegou perto de alguem da cidade: passa a saber o nome. */
@@ -463,8 +633,13 @@ export class PartidaNaTela {
     // A hora virou (ou o ultimo sino bateu).
     const virou = novo.rodada !== antes.rodada || (novo.fim !== null && antes.fim === null && novos.some((r) => r.tipo === 'pressagio' || r.tipo === 'ameaca'));
     if (virou || !souEu.vivo) this.largarOCofre();
+    if ((virou || !souEu.vivo) && this.modo === 'acusar') {
+      this.modo = 'andando';
+      this.fecharPainel();
+    }
     if (virou) this.aoVirar(antes, novo, novos);
     this.reagirAsMissoes(antes, novo, eraEu, souEu);
+    this.reagirAoVilao(antes, novo, eraEu, souEu);
 
     // A cena em que o jogador estava fechou: com resultado, ou perdida na virada.
     const cenaAntes = cenaDe(antes, this.eu);
@@ -492,6 +667,8 @@ export class PartidaNaTela {
       if (!a.pego || antes.achados.find((x) => x.id === a.id)?.pego) continue;
       if (a.pegoPor === this.eu) this.aoPegar(a);
       else if (a.tipo === 'prova') this.legendar(`${this.nomeDe(a.pegoPor ?? '')} achou uma prova. Pergunte o que ela diz.`, 'lugar');
+      else if (a.tipo === 'vestigio') this.legendar(`${this.nomeDe(a.pegoPor ?? '')} achou um vestígio da Coisa. Pergunte o que ele mostra.`, 'lugar');
+      else if (a.tipo === 'peca' && a.peca) this.legendar(`${this.nomeDe(a.pegoPor ?? '')} pegou ${NOME_DA_PECA[a.peca]} da armadilha.`, 'lugar');
     }
     // A carta foi mostrada a alguem.
     for (const m of novo.carta.mostradas.slice(antes.carta.mostradas.length)) {
@@ -502,16 +679,23 @@ export class PartidaNaTela {
         const texto = certo ? npc.carta.confessa : npc.carta.nega;
         // Quem confessa promete contar o que sabe: em seguida vem, na voz dela, a dica da regra da noite.
         const dica = certo ? npc.falas?.find((f) => f.regras?.includes(novo.regra))?.texto : undefined;
-        this.mundo.falar(npc.id, dica ? [texto, dica] : texto);
+        // E por fim diz que desconfia de alguem, e aponta um traco de quem veste a fantasia.
+        const traco = certo ? dicaDoAutor(novo, this.bib) : null;
+        const falas = [texto, ...(dica ? [dica] : []), ...(traco ? [npc.carta.desconfia] : [])];
+        this.mundo.falar(npc.id, falas.length > 1 ? falas : texto);
         this.dizer(`${npc.nome}: “${texto}”`);
-        // A dica entra logo atras da confissao, sem passar na frente dela.
-        if (dica) this.legendas.splice(1, 0, { texto: `${npc.nome}: “${dica}”`, classe: 'fala' });
+        // O resto entra logo atras da confissao, na ordem, sem passar na frente dela.
+        const atras = falas.slice(1).map((f) => ({ texto: `${npc.nome}: “${f}”`, classe: 'fala' }));
+        if (traco) atras.push({ texto: `${npc.nome} reparou: ${traco.dica}`, classe: 'lugar' });
+        this.legendas.splice(1, 0, ...atras);
         if (!certo) {
           const restam = chancesRestantes(novo, this.eu);
           this.avisar(restam > 0 ? 'Não foi essa pessoa. Resta uma chance de mostrar a carta.' : 'Não foi essa pessoa. Sua chance de mostrar a carta acabou.', 6000);
         }
       } else {
         this.legendar(`${this.nomeDe(m.quem)} mostrou a carta a ${npc.nome}. ${certo ? 'Foi quem escreveu.' : 'Não foi essa pessoa.'}`, 'lugar');
+        const traco = certo ? dicaDoAutor(novo, this.bib) : null;
+        if (traco) this.legendar(`${npc.nome} reparou numa coisa: ${traco.dica}`, 'lugar');
       }
       if (certo) this.mundo.sinal('pista');
     }
@@ -582,6 +766,91 @@ export class PartidaNaTela {
     }
   }
 
+  /** O que mudou na armadilha: peca posta, lampiao aceso, nome acusado, corda puxada. */
+  private reagirAoVilao(antes: Estado, novo: Estado, eraEu: Personagem, souEu: Personagem): void {
+    const a = novo.armadilha;
+    const era = antes.armadilha;
+    if (!a || !era) return;
+    if (a.montadas.length > era.montadas.length) {
+      this.mundo.sinal('cena');
+      if (armadilhaArmada(novo)) {
+        this.mundo.sinal('mudanca');
+        this.legendar('A armadilha está armada. O lampião de sinal acendeu, e a Coisa vem ver.', 'lugar');
+      } else {
+        const faltam = PECAS.filter((p) => !a.montadas.includes(p));
+        this.legendar(`Peça posta no poço. Falta ${faltam.map((p) => NOME_DA_PECA[p]).join(' e ')}.`, 'lugar');
+      }
+    }
+    for (const [quem, npc] of Object.entries(a.acusacoes)) {
+      if (era.acusacoes[quem] === npc) continue;
+      const nome = this.bib.npcs.find((n) => n.id === npc)?.nome ?? npc;
+      if (quem === this.eu) {
+        // A escolha fecha a lista de suspeitos.
+        if (this.modo === 'acusar') {
+          this.modo = 'andando';
+          this.fecharPainel();
+        }
+        this.avisar(`Você acusa ${this.conhecidos.has(npc) ? nome : 'alguém que ainda não viu de perto'}. Com a armadilha armada, a corda (L) fica no poço.`, 5000);
+      } else {
+        this.legendar(`${this.nomeDe(quem)} acusa ${nome}.`, 'lugar');
+      }
+    }
+    if (this.modo === 'acusar') this.desenharAcusacao();
+    // Nome errado: a armadilha se perdeu.
+    if (a.perdida && !era.perdida) {
+      const fuiEu = souEu.ferimento > eraEu.ferimento || !souEu.vivo;
+      if (this.modo === 'acusar') {
+        this.modo = 'andando';
+        this.fecharPainel();
+      }
+      this.mundo.sinal('medo');
+      this.mundo.sinal(fuiEu ? 'ataque' : 'ronda');
+      const registro = novo.diario.slice(antes.diario.length).find((r) => r.tipo === 'vilao');
+      if (registro) this.legendar(registro.texto, 'ataque');
+      this.legendar(fuiEu ? `Medo +${MEDO_DO_ERRO}, ferimento +${FERIMENTO_DO_ERRO}. No próximo sino ela vem com certeza.` : 'A armadilha se perdeu. No próximo sino ela vem com certeza.', 'ataque');
+      if (novo.fim) this.fimEm = performance.now() + 4500;
+    }
+    // Nome certo: a mascara cai. Primeiro se ve, depois o painel diz quem era.
+    if (novo.desmascarado && !antes.desmascarado) {
+      if (this.modo === 'cofre') this.largarOCofre();
+      if (this.modo === 'andando' || this.modo === 'acusar') {
+        this.fecharPainel();
+        this.modo = 'revelacao';
+        this.mundo.congelar(true);
+        this.revelacaoEm = performance.now() + MS_DA_REVELACAO;
+      }
+      this.mundo.sinal('susto');
+      this.mundo.sinal('pista');
+      this.titular('A máscara caiu', `${this.nomeDe(novo.desmascarado.por)} puxou a corda`);
+      const npc = this.bib.npcs.find((n) => n.id === novo.desmascarado!.npc);
+      if (npc) {
+        this.conhecidos.add(npc.id);
+        // Quem esta na praca ouve o que a pessoa diz. Os outros ficam sabendo pela legenda.
+        if (Math.hypot(this.x - PRACA.x, this.z - PRACA.z) < 30) {
+          this.mundo.falar(npc.id, npc.disfarce.pego);
+          this.dizer(`${npc.nome}: “${npc.disfarce.pego}”`);
+        } else {
+          this.legendar(`A máscara caiu na praça: a Coisa era ${npc.nome}.`, 'lugar');
+        }
+      }
+    }
+  }
+
+  /** A cena da mascara acabou: o painel diz quem era e o que mudou. */
+  private mostrarRevelacao(): void {
+    this.revelacaoEm = 0;
+    const d = this.estado.desmascarado;
+    const npc = d ? this.bib.npcs.find((n) => n.id === d.npc) : undefined;
+    if (!d || !npc || this.modo !== 'revelacao') return;
+    this.mundo.sinal('alivio');
+    this.modo = 'resultado';
+    this.painel(
+      `<h3>Praça do poço</h3><h2>A Coisa era ${escapar(npc.nome)}</h2><p>Debaixo da capa preta, em cima de duas pernas de pau: ${escapar(npc.nome)}, ${escapar(npc.papel)}.</p>` +
+        `<div class="efeitos"><span class="bom">A Coisa não ataca mais nesta noite</span><span class="bom">O medo de todos cede</span></div><div class="seguir"><kbd>Espaço</kbd> continuar</div>`,
+      'cena curta',
+    );
+  }
+
   private aoPegar(achado: Achado): void {
     if (achado.tipo === 'querosene') {
       this.querosene = 1;
@@ -597,6 +866,24 @@ export class PartidaNaTela {
       this.mundo.sinal('cena');
       const coisa = this.bib.npcs.find((n) => n.id === achado.npc)?.pedido?.coisa ?? 'a caixa';
       this.avisar(`Você pegou ${coisa}. Leve ao dono: veja em Missões extras.`, 5500);
+    } else if (achado.tipo === 'peca') {
+      this.mundo.sinal('cena');
+      this.avisar(`Você pegou ${achado.peca ? NOME_DA_PECA[achado.peca] : 'uma peça'}. A armadilha se monta no poço da praça.`, 5500);
+    } else if (achado.tipo === 'vestigio') {
+      // O vestigio para o jogo para ser lido, como a prova. So quem pegou ve o traco.
+      this.mundo.sinal('pista');
+      this.modo = 'resultado';
+      const traco = this.bib.disfarce.tracos.find((t) => t.id === achado.traco);
+      const batem = suspeitosDaCoisa(this.estado, this.bib, this.eu).length;
+      const grupo = this.estado.personagens.length > 1;
+      this.painel(
+        `<h3>${escapar(lugarPorId(achado.lugar)!.nome)}</h3><h2>Um vestígio da Coisa</h2><p>${escapar(textoDoVestigio(this.bib, achado))}</p>` +
+          `<div class="efeitos"><span class="pista">Quem veste a fantasia: ${escapar(traco?.sinal ?? '')}</span>` +
+          `<span class="${batem === 1 ? 'bom' : 'pista'}">${batem === 1 ? 'Só um suspeito bate com tudo o que você sabe' : `${batem} suspeitos batem com o que você sabe`}</span></div>` +
+          `<p>${grupo ? 'Só você viu isto. Conte aos outros. ' : ''}Repare em cada pessoa de perto e compare (segure Tab).</p>` +
+          '<div class="seguir"><kbd>Espaço</kbd> continuar</div>',
+        'cena',
+      );
     } else if (achado.tipo === 'prova') {
       // A prova tambem para o jogo para ser lida. So quem pegou ve o que ela diz.
       this.mundo.sinal('pista');
@@ -635,6 +922,8 @@ export class PartidaNaTela {
       if (r.tipo === 'pressagio') this.mundo.sinal('pressagio');
       else if (r.tipo === 'ameaca') this.mundo.sinal(r.quem?.includes(this.eu) ? 'ataque' : 'ronda');
       if (r.tipo === 'pressagio' || r.tipo === 'ameaca' || r.tipo === 'lugar') this.legendar(r.texto, classe(r));
+      // Com a Coisa desmascarada, o sino bate e ninguem vem.
+      if (r.tipo === 'vilao') this.legendar(r.texto, 'lugar');
     }
     if (novo.fim) {
       // O ultimo sino: o jogador fica parado vendo o mundo reagir, e o fim vem em seguida.
@@ -647,16 +936,27 @@ export class PartidaNaTela {
     }
     const rodada = novo.rodada;
     this.titular(`${rodada}ª hora`, rodada === RODADAS ? 'a última' : `ato ${atoDaRodada(rodada)}`);
+    if (novo.desmascarado) return;
     if (rodada === RODADAS) this.legendar('Última hora. Quando o sino bater de novo, a coisa vem buscar quem estiver ao alcance.', 'ataque');
     else if (rodada === 3) this.legendar('Ato 2. A coisa começou a caçar.');
+    else if (rodada === RODADA_DA_ARMADILHA && novo.armadilha && !novo.armadilha.perdida) this.legendar('Dá para armar um laço no poço da praça. Faltam a corda, o sino de vaca e o lampião de sinal, largados pela cidade.', 'lugar');
     else if (rodada === 7) this.legendar('Ato 3. Falta pouco para amanhecer, e ela sabe.');
   }
 
   // ---------- avisos, titulo e legendas ----------
 
-  /** Uma linha curta no meio da tela, que some sozinha. */
+  /**
+   * Uma linha curta no meio da tela, que some sozinha. So ha um aviso por vez: o novo troca o
+   * anterior. Se alguem esta falando, o aviso espera a vez na fila das legendas, para nao haver
+   * duas coisas para ler ao mesmo tempo.
+   */
   avisar(texto: string, ms = 3500): void {
     if (!this.elAviso) return;
+    const falando = (this.legendaAte > performance.now() && this.elLegenda?.classList.contains('fala')) || this.legendas.some((l) => l.classe === 'fala');
+    if (falando) {
+      this.legendas.push({ texto, classe: 'lugar' });
+      return;
+    }
     this.elAviso.textContent = texto;
     this.elAviso.style.opacity = '1';
     this.avisoAte = performance.now() + ms;
@@ -690,17 +990,27 @@ export class PartidaNaTela {
     }
     if (!this.elLegenda) return;
     // Com um painel aberto a legenda espera: duas coisas para ler ao mesmo tempo ninguem le.
-    if (this.modo === 'cena' || this.modo === 'resultado' || this.modo === 'fim') {
+    if (this.modo === 'cena' || this.modo === 'resultado' || this.modo === 'fim' || this.modo === 'acusar' || this.completoAberto) {
       this.elLegenda.style.opacity = '0';
       this.legendaAte = 0;
+      document.body.classList.remove('com-legenda');
       return;
     }
     if (agora < this.legendaAte) return;
-    const proxima = this.legendas.shift();
+    // Com um aviso na tela, a legenda que nao e fala espera ele sair.
+    const proxima = this.avisoAte && this.legendas[0]?.classe !== 'fala' ? undefined : this.legendas.shift();
     if (!proxima) {
       if (this.legendaAte) this.elLegenda.style.opacity = '0';
       this.legendaAte = 0;
+      // Enquanto ha legenda, o nome do lugar e o aviso do E saem do meio da tela.
+      document.body.classList.remove('com-legenda');
       return;
+    }
+    document.body.classList.add('com-legenda');
+    // Fala passa na frente do aviso que estiver na tela.
+    if (this.elAviso && this.avisoAte) {
+      this.elAviso.style.opacity = '0';
+      this.avisoAte = 0;
     }
     this.elLegenda.textContent = proxima.texto;
     this.elLegenda.className = `hud ${proxima.classe}`;
@@ -719,7 +1029,15 @@ export class PartidaNaTela {
     }
     this.atualizarLegendas();
     if (this.fimEm && performance.now() > this.fimEm) this.mostrarFim();
+    if (this.revelacaoEm && performance.now() > this.revelacaoEm) this.mostrarRevelacao();
+    this.x = x;
+    this.z = z;
     this.aqui = this.lugarEm(x, z);
+    if (this.aqui) this.sabidos.add(this.aqui);
+    // A linha de teclas do rodape so fica no comeco. Depois, a tecla H traz de volta por um tempo.
+    if (tempoCorre) this.jogado += dt;
+    document.body.classList.toggle('sem-teclas', this.jogado > SEGUNDOS_DE_TECLAS && performance.now() > this.teclasAte);
+    document.body.classList.toggle('com-aviso', this.avisoAte > 0);
     const vivo = this.personagem.vivo && !this.estado.fim;
     // Numa sala o tempo e de todos e nao para: vale em qualquer tela.
     const correndo = this.sala ? vivo : tempoCorre && this.modo === 'andando';
@@ -754,9 +1072,45 @@ export class PartidaNaTela {
   /** Devolve true se a tecla foi usada pela partida. */
   tecla(codigo: string, repete = false): boolean {
     // Tecla segurada so repete para girar o disco do cofre. O resto vale uma vez por aperto.
+    // O painel completo: so enquanto o Tab estiver apertado (o keyup fecha). Vale em qualquer tela, menos no fim.
+    if (codigo === 'Tab') {
+      this.completoAberto = this.modo !== 'fim';
+      return true;
+    }
     const gira = this.modo === 'cofre' && ['KeyW', 'KeyS', 'ArrowUp', 'ArrowDown'].includes(codigo);
     if (repete && !gira) return this.modo !== 'andando';
     if (this.modo === 'cofre') return this.teclaNoCofre(codigo);
+    if (codigo === 'KeyH') {
+      this.teclasAte = performance.now() < this.teclasAte ? 0 : performance.now() + 15000;
+      return true;
+    }
+    if (this.modo === 'acusar') {
+      const n = /^(?:Digit|Numpad)([1-9])$/.exec(codigo)?.[1];
+      const npc = n ? acusaveis(this.estado)[Number(n) - 1] : undefined;
+      if (npc) {
+        // Escolher de novo o mesmo nome so fecha a lista.
+        if (this.estado.armadilha?.acusacoes[this.eu] === npc) {
+          this.modo = 'andando';
+          this.fecharPainel();
+        } else this.condutor.acusar(npc);
+      } else if (codigo === 'KeyK' || codigo === 'Escape' || codigo === 'Backspace' || codigo === 'KeyE') {
+        this.modo = 'andando';
+        this.fecharPainel();
+      }
+      return true;
+    }
+    if (this.modo === 'revelacao' && (codigo === 'Space' || codigo === 'Enter')) {
+      this.mostrarRevelacao();
+      return true;
+    }
+    if (codigo === 'KeyK' && this.modo === 'andando') {
+      this.abrirAcusacao();
+      return true;
+    }
+    if (codigo === 'KeyL' && this.modo === 'andando') {
+      this.puxarACorda();
+      return true;
+    }
     const numero = /^(?:Digit|Numpad)([1-3])$/.exec(codigo)?.[1];
     if (this.modo === 'cena' && numero) {
       this.decidir(Number(numero) - 1);
@@ -929,7 +1283,7 @@ export class PartidaNaTela {
   private parteDeCadaUm(): string {
     const e = this.estado;
     if (e.carta.autor === '') return '';
-    const minhas = tarefas(e, this.bib, this.eu).map((t) => `<li class="${t.feita ? 'feito' : ''}">${escapar(t.texto)}</li>`);
+    const minhas = tarefas(e, this.bib, this.eu, [...this.sabidos]).map((t) => `<li class="${t.feita ? 'feito' : ''}">${escapar(t.texto)}</li>`);
     const fora = inocentados(e, this.eu);
     const achou = achouOAutor(e);
     const suspeitos = e.carta.suspeitos.map((id) => {
@@ -937,16 +1291,34 @@ export class PartidaNaTela {
       // So tem nome quem o jogador ja encontrou, ou quem uma prova ja citou.
       const sabido = classe !== '' || this.conhecidos.has(id);
       const nome = sabido ? escapar(this.bib.npcs.find((n) => n.id === id)?.nome ?? id) : '<i>alguém que você ainda não encontrou</i>';
-      return `<li class="${classe}">${nome}</li>`;
+      // De quem o jogador ja viu de perto, a lista diz o que se nota na pessoa: e com isso que os vestigios se comparam.
+      const sinais = e.vilao && this.conhecidos.has(id) ? `<small>${tracosDe(this.bib, id).map((t) => escapar(t.sinal)).join(' · ')}</small>` : '';
+      return `<li class="${classe}">${nome}${sinais}</li>`;
     });
-    return `<h2>Sua parte</h2><ul class="objetivos">${minhas.join('')}</ul><h2>Quem escreveu a carta?</h2><ul class="suspeitos">${suspeitos.join('')}</ul>`;
+    return `<section><h2>Sua parte</h2><ul class="objetivos">${minhas.join('')}</ul></section><section><h2>Quem escreveu a carta?</h2><ul class="suspeitos">${suspeitos.join('')}</ul></section>`;
+  }
+
+  /** O que este jogador sabe da Coisa e em que pe esta a armadilha. */
+  private aCoisa(): string {
+    const e = this.estado;
+    if (!e.vilao) return '';
+    const sei = tracosSabidos(e, this.bib, this.eu);
+    const batem = suspeitosDaCoisa(e, this.bib, this.eu);
+    const nomes = batem.map((id) => (this.conhecidos.has(id) ? escapar(this.bib.npcs.find((n) => n.id === id)?.nome ?? id) : '<i>alguém que você ainda não viu</i>'));
+    const passos = passosDaArmadilha(e, this.bib, this.eu, [...this.sabidos]).map((t) => `<li class="${t.feita ? 'feito' : ''}">${escapar(t.texto)}</li>`);
+    return (
+      `<section><h2>Quem é a Coisa?</h2>` +
+      (sei.length ? `<ul class="objetivos">${sei.map((t) => `<li>Quem veste a fantasia: ${escapar(t.sinal)}</li>`).join('')}</ul><p class="abertos">Batem com isso: ${nomes.join(', ') || 'ninguém'}.</p>` : '<p class="abertos">Nenhum vestígio achado ainda. Cada um mostra algo de quem veste a fantasia.</p>') +
+      `</section><section><h2>A armadilha</h2>` +
+      (passos.length ? `<ul class="objetivos">${passos.join('')}</ul>` : `<p class="abertos">Só no ato 3, da ${RODADA_DA_ARMADILHA}ª hora em diante: três peças montadas no poço da praça, um nome acusado (K) e a corda (L).</p>`) +
+      '</section>'
+    );
   }
 
   /** O cofre e o favor: o que fazer depois de achar a propria prova. */
   private missoesExtras(): string {
     const lista = missoes(this.estado, this.bib, this.eu).map((t) => `<li class="${t.feita ? 'feito' : ''}">${escapar(t.texto)}</li>`);
-    // Num bloco a parte, no canto direito: a coluna da esquerda ja esta cheia.
-    return lista.length ? `<div class="extras"><h2>Missões extras</h2><ul class="objetivos">${lista.join('')}</ul></div>` : '';
+    return lista.length ? `<section><h2>Missões extras</h2><ul class="objetivos">${lista.join('')}</ul></section>` : '';
   }
 
   /** Avisa na hora em que um objetivo se cumpre. */
@@ -958,6 +1330,7 @@ export class PartidaNaTela {
       // Em legenda, que espera o painel da cena fechar antes de aparecer.
       if (o.id === 'carta') this.legendar('Objetivo cumprido: quem escreveu a carta foi encontrado, e contou o que sabe.', 'lugar');
       if (o.id === 'entender') this.legendar('Objetivo cumprido: agora dá para entender o que ronda a cidade. Veja o que fazer no topo da tela.', 'lugar');
+      // O da Coisa ja tem a cena da mascara e o painel dela.
     }
   }
 
@@ -975,10 +1348,13 @@ export class PartidaNaTela {
     const outros = fim.epilogos.filter((ep) => ep.id !== meu.id).map((ep) => `<li><b class="${ep.vivo ? 'bom' : 'ruim'}">${escapar(ep.nome)}</b> ${escapar(ep.texto)}</li>`);
     this.mundo.sinal(meu.vivo ? 'amanhecer' : 'morte');
     const autor = fim.carta.autor ? (this.bib.npcs.find((n) => n.id === fim.carta.autor)?.nome ?? '') : '';
+    const coisa = fim.vilao.npc ? (this.bib.npcs.find((n) => n.id === fim.vilao.npc)?.nome ?? '') : '';
     this.modo = 'fim';
+    this.completoAberto = false;
     this.painel(
-      `<h3>${meu.vivo ? (fim.carta.autor && !fim.carta.achou ? 'Amanheceu, e o socorro não chegou' : 'Amanheceu') : fim.amanheceu ? 'O sol nasceu sem você' : 'Ninguém viu o sol nascer'}</h3>` +
+      `<h3>${meu.vivo ? (fim.vilao.desmascarado ? 'Amanheceu, e a Coisa tinha nome' : fim.carta.autor && !fim.carta.achou ? 'Amanheceu, e o socorro não chegou' : 'Amanheceu') : fim.amanheceu ? 'O sol nasceu sem você' : 'Ninguém viu o sol nascer'}</h3>` +
         `<p>${escapar(meu.texto)}</p>` +
+        (coisa ? `<h4>A Coisa</h4><p class="${fim.vilao.desmascarado ? 'bom' : 'ruim'}">${escapar(fim.vilao.texto)}</p>` : '') +
         (autor
           ? `<h4>A carta</h4><p class="${fim.carta.achou ? 'bom' : 'ruim'}">${escapar(
               fim.carta.achou
@@ -1038,23 +1414,34 @@ export class PartidaNaTela {
     // Numa sala: onde esta cada um dos outros. Para a regra, estar junto e estar no mesmo lugar.
     const onde = (p: Personagem) => (!p.vivo ? 'não viu o fim da noite' : p.lugar ? lugarPorId(p.lugar)!.nome : 'na rua');
     const grupo = e.personagens.filter((p) => p.id !== this.eu).map((p) => `<li class="${!p.vivo ? 'falhou' : p.lugar === eu.lugar ? 'aqui' : ''}">${escapar(p.nome)}<small>${onde(p)}</small></li>`);
+    const bolsa = [eu.bolsa.atadura ? `atadura ${eu.bolsa.atadura} (Q)` : '', eu.bolsa.tonico ? `tônico ${eu.bolsa.tonico} (T)` : '', ...pecasNaMao(e, this.eu).map((p) => NOME_DA_PECA[p].replace(/^[ao] /, ''))].filter(Boolean);
+    // O primeiro do que falta ja esta na linha "Agora". A lista curta mostra os seguintes.
+    const falta = this.pendencias().slice(1, 1 + LINHAS_DO_QUE_FALTA);
     const html =
-      `<h2>${e.rodada}ª hora de ${RODADAS} · ato ${atoDaRodada(e.rodada)} · <span class="${s <= 20 ? 'ruim' : ''}">${relogio}</span></h2>` +
+      `<h2>${e.rodada}ª hora de ${RODADAS} · <span class="${s <= 20 ? 'ruim' : ''}">${relogio}</span></h2>` +
       `<div class="medidor${pisca('medo')}">Medo <span class="${limite !== null && eu.medo > limite ? 'ruim' : ''}">${medo}</span></div>` +
       `<div class="medidor${pisca('ferimento')}">Ferimento <span class="${eu.ferimento > 0 ? 'ruim' : ''}">${bolinhas(eu.ferimento, FERIMENTO_FATAL)}</span></div>` +
-      `<div class="medidor${pisca('pistas')}">Pistas <span>${pistas}${sabeARegra(e, this.bib, this.eu) ? ' · dá para entender a regra' : ''}</span></div>` +
       `<div class="medidor${pisca('lampiao')}">Lampião <span class="${this.querosene <= 0.2 ? 'ruim' : ''}">${bolinhas(Math.ceil(this.querosene * 5), 5)}</span></div>` +
-      (eu.bolsa.atadura + eu.bolsa.tonico > 0
-        ? `<div class="medidor">Bolsa <span class="bolsa">${[eu.bolsa.atadura ? `atadura ${eu.bolsa.atadura} (Q)` : '', eu.bolsa.tonico ? `tônico ${eu.bolsa.tonico} (T)` : ''].filter(Boolean).join(' · ')}</span></div>`
-        : '') +
-      (grupo.length ? `<h2>Grupo${this.sala ? ` · sala ${escapar(this.sala)}` : ''}</h2><ul class="grupo">${grupo.join('')}</ul>` : '') +
-      `<h2>Objetivos</h2><ul class="objetivos">${this.listaDeObjetivos()}</ul>` +
-      this.parteDeCadaUm() +
-      this.missoesExtras() +
-      `<h2>Abertos esta hora</h2><p class="abertos">${lugares.join(' · ')}</p>`;
+      (bolsa.length ? `<div class="medidor">Bolsa <span class="bolsa">${bolsa.join(' · ')}</span></div>` : '') +
+      // Andando, a tela so mostra isto: os medidores e, no maximo, tres linhas do que falta. O resto fica atras do Tab.
+      (falta.length ? `<ul class="falta">${falta.map((f) => `<li>${escapar(f.curto)}</li>`).join('')}</ul>` : '');
     if (html !== this.ultimoHud) {
       this.ultimoHud = html;
       this.elHud.innerHTML = html;
+    }
+    // O painel completo e montado sempre (os scripts de conferencia leem dele) e so aparece com o Tab apertado.
+    if (this.elCompleto) {
+      const completo =
+        `<h1>${e.rodada}ª hora de ${RODADAS} · ato ${atoDaRodada(e.rodada)}<small>solte o Tab para voltar</small></h1><div class="colunas">` +
+        `<section><h2>Objetivos</h2><ul class="objetivos">${this.listaDeObjetivos()}</ul><p class="abertos">Pistas do que ronda a cidade: ${pistas}${sabeARegra(e, this.bib, this.eu) ? ' · dá para entender a regra' : ''}. O diário (J) guarda o que cada uma diz.</p></section>` +
+        this.parteDeCadaUm() +
+        this.aCoisa() +
+        this.missoesExtras() +
+        (grupo.length ? `<section><h2>Grupo${this.sala ? ` · sala ${escapar(this.sala)}` : ''}</h2><ul class="grupo">${grupo.join('')}</ul></section>` : '') +
+        `<section><h2>Abertos esta hora</h2><p class="abertos">${lugares.join(' · ')}</p></section></div>`;
+      if (completo !== this.ultimoCompleto) this.elCompleto.innerHTML = this.ultimoCompleto = completo;
+      const mostra = this.completoAberto && this.modo !== 'fim';
+      if (this.elCompleto.classList.contains('aberto') !== mostra) this.elCompleto.classList.toggle('aberto', mostra);
     }
     // No topo: o que fazer agora e quanto falta para o sino, em barra.
     if (this.elPasso) {

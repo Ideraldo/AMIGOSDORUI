@@ -7,7 +7,7 @@ import puppeteer from 'puppeteer-core';
 import { createServer } from 'vite';
 
 const CHROME = process.env.CHROME ?? '/usr/bin/google-chrome';
-const PORTA = 5196;
+const PORTA = Number(process.env.PORTA) || 5196;
 
 const servidor = await createServer({ server: { port: PORTA, strictPort: true }, logLevel: 'error' });
 await servidor.listen();
@@ -34,7 +34,7 @@ try {
   conferir((await pagina.evaluate(() => window.__depurar!.abertura().ativa)) === false, 'a abertura espera o jogador entrar na cidade');
   await pagina.evaluate(() => window.__depurar!.abrir());
   const planos = await pagina.evaluate(() => window.__depurar!.abertura().planos);
-  conferir(planos === 7, `a abertura tem a carta, quem somos, o que ela dizia, quem ficou (sem nomes) e os tres passos da missao (${planos} planos)`);
+  conferir(planos === 8, `a abertura tem a carta, quem somos, o que ela dizia, quem ficou (sem nomes), os tres passos da missao e a coisa da rua (${planos} planos)`);
   const relogio = await pagina.evaluate(() => window.__depurar!.partida().restante);
   for (let i = 0; i < planos; i++) {
     await pagina.waitForFunction((i) => window.__depurar!.abertura().plano === i, espera, i);
@@ -76,9 +76,21 @@ try {
   conferir(primeira !== segunda, `a pessoa responde, e na segunda vez diz outra coisa (${primeira} / ${segunda})`);
 
   // A carta: a parte do jogador aparece na tela, a prova se pega com E e risca um suspeito.
-  const corpo = () => pagina.evaluate(() => document.body.innerText);
+  // A tela enxuta: "Sua parte" e os suspeitos ficam no painel completo (Tab), que e montado sempre e so aparece com a tecla.
+  const corpo = () => pagina.evaluate(() => `${document.body.innerText} ${document.querySelector('#completo')!.textContent}`);
   conferir(/sua parte/i.test(await corpo()) && /quem escreveu a carta?/i.test(await corpo()), 'a tela mostra a parte do jogador e a lista de suspeitos');
-  conferir(/Sua parte: achar a prova que está em /.test(await corpo()), 'o topo da tela diz onde buscar a prova');
+  const agora = await pagina.$eval('#passo', (el) => el.textContent ?? '');
+  conferir(/Sua parte: procurar uma prova (onde|num lugar|na casa) /.test(agora), `o topo da tela da uma indicacao de onde buscar a prova, sem o endereco ("${agora}")`);
+  const curta = await pagina.$$eval('#noite .falta li', (itens) => itens.length);
+  conferir(curta >= 1 && curta <= 3 && !/Sua parte|Abertos esta hora|Missões extras/i.test(await pagina.$eval('#noite', (el) => el.textContent ?? '')), `andando, o canto da tela so tem os medidores e ${curta} linha(s) do que falta`);
+  conferir(await pagina.$eval('#completo', (el) => getComputedStyle(el).display === 'none'), 'o painel completo fica fechado ate segurar o Tab');
+  await pagina.keyboard.down('Tab');
+  await pagina.waitForFunction(() => getComputedStyle(document.querySelector('#completo')!).display === 'block', espera);
+  await new Promise((r) => setTimeout(r, 300));
+  await pagina.screenshot({ path: 'capturas/abertura-painel.png' });
+  await pagina.keyboard.up('Tab');
+  await pagina.waitForFunction(() => getComputedStyle(document.querySelector('#completo')!).display === 'none', espera);
+  conferir(true, 'segurar o Tab abre o painel completo, e soltar fecha');
   const prova = (await pagina.evaluate(() => window.__depurar!.achados())).find((c) => c.tipo === 'prova' && c.pe)!;
   await pagina.evaluate((pe) => window.__depurar!.teleportar(pe[0], 0, pe[1]), prova.pe!);
   await pagina.waitForFunction(() => document.querySelector('#agir')!.textContent!.includes('prova'), { timeout: 20000 });

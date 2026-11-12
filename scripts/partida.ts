@@ -10,7 +10,7 @@ import { NASCIMENTO, lugarPorId, rotacaoY, type LugarId } from '../src/mundo/pla
 import { RODADAS } from '../src/nucleo/tipos.ts';
 
 const CHROME = process.env.CHROME ?? '/usr/bin/google-chrome';
-const PORTA = 5197;
+const PORTA = Number(process.env.PORTA) || 5197;
 
 const servidor = await createServer({ server: { port: PORTA, strictPort: true }, logLevel: 'error' });
 await servidor.listen();
@@ -116,7 +116,7 @@ try {
 
   // As coisas da noite: vai ate uma lata de querosene e pega com a tecla E.
   const coisas = await pagina.evaluate(() => window.__depurar!.achados());
-  conferir(coisas.filter((c) => c.tipo !== 'prova' && c.tipo !== 'encomenda').length === 7 && coisas.every((c) => c.pe !== null), `a noite espalhou ${coisas.length} coisas, todas em lugares abertos`);
+  conferir(coisas.filter((c) => !['prova', 'encomenda', 'vestigio', 'peca'].includes(c.tipo)).length === 7 && coisas.every((c) => c.pe !== null), `a noite espalhou ${coisas.length} coisas, todas em lugares abertos`);
   const lata = coisas.find((c) => c.tipo === 'querosene')!;
   await ir(lata.pe![0], lata.pe![1]);
   await pagina.waitForFunction(() => document.querySelector<HTMLElement>('#agir')!.textContent!.includes('querosene'), { timeout: 60000 });

@@ -37,6 +37,12 @@ export const MISSAO: Trecho[] = [
   },
 ];
 
+/** O ultimo plano da abertura, nas noites em que ha alguem por baixo da fantasia da Coisa. */
+export const MISSAO_DO_VILAO: Trecho = {
+  titulo: 'E a coisa da rua',
+  texto: 'Há quem jure que aquilo é gente fantasiada. Ficaram pedaços da fantasia pela cidade, e cada um diz algo de quem a veste. Perto do amanhecer, dá para armar um laço no poço da praça e arrancar a máscara.',
+};
+
 /** O que o narrador diz num plano com titulo. */
 export const narrar = (t: Trecho): string => `${t.titulo}. ${t.texto}`;
 
@@ -49,5 +55,6 @@ export function pedacosDaNarracao(bib: Biblioteca): string[] {
     ...bib.ganchos.flatMap((g) => [narrarGancho(g), ...(g.abertura ?? [])]),
     narrar(QUEM_FICOU),
     ...MISSAO.map(narrar),
+    narrar(MISSAO_DO_VILAO),
   ];
 }

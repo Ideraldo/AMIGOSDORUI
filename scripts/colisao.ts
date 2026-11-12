@@ -7,7 +7,7 @@ import { createServer } from 'vite';
 import { FIGURANTES, LIMITES, LUGARES, NASCIMENTO, PISO_DE_CIMA, PRACA, direcao, lugarPorId, rotacaoY, type Construcao, type LugarId } from '../src/mundo/planta.ts';
 
 const CHROME = process.env.CHROME ?? '/usr/bin/google-chrome';
-const PORTA = 5198;
+const PORTA = Number(process.env.PORTA) || 5198;
 
 type Trecho = [number, number, number, number];
 

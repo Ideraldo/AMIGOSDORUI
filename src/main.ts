@@ -20,7 +20,9 @@ import { Palco } from './interface/palco.ts';
 import { criarCaixa } from './mundo/cofreDeFerro.ts';
 import { FIGURANTES, LIMITES, LUGARES, contem, direcao, lugarPorId, pegada, type LugarId } from './mundo/planta.ts';
 import { Voz } from './som/voz.ts';
-import { MISSAO, NARRADOR, QUEM_FICOU, narrar, narrarGancho } from './nucleo/narracao.ts';
+import { MISSAO, MISSAO_DO_VILAO, NARRADOR, QUEM_FICOU, narrar, narrarGancho } from './nucleo/narracao.ts';
+import { modeloDaPeca, modeloDoVestigio } from './mundo/armadilha.ts';
+import { NOME_DA_PECA, achadoDisponivel } from './nucleo/vilao.ts';
 import { pontoDaHora, pontosDoLugar, type Ponto } from './mundo/pontos.ts';
 import { plantaSvg } from './mundo/plantaSvg.ts';
 import { Som } from './som/som.ts';
@@ -71,7 +73,7 @@ declare global {
       /** O ponto de interesse que vale agora num lugar. null: lugar fechado ou ja investigado nesta hora. */
       ponto: (lugar: LugarId) => Ponto | null;
       /** As coisas da noite, com o lugar de ficar de pe para pegar cada uma (null: lugar fechado). */
-      achados: () => { id: string; tipo: string; lugar: LugarId; pego: boolean; pe: [number, number] | null }[];
+      achados: () => { id: string; tipo: string; lugar: LugarId; pego: boolean; pe: [number, number] | null; em: [number, number, number] | null; aVista: boolean }[];
       /** Os NPCs que estao de pe na cidade agora, e onde. */
       gente: () => { id: string; lugar: LugarId; x: number; z: number }[];
       /** As guias que estao na tela agora (texto de cada uma). */
@@ -252,12 +254,14 @@ function atualizarMarcas(t: number): void {
 }
 
 // As coisas da noite: objetos pequenos em cima dos moveis, cada um com um reflexo frio para chamar o olho.
-const NOME_DO_ACHADO: Record<Achado['tipo'], string> = { querosene: 'pegar o querosene', bilhete: 'ler o bilhete', atadura: 'pegar a atadura', tonico: 'pegar o tônico', prova: 'examinar a prova', encomenda: 'pegar a caixa' };
+const NOME_DO_ACHADO: Record<Achado['tipo'], string> = { querosene: 'pegar o querosene', bilhete: 'ler o bilhete', atadura: 'pegar a atadura', tonico: 'pegar o tônico', prova: 'examinar a prova', encomenda: 'pegar a caixa', vestigio: 'examinar o vestígio', peca: 'pegar a peça' };
 const materialDoReflexo = new THREE.SpriteMaterial({ map: materialDaMarca.map, color: 0xbfd8ff, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.8 });
 const objetos = new Map<string, THREE.Group>();
 
-function modeloDoAchado(tipo: Achado['tipo']): THREE.Group {
-  const g = new THREE.Group();
+function modeloDoAchado(achado: Achado): THREE.Group {
+  const tipo = achado.tipo;
+  // Os vestigios da fantasia e as pecas da armadilha tem modelo proprio (src/mundo/armadilha.ts).
+  const g = tipo === 'vestigio' ? modeloDoVestigio(EXEMPLO.disfarce.tracos.find((t) => t.id === achado.traco)?.objeto ?? 'retalho', achado.traco) : tipo === 'peca' ? modeloDaPeca(achado.peca ?? 'corda') : new THREE.Group();
   const peca = (geo: THREE.BufferGeometry, cor: number, x: number, y: number, z: number, metal = 0) => {
     const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: cor, roughness: metal ? 0.45 : 0.9, metalness: metal }));
     m.position.set(x, y, z);
@@ -280,6 +284,8 @@ function modeloDoAchado(tipo: Achado['tipo']): THREE.Group {
   } else if (tipo === 'encomenda') {
     // A caixa do favor, amarrada com fita.
     g.add(criarCaixa());
+  } else if (tipo === 'vestigio' || tipo === 'peca') {
+    // Ja montado acima.
   } else if (tipo === 'atadura') {
     // Rolo de pano deitado, com a ponta solta.
     peca(new THREE.CylinderGeometry(0.045, 0.045, 0.08, 12), 0xf1ede2, 0, 0.045, 0).rotation.x = Math.PI / 2;
@@ -308,15 +314,16 @@ function atualizarAchados(t: number): void {
   let melhor = Infinity;
   partida.estado.achados.forEach((a, i) => {
     // O id repete de uma noite para a outra: o tipo vai junto para o modelo nao trocar de forma.
-    const chave = `${a.tipo}:${a.id}`;
-    const vaga = a.pego ? null : vagaDoAchado(a);
+    const chave = `${a.tipo}:${a.id}:${a.traco ?? a.peca ?? ''}`;
+    // As pecas da armadilha so aparecem no ato 3.
+    const vaga = achadoDisponivel(partida.estado, a) ? vagaDoAchado(a) : null;
     let objeto = objetos.get(chave);
     if (!vaga) {
       if (objeto) objeto.visible = false;
       return;
     }
     if (!objeto) {
-      objeto = modeloDoAchado(a.tipo);
+      objeto = modeloDoAchado(a);
       objetos.set(chave, objeto);
       cena.add(objeto);
     }
@@ -336,10 +343,12 @@ function atualizarAchados(t: number): void {
 
   // Um aviso so para as tres coisas: pegar vem antes de investigar, e investigar antes de conversar.
   const pegavel = aoAlcance as Achado | null;
-  const texto = pegavel ? NOME_DO_ACHADO[pegavel.tipo] : alvo ? 'investigar' : palco.cofreAoAlcance ? 'mexer no cofre' : interlocutor && partida.podeEntregarA(interlocutor.id) ? `entregar a caixa a ${interlocutor.nome}` : interlocutor ? `falar com ${interlocutor.nome}${podeMostrarA(interlocutor.id) ? ' <kbd>V</kbd>mostrar a carta' : ''}` : '';
+  // No poco da praca: montar a armadilha (E), acusar (K) ou puxar a corda (L).
+  const poco = pegavel || alvo ? null : partida.noPoco();
+  const texto = pegavel ? (pegavel.tipo === 'peca' && pegavel.peca ? `pegar ${NOME_DA_PECA[pegavel.peca]}` : NOME_DO_ACHADO[pegavel.tipo]) : poco ? poco.texto : alvo ? 'investigar' : palco.cofreAoAlcance ? 'mexer no cofre' : interlocutor && partida.podeEntregarA(interlocutor.id) ? `entregar a caixa a ${interlocutor.nome}` : interlocutor ? `falar com ${interlocutor.nome}${podeMostrarA(interlocutor.id) ? ' <kbd>V</kbd>mostrar a carta' : ''}` : '';
   if (texto !== textoDoAgir) {
     textoDoAgir = texto;
-    if (texto) elAgir.innerHTML = `<kbd>E</kbd>${texto}`;
+    if (texto) elAgir.innerHTML = `<kbd>${poco?.tecla ?? 'E'}</kbd>${texto}`;
     elAgir.style.opacity = texto ? '1' : '0';
   }
 }
@@ -572,6 +581,9 @@ rede.aoAviso = (aviso) => {
           disco: (disco, passo) => rede.enviar({ t: 'disco', disco, passo }),
           alavanca: () => rede.enviar({ t: 'alavanca' }),
           entregar: () => rede.enviar({ t: 'entregar' }),
+          montar: () => rede.enviar({ t: 'montar' }),
+          acusar: (npc) => rede.enviar({ t: 'acusar', npc }),
+          puxar: () => rede.enviar({ t: 'puxar' }),
           virar: () => rede.enviar({ t: 'virar' }),
           outra: () => rede.enviar({ t: 'outra' }),
         });
@@ -781,6 +793,7 @@ document.addEventListener('keydown', (e) => {
   else if (e.code === 'KeyG') guiasLigadas = !guiasLigadas;
   else if (e.code === 'KeyE' && aoAlcance) partida.pegar(aoAlcance.id);
   else if (e.code === 'KeyE' && alvo) partida.investigar(alvo.lugar);
+  else if (e.code === 'KeyE' && !e.repeat && partida.noPoco()?.tecla === 'E') partida.montarArmadilha();
   else if (e.code === 'KeyE' && palco.cofreAoAlcance && !e.repeat) partida.mexerNoCofre();
   else if (e.code === 'KeyE' && interlocutor && !e.repeat && partida.podeEntregarA(interlocutor.id)) partida.entregarA(interlocutor.id);
   else if (e.code === 'KeyE' && interlocutor && !e.repeat) falarCom(interlocutor.id);
@@ -858,7 +871,12 @@ window.__depurar = {
   vulto: () => ({ ativo: vulto.ativo, x: vulto.grupo.position.x, z: vulto.grupo.position.z }),
   gente: () => presentes.map((p) => ({ id: p.id, lugar: p.lugar, x: p.x, z: p.z })),
   guias: () => [...guias.values()].filter((g) => g.el.style.display === 'block').map((g) => g.el.textContent ?? ''),
-  achados: () => partida.estado.achados.map((a) => ({ id: a.id, tipo: a.tipo, lugar: a.lugar, pego: a.pego, pe: vagaDoAchado(a)?.pe ?? null })),
+  achados: () =>
+    partida.estado.achados.map((a) => {
+      const vaga = vagaDoAchado(a);
+      // `em` e onde a coisa esta pousada, e `aVista` diz se ela esta no mundo agora (as pecas da armadilha so no ato 3).
+      return { id: a.id, tipo: a.tipo, lugar: a.lugar, pego: a.pego, pe: vaga?.pe ?? null, em: vaga ? [vaga.x, vaga.y - 0.32, vaga.z] : null, aVista: !!vaga && achadoDisponivel(partida.estado, a) };
+    }),
   olhar: (giro, inclinacao) => {
     jogador.giro = giro;
     jogador.inclinacao = inclinacao;
@@ -1004,6 +1022,8 @@ function planosDaNoite(): Plano[] {
     const [de, ate] = passos[i % passos.length]!;
     planos.push({ titulo: trecho.titulo, texto: trecho.texto, fala: [narrar(trecho)], de, ate });
   });
+  // Por ultimo, nas noites com vilao: a Coisa pode ser gente, e a praca do poco e onde se arma o laço.
+  if (e.vilao) planos.push({ titulo: MISSAO_DO_VILAO.titulo, texto: MISSAO_DO_VILAO.texto, fala: [narrar(MISSAO_DO_VILAO)], de: [0, OLHOS, 26, SUL, 0.02], ate: [0, OLHOS, 33, SUL, 0.0] });
   return planos;
 }
 
@@ -1090,7 +1110,8 @@ function atualizarGente(t: number): void {
     // De preferencia longe do cofre e das tabuas, se sobrar onde ficar.
     const longe = casa ? semCoisa.filter((p) => !palco.ocupados(casa).includes(p)) : [];
     const livres = longe.length ? longe : semCoisa;
-    if (!casa || !partida.estado.elenco.includes(npc.id) || livres.length === 0 || partida.estado.fim) {
+    // Quem foi desmascarado esta amarrado na praca (o palco desenha), nao em casa.
+    if (!casa || !partida.estado.elenco.includes(npc.id) || livres.length === 0 || partida.estado.fim || partida.estado.desmascarado?.npc === npc.id) {
       if (pessoa) pessoa.visible = false;
       return;
     }
@@ -1242,6 +1263,8 @@ function quadro(): void {
     camera.getWorldDirection(olhar);
     segredos.atualizar(dt, partida.dentro === null && olhar.dot(direcaoDaLua) > 0.992);
   }
+  // Sem mascara nao ha vulto: a Coisa esta amarrada na praca, desenhada pelo palco.
+  if (partida.estado.desmascarado && vulto.ativo) vulto.sumir();
   vulto.atualizar(dt, camera);
   // Janelas e chamas apagam junto com as luzes (sobra um resto de brasa).
   brilhoGeral(0.06 + 0.94 * fx.luzes);

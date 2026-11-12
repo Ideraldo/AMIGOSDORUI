@@ -54,6 +54,12 @@ export type Intencao =
   | { t: 'alavanca' }
   /** Entrega a caixa do favor ao dono. */
   | { t: 'entregar' }
+  /** Poe no poco da praca as pecas da armadilha que carrega. So na rua, no ato 3. */
+  | { t: 'montar' }
+  /** Diz quem acha que e a Coisa. Pode trocar ate alguem puxar a corda. */
+  | { t: 'acusar'; npc: string }
+  /** Puxa a corda da armadilha. So pega se a Coisa estiver perto do poco, pelo relogio do servidor. */
+  | { t: 'puxar' }
   /** So o dono: passa a hora sem esperar o relogio. */
   | { t: 'virar' }
   /** So o dono, depois do fim: outra noite com o mesmo grupo. */

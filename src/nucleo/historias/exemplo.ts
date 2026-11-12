@@ -43,6 +43,12 @@ export const EXEMPLO: Biblioteca = {
         ],
         confessa: 'Fui eu que escrevi. Cansei de abrir cova para gente que eu conhecia. Agora escute, que eu só digo uma vez.',
         nega: 'Carta? Não é minha. E não me mostre papel de gente desesperada, que dá azar.',
+        desconfia: 'E digo mais. Aquilo não é alma penada. Alma não deixa rastro, e aquilo deixa. Olhe o que eu reparei.',
+      },
+      disfarce: {
+        tracos: ['barro-vermelho', 'formol', 'estopa'],
+        pego: 'Trinta anos cavando para os outros. Com a cidade vazia, a terra toda ia ser minha, e a ferrovia ia pagar por ela.',
+        motivo: 'Seu Honório soube que a ferrovia ia abrir um ramal pelo vale e pagar por cada lote. Com a cidade vazia de medo, as terras iam a leilão pela dívida velha, e ele, que conhecia cada herdeiro morto, arrematava tudo por nada. Desceu a rua amarrado e foi no trem da manhã.',
       },
       falas: [
         { texto: 'Gente de fora, a esta hora. Cova eu tenho pronta, cama é que não.', atos: [1] },
@@ -74,6 +80,12 @@ export const EXEMPLO: Biblioteca = {
         ],
         confessa: 'Fui eu. Uma senhora não assina pedido de socorro, mas escreve. Sente, que eu conto o que sei.',
         nega: 'Essa letra horrorosa não é minha. Guarde isso e tenha modos.',
+        desconfia: 'E há outra coisa. Aquilo lá fora é gente, e gente daqui. Eu reparei num detalhe, veja.',
+      },
+      disfarce: {
+        tracos: ['barro-vermelho', 'licor', 'casimira'],
+        pego: 'A dívida era do meu marido, e iam me tirar a casa. Uma cidade vazia não cobra de ninguém.',
+        motivo: 'Dona Carlota herdou do marido a dívida com o banco. Soube que a ferrovia ia pagar pelas terras do vale e quis a cidade vazia antes do leilão, para comprar de volta o que era dela e o que não era. Entregou as garras de arame sem levantar a voz.',
       },
       falas: [
         { texto: 'Visita. Faz tempo que esta casa não recebe. Limpe os pés.', atos: [1] },
@@ -103,6 +115,12 @@ export const EXEMPLO: Biblioteca = {
         ],
         confessa: 'Fui eu. Xerife que pede ajuda perde o respeito, por isso não assinei. Preste atenção no que eu descobri.',
         nega: 'Não escrevi isso. E quem acusa errado, aqui, perde a minha paciência.',
+        desconfia: 'Tem mais. Assombração não foge de espingarda, e aquilo fugiu. É gente fantasiada. Veja o que eu notei.',
+      },
+      disfarce: {
+        tracos: ['tachas-de-latao', 'canhota', 'casimira'],
+        pego: 'Eu li o papel da companhia antes de todo mundo. Quem tivesse as terras quando o ramal chegasse ficava rico. Era só esvaziar a cidade.',
+        motivo: 'O Xerife Brandão leu primeiro o aviso da companhia: um ramal pelo vale, pago lote por lote. Guardou o papel na gaveta da cadeia e passou a sair de noite, fantasiado, para que o leilão da dívida da cidade não tivesse outro comprador. Foi no trem da manhã, trancado no vagão de carga.',
       },
       falas: [
         { texto: 'Forasteiro em noite ruim. Fique onde eu possa ver.', atos: [1] },
@@ -132,6 +150,12 @@ export const EXEMPLO: Biblioteca = {
         ],
         confessa: 'Fui eu, e caprichei na letra para alguém conseguir ler. Ainda bem que vieram. Ouça o que eu observei.',
         nega: 'Não é minha letra. E lá se foi a única pergunta que você tinha.',
+        desconfia: 'E mais uma observação. Aquilo respira, e o que respira é gente. Anotei um detalhe, repare.',
+      },
+      disfarce: {
+        tracos: ['tachas-de-latao', 'formol', 'linho'],
+        pego: 'Fiz as contas. O ramal da ferrovia passa bem em cima destas casas. Gente assustada vende barato, e eu ia comprar.',
+        motivo: 'O Dr. Amâncio fez as contas quando soube do ramal da ferrovia: terra de cidade assombrada vai a leilão por um décimo do preço, e a dívida velha da cidade fazia o resto. O frio dos cortes era éter da botica. Embarcou algemado, ainda explicando que não era nada pessoal.',
       },
       falas: [
         { texto: 'Se veio por remédio, tenho pouco. Se veio por explicação, tenho menos.', atos: [1] },
@@ -163,6 +187,12 @@ export const EXEMPLO: Biblioteca = {
         ],
         confessa: 'Fui eu. A professora ajudou com as palavras difíceis, antes de ir embora. Eu sei um segredo, quer ouvir?',
         nega: 'Não fui eu. Eu nem sei escrever tudo isso.',
+        desconfia: 'E tem outro segredo. Aquilo tem sapato. Fantasma não tem sapato. Eu vi uma coisa, olha.',
+      },
+      disfarce: {
+        tracos: ['po-de-giz', 'canhota', 'estopa'],
+        pego: 'A professora disse que, se todo mundo fosse embora, a cidade ficava para a gente. Ela fez a roupa. Eu só andava.',
+        motivo: 'Lia andava em pernas de pau, dentro da fantasia que a professora costurou antes de ir embora. A professora tinha comprado a dívida da cidade e esperava, na cidade vizinha, o leilão das terras por onde a ferrovia vai passar. A menina subiu no trem de mão dada com a turma de socorro e contou tudo no caminho.',
       },
       falas: [
         { texto: 'A professora foi embora e não levou a chave. Agora a escola é minha.', atos: [1] },
@@ -192,6 +222,12 @@ export const EXEMPLO: Biblioteca = {
         ],
         confessa: 'Fui eu. Escrevi no balcão, com a mão tremendo. Chegue mais perto, que isto não é para falar alto.',
         nega: 'Minha não é. Guarde esse papel antes que alguém veja.',
+        desconfia: 'E outra. Aquilo é gente, eu aposto o bar. Reparei numa coisa, escute.',
+      },
+      disfarce: {
+        tracos: ['po-de-giz', 'licor', 'linho'],
+        pego: 'Bar sem freguês não paga dívida. A ferrovia ia pagar pelas terras, e eu só precisava ser o último morador.',
+        motivo: 'Tião ouviu no balcão, de um agrimensor bêbado, que a ferrovia ia cortar o vale e pagar por cada lote. Devendo ao banco como a cidade inteira, resolveu ser o último morador e arrematar o resto no leilão. As garras eram de arame de garrafa. Saiu no trem da manhã sem pedir a saideira.',
       },
       falas: [
         { texto: 'Bar aberto, freguês nenhum. Hoje a casa paga, que amanhã não sei.', atos: [1] },
@@ -206,6 +242,28 @@ export const EXEMPLO: Biblioteca = {
       ],
     },
   ],
+
+  // A Coisa e gente fantasiada. O motivo de fundo e um so para a historia toda: a ferrovia vai abrir
+  // um ramal pelo vale e pagar por cada lote, a cidade deve ao banco desde a seca, e terra de cidade
+  // vazia vai a leilao por quase nada. Quem espantasse os vizinhos arrematava tudo.
+  // Cada traco e de dois NPCs e cada NPC tem um traco de cada objeto: so os tres juntos dao um nome.
+  disfarce: {
+    solto: 'Ninguém viu o rosto da Coisa. Meses depois a ferrovia abriu um ramal pelo vale e pagou em ouro por cada lote, e todas as escrituras da cidade vazia tinham o mesmo dono. O nome está no cartório, para quem tiver coragem de voltar e ler.',
+    tracos: [
+      // A bota, pregada numa perna de pau: o que ficou na sola.
+      { id: 'barro-vermelho', objeto: 'bota', sinal: 'barro vermelho na barra da roupa', achado: 'Uma bota de cano alto pregada numa perna de pau. É assim que a Coisa fica tão alta. A sola está grossa de barro vermelho, do que só existe no chão do cemitério.', dica: 'Onde aquilo pisa fica barro vermelho, do que só tem no cemitério.' },
+      { id: 'tachas-de-latao', objeto: 'bota', sinal: 'botas novas, de tachas de latão', achado: 'Uma bota de cano alto pregada numa perna de pau. É assim que a Coisa fica tão alta. A sola é nova, cravada de tachas de latão, coisa cara, de encomenda.', dica: 'A pegada daquilo tem tachas de latão. É bota cara, de encomenda.' },
+      { id: 'po-de-giz', objeto: 'bota', sinal: 'pó de giz nos dedos e na roupa', achado: 'Uma bota velha pregada numa perna de pau. É assim que a Coisa fica tão alta. A sola está branca de pó de giz e deixa um risco claro onde encosta.', dica: 'Onde aquilo pisa fica um risco branco, de pó de giz.' },
+      // A luva, com garras de arame.
+      { id: 'formol', objeto: 'luva', sinal: 'cheiro de formol', achado: 'Uma luva comprida de couro, com garras de arame costuradas nas pontas dos dedos. Cheira a formol, forte, de arder o nariz.', dica: 'Quando aquilo passa, fica no ar um cheiro de formol.' },
+      { id: 'canhota', objeto: 'luva', sinal: 'faz tudo com a mão esquerda', achado: 'Um par de luvas de couro com garras de arame. A da mão direita está quase nova. A da esquerda está gasta e rasgada: quem veste isto é canhoto.', dica: 'Aquilo arranha as portas com a mão esquerda. Sempre a esquerda.' },
+      { id: 'licor', objeto: 'luva', sinal: 'cheiro doce de licor de jenipapo', achado: 'Uma luva comprida de couro, com garras de arame costuradas nas pontas dos dedos. Está manchada e cheira a licor de jenipapo, doce e enjoado.', dica: 'Quando aquilo passa, fica um cheiro doce, de licor de jenipapo.' },
+      // O retalho da capa.
+      { id: 'estopa', objeto: 'retalho', sinal: 'roupa remendada com estopa de saco', achado: 'Um retalho da capa preta, rasgado num prego. Por dentro, o pano foi remendado com estopa de saco, em ponto grosso.', dica: 'A capa daquilo tem remendo de estopa de saco.' },
+      { id: 'casimira', objeto: 'retalho', sinal: 'roupa preta de casimira fina', achado: 'Um retalho da capa preta, rasgado num prego. É casimira fina, de luto ou de paletó de domingo, pano que pouca gente aqui pode comprar.', dica: 'O pano daquilo é casimira preta, da boa. Não é trapo.' },
+      { id: 'linho', objeto: 'retalho', sinal: 'avental de linho branco', achado: 'Um retalho da capa preta, rasgado num prego. O forro é de linho branco, de avental, com a bainha feita à máquina.', dica: 'Por baixo do preto daquilo aparece linho branco, de avental.' },
+    ],
+  },
 
   pistas: [
     { id: 'sino', texto: 'Os arranhões param no batente onde há um terço. O que é bento, ela não toca.' },

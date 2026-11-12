@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { Sala } from '../servidor/sala.ts';
 import { EXEMPLO } from '../src/nucleo/historias/exemplo.ts';
 import { cenaDe, escolhasDisponiveis } from '../src/nucleo/partida.ts';
-import { RODADAS, SEGUNDOS_POR_RODADA } from '../src/nucleo/tipos.ts';
+import { RODADAS, SEGUNDOS_POR_RODADA, type Estado } from '../src/nucleo/tipos.ts';
 import { GESTOS, OPCOES, limparPose } from '../src/rede/aparencia.ts';
 import { MAXIMO_DE_JOGADORES, SEGUNDOS_DE_VOTO } from '../src/rede/protocolo.ts';
 
@@ -220,4 +220,68 @@ test('a posicao que o servidor repassa: numero estragado derruba, gesto desconhe
   assert.equal(limparPose({ x: '1', y: 0, z: 2, giro: 0 }), null);
   for (const g of GESTOS) assert.equal(limparPose({ x: 0, y: 0, z: 0, giro: 0, gesto: g })!.gesto, g);
   assert.ok(GESTOS.filter((g) => g === 'sapateado' || g === 'quadrilha').length === 2, 'faltou danca');
+});
+
+test('a armadilha pela sala: o servidor confere hora, lugar, cena e nome, e usa o proprio relogio para a Coisa', () => {
+  const { sala, ids } = salaComecada(2, 5);
+  const [a, b] = ids as [string, string];
+  const vilao = sala.estado!.vilao;
+  assert.ok(vilao, 'a semente 5 deixou de ter vilao');
+  // Cedo demais: a peca nao se pega nem se monta, e lixo nao derruba nem muda nada.
+  const corda = sala.estado!.achados.find((x) => x.peca === 'corda')!;
+  sala.receber(a, { t: 'chegar', lugar: corda.lugar });
+  sala.receber(a, { t: 'pegar', id: corda.id });
+  assert.ok(!sala.estado!.achados.find((x) => x.id === corda.id)!.pego);
+  sala.receber(a, { t: 'sair' });
+  let antes = sala.estado!;
+  sala.receber(a, { t: 'montar' });
+  sala.receber(a, { t: 'puxar' });
+  sala.receber(a, { t: 'acusar', npc: 42 } as never);
+  sala.receber(a, { t: 'acusar', npc: 'ninguem' });
+  sala.receber(a, { t: 'acusar' } as never);
+  assert.equal(sala.estado, antes);
+  // Vira ate o ato 3. Quem morrer pelo caminho volta, que o teste e da armadilha.
+  while (sala.estado!.rodada < 6) sala.receber(a, { t: 'virar' });
+  for (const p of sala.estado!.personagens) Object.assign(p, { vivo: true, ferimento: 0, medo: 0 });
+  for (const peca of ['corda', 'sino', 'lampiao']) {
+    const achado = sala.estado!.achados.find((x) => x.peca === peca)!;
+    sala.receber(a, { t: 'chegar', lugar: achado.lugar });
+    sala.receber(a, { t: 'pegar', id: achado.id });
+    // De dentro do lugar nao se monta.
+    antes = sala.estado!;
+    sala.receber(a, { t: 'montar' });
+    assert.equal(sala.estado, antes);
+    sala.receber(a, { t: 'sair' });
+  }
+  sala.receber(b, { t: 'montar' });
+  assert.deepEqual(sala.estado!.armadilha!.montadas, [], 'montou quem nao carregava nada');
+  sala.receber(a, { t: 'montar' });
+  assert.equal(sala.estado!.armadilha!.montadas.length, 3);
+  assert.equal(sala.estado!.armadilha!.armadaEm!.restante, sala.restante);
+  sala.receber(a, { t: 'acusar', npc: vilao });
+  sala.receber(b, { t: 'acusar', npc: vilao });
+  // A Coisa ainda vem pela rua: puxar agora nao pega nada. O tempo da sala passa e ela chega.
+  sala.receber(b, { t: 'puxar' });
+  assert.equal(sala.estado!.desmascarado, null);
+  sala.avancar(60);
+  sala.receber(b, { t: 'puxar' });
+  const pego = (sala.estado as Estado).desmascarado;
+  assert.deepEqual({ npc: pego?.npc, por: pego?.por }, { npc: vilao, por: b });
+  // Dai ate o fim ninguem mais e atacado.
+  while (!sala.estado!.fim) sala.receber(a, { t: 'virar' });
+  assert.ok(sala.estado!.fim!.vilao.desmascarado);
+  assert.ok(sala.estado!.personagens.every((p) => p.vivo));
+});
+
+test('quem sai da sala levando peca da armadilha larga a peca', () => {
+  const { sala, ids } = salaComecada(2, 5);
+  const [a] = ids as [string, string];
+  while (sala.estado!.rodada < 6) sala.receber(a, { t: 'virar' });
+  for (const p of sala.estado!.personagens) Object.assign(p, { vivo: true, ferimento: 0, medo: 0 });
+  const sino = sala.estado!.achados.find((x) => x.peca === 'sino')!;
+  sala.receber(a, { t: 'chegar', lugar: sino.lugar });
+  sala.receber(a, { t: 'pegar', id: sino.id });
+  assert.equal(sala.estado!.achados.find((x) => x.id === sino.id)!.pegoPor, a);
+  sala.sair(a);
+  assert.ok(!sala.estado!.achados.find((x) => x.id === sino.id)!.pego);
 });

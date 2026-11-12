@@ -291,8 +291,10 @@ function ateOUltimoSino(inicio: Estado, ficar: (e: Estado) => Estado): Estado {
 
 test('os objetivos acompanham a noite: a carta, entender e ver o sol nascer', () => {
   const e = novaPartida(EXEMPLO, 11, [{ id: 'a', nome: 'A' }], { regra: 'chao-consagrado' });
-  const [carta, entender, amanhecer] = objetivos(e, EXEMPLO, 'a');
-  assert.equal(carta!.id, 'carta');
+  const lista = objetivos(e, EXEMPLO, 'a');
+  // A Coisa vem logo depois da carta.
+  assert.deepEqual(lista.map((o) => o.id), ['carta', 'vilao', 'entender', 'amanhecer']);
+  const [carta, , entender, amanhecer] = lista;
   assert.ok(!carta!.feito && !entender!.feito && !amanhecer!.feito);
   assert.ok(carta!.texto.includes('0 de 3'));
   assert.ok(!amanhecer!.texto.includes('Igreja'), 'o objetivo entregou a regra antes da hora');
@@ -301,8 +303,8 @@ test('os objetivos acompanham a noite: a carta, entender e ver o sol nascer', ()
   const regra = regraDe(e, EXEMPLO);
   const sabendo = { ...e, pistas: regra.pistas.slice(0, 2) };
   const depois = objetivos(sabendo, EXEMPLO, 'a');
-  assert.ok(depois[1]!.feito);
-  assert.ok(depois[2]!.texto.includes('Abrigo para quando o sino bater'));
+  assert.ok(depois.find((o) => o.id === 'entender')!.feito);
+  assert.ok(depois.at(-1)!.texto.includes('Abrigo para quando o sino bater'));
   assert.ok(!comoEscapar(regra, ['cemiterio', 'bar']).startsWith('Abrigo para quando o sino bater: Igreja'));
   assert.ok(comoEscapar(regra, ['cemiterio', 'bar']).includes('Igreja: de porta fechada'));
   assert.ok(comoEscapar(regra).includes('Igreja') && comoEscapar(regra).includes('Cemitério'));
@@ -345,7 +347,7 @@ test('a noite espalha as coisas pelos lugares abertos, sempre do mesmo jeito par
     assert.ok(e.achados.every((a) => e.abertos.includes(a.lugar) && !a.pego));
     assert.equal(new Set(e.achados.map((a) => a.id)).size, e.achados.length);
     // Com nove lugares abertos, cada coisa fica num lugar diferente (as provas e a caixa do favor tem a propria conta).
-    const coisas = e.achados.filter((a) => a.tipo !== 'prova' && a.tipo !== 'encomenda');
+    const coisas = e.achados.filter((a) => a.tipo !== 'prova' && a.tipo !== 'encomenda' && a.tipo !== 'vestigio' && a.tipo !== 'peca');
     assert.equal(new Set(coisas.map((a) => a.lugar)).size, coisas.length);
     const bilhete = e.achados.find((a) => a.tipo === 'bilhete')!;
     assert.ok(regraDe(e, EXEMPLO).pistas.includes(bilhete.pista!), 'o bilhete traz pista de outra regra');
@@ -359,14 +361,15 @@ test('pegar: o bilhete da a pista ao grupo, atadura e tonico vao para a bolsa, e
   assert.ok(!inicio.achados.find((a) => a.id === bilhete.id)!.pego, 'pegar alterou o estado recebido');
   assert.deepEqual(comBilhete.pistas, [bilhete.pista]);
   assert.ok(comBilhete.diario.some((r) => r.tipo === 'pista'));
-  assert.ok(objetivos(comBilhete, EXEMPLO, 'a')[1]!.texto.includes('1 de 2'));
+  assert.ok(objetivos(comBilhete, EXEMPLO, 'a').find((o) => o.id === 'entender')!.texto.includes('1 de 2'));
   assert.equal(pegar(comBilhete, EXEMPLO, 'a', bilhete.id), comBilhete, 'pegou o mesmo bilhete duas vezes');
   assert.equal(pegar(inicio, EXEMPLO, 'a', 'nao-existe'), inicio);
 
   let e = comBilhete;
   for (const a of inicio.achados.filter((x) => x.tipo !== 'bilhete')) e = pegar(e, EXEMPLO, 'a', a.id);
   assert.deepEqual(e.personagens[0]!.bolsa, { atadura: ACHADOS_POR_NOITE.atadura, tonico: ACHADOS_POR_NOITE.tonico });
-  assert.ok(e.achados.every((a) => a.pego));
+  // As pecas da armadilha so se pegam no ato 3 (ver test/vilao.test.ts).
+  assert.ok(e.achados.every((a) => a.pego || a.tipo === 'peca'));
 });
 
 test('usar: a atadura tira um ferimento, o tonico tira medo, e nada se gasta a toa', () => {

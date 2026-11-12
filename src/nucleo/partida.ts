@@ -8,7 +8,9 @@
 
 import { LUGARES, LUGARES_ABERTOS_POR_NOITE, type LugarId } from '../mundo/planta.ts';
 import { validarGestos } from './gestos.ts';
+import { ondeProcurar } from './indicacoes.ts';
 import { prepararMissoes, validarPedidos } from './missoes.ts';
+import { achadoDisponivel, prepararVilao, tarefasDoVilao, validarDisfarces } from './vilao.ts';
 import { embaralhar, escolher as sortear, ponderado, proximo, type ComRng } from './rng.ts';
 import {
   ACHADOS_POR_NOITE,
@@ -77,6 +79,9 @@ export function novaPartida(bib: Biblioteca, semente: number, jogadores: readonl
     carta: { autor: '', suspeitos: [], mostradas: [] },
     cofre: null,
     favor: null,
+    vilao: '',
+    armadilha: null,
+    desmascarado: null,
     diario: [],
     fim: null,
   };
@@ -112,6 +117,7 @@ export function novaPartida(bib: Biblioteca, semente: number, jogadores: readonl
   e.achados = espalharAchados(e, regra);
   prepararCarta(e, bib);
   prepararMissoes(e, bib);
+  prepararVilao(e, bib);
   e.diario.push({ rodada: 1, tipo: 'gancho', texto: `${gancho.titulo}. ${gancho.texto}` });
   return e;
 }
@@ -269,16 +275,19 @@ export function mostrarCarta(estado: Estado, bib: Biblioteca, quem: string, npc:
   return e;
 }
 
-/** A parte de cada um nesta noite: as provas que lhe cabem buscar e a carta para mostrar. */
-export function tarefas(e: Estado, bib: Biblioteca, quem: string): Tarefa[] {
+/**
+ * A parte de cada um nesta noite: as provas e os vestigios que lhe cabem buscar e a carta para mostrar.
+ * A tela so da o endereco dos lugares em que o jogador ja esteve (`sabidos`). Dos outros, uma indicacao vaga.
+ */
+export function tarefas(e: Estado, bib: Biblioteca, quem: string, sabidos: readonly LugarId[] = []): Tarefa[] {
   if (e.carta.autor === '') return [];
   const lista: Tarefa[] = e.achados
     .filter((a) => a.tipo === 'prova' && a.dono === quem)
     .map((a) => {
-      const lugar = LUGARES.find((l) => l.id === a.lugar)!.nome;
       const por = a.pego && a.pegoPor !== quem ? ` (${e.personagens.find((p) => p.id === a.pegoPor)?.nome ?? 'outro'} achou)` : '';
-      return { texto: `Buscar uma prova: ${lugar}${por}`, feita: a.pego };
+      return { texto: `Buscar uma prova: ${ondeProcurar(a.lugar, sabidos)}${por}`, feita: a.pego };
     });
+  lista.push(...tarefasDoVilao(e, quem, sabidos));
   const minhas = e.carta.mostradas.filter((m) => m.quem === quem);
   const restam = chancesRestantes(e, quem);
   const faltam = provasQueFaltam(e);
@@ -301,7 +310,7 @@ export function tarefas(e: Estado, bib: Biblioteca, quem: string): Tarefa[] {
  */
 export function pegar(estado: Estado, bib: Biblioteca, quem: string, id: string): Estado {
   const alvo = estado.achados.find((a) => a.id === id);
-  if (estado.fim || !alvo || alvo.pego || !personagem(estado, quem).vivo) return estado;
+  if (estado.fim || !alvo || !achadoDisponivel(estado, alvo) || !personagem(estado, quem).vivo) return estado;
   const e = copiar(estado);
   const achado = e.achados.find((a) => a.id === id)!;
   const p = personagem(e, quem);
@@ -678,6 +687,17 @@ export function objetivos(e: Estado, bib: Biblioteca, quem: string): Objetivo[] 
       falhou: semChance,
     });
   }
+  if (e.vilao) {
+    const vestigios = e.achados.filter((a) => a.tipo === 'vestigio');
+    lista.push({
+      id: 'vilao',
+      texto: e.desmascarado
+        ? `Descobrir quem é a Coisa e desmascarar: ${achar(bib.npcs, e.desmascarado.npc, 'npc').nome}`
+        : `Descobrir quem é a Coisa e desmascarar (vestígios do grupo: ${vestigios.filter((a) => a.pego).length} de ${vestigios.length})`,
+      feito: !!e.desmascarado,
+      falhou: !e.desmascarado && (!!e.armadilha?.perdida || e.personagens.every((o) => !o.vivo)),
+    });
+  }
   return [
     ...lista,
     {
@@ -695,6 +715,11 @@ export function objetivos(e: Estado, bib: Biblioteca, quem: string): Objetivo[] 
   ];
 }
 
+/** Se nao sobrou ninguem vivo, a noite acaba ali mesmo. Para as regras de fora deste arquivo. */
+export function encerrarSeAcabou(e: Estado, bib: Biblioteca): void {
+  if (!e.fim && e.personagens.every((p) => !p.vivo)) encerrar(e, bib);
+}
+
 function encerrar(e: Estado, bib: Biblioteca): void {
   const regra = regraDe(e, bib);
   const descobriu = descobriuARegra(e, bib);
@@ -705,6 +730,12 @@ function encerrar(e: Estado, bib: Biblioteca): void {
     descobriu,
     revelacao: regra.revelacao,
     carta: { autor: e.carta.autor, achou: achouOAutor(e) },
+    vilao: {
+      npc: e.vilao,
+      desmascarado: !!e.desmascarado,
+      ...(e.desmascarado ? { por: e.desmascarado.por } : {}),
+      texto: !e.vilao ? '' : e.desmascarado ? (bib.npcs.find((n) => n.id === e.vilao)?.disfarce.motivo ?? '') : bib.disfarce.solto,
+    },
     epilogos: e.personagens.map((p) => {
       const sabia = sabeARegra(e, bib, p.id);
       return { id: p.id, nome: p.nome, vivo: p.vivo, sabia, texto: texto(!p.vivo ? 'morto' : sabia ? 'vivo-sabendo' : 'vivo-sem-saber') };
@@ -730,7 +761,10 @@ export function passarRodada(estado: Estado, bib: Biblioteca): { estado: Estado;
   // sabe onde estar, quem nao entendeu depende de ter chegado inteiro ate aqui.
   const ultimoSino = e.rodada >= RODADAS;
   const sorteio = proximo(e);
-  if (ultimoSino || sorteio < chanceDeAtaque(e.rodada)) {
+  if (e.desmascarado) {
+    // Sem mascara nao ha mais Coisa: o sino bate e ninguem vem.
+    e.diario.push({ rodada: e.rodada, tipo: 'vilao', texto: 'O sino bate e ninguém vem. A fantasia ficou no chão da praça, e a rua é só uma rua.' });
+  } else if (ultimoSino || e.armadilha?.furia === e.rodada || sorteio < chanceDeAtaque(e.rodada)) {
     const vitimas = naMira(e, regra);
     if (vitimas.length === 0) {
       e.diario.push({ rodada: e.rodada, tipo: 'ameaca', texto: regra.ronda });
@@ -766,6 +800,12 @@ export function passarRodada(estado: Estado, bib: Biblioteca): { estado: Estado;
     if (comACaixa && !e.personagens.find((p) => p.id === comACaixa.pegoPor)?.vivo) {
       comACaixa.pego = false;
       delete comACaixa.pegoPor;
+    }
+    // E quem morreu levando peca da armadilha larga a peca onde a achou.
+    for (const a of e.achados) {
+      if (a.tipo !== 'peca' || !a.pego || !a.peca || e.armadilha?.montadas.includes(a.peca) || e.personagens.find((p) => p.id === a.pegoPor)?.vivo) continue;
+      a.pego = false;
+      delete a.pegoPor;
     }
     for (const p of e.personagens) {
       p.lugar = null;
@@ -853,7 +893,7 @@ export function validarBiblioteca(bib: Biblioteca): string[] {
       if (f.regras && f.para !== 'bem') erros.push(`npc ${n.id}: fala de regra precisa de para: 'bem'`);
     }
   }
-  erros.push(...validarGestos(bib), ...validarPedidos(bib));
+  erros.push(...validarGestos(bib), ...validarPedidos(bib), ...validarDisfarces(bib));
   for (const g of bib.ganchos) if ([g.titulo, g.texto, ...(g.abertura ?? [])].join('').includes('—')) erros.push(`gancho ${g.id}: texto com travessao`);
   // Toda noite precisa de cena em qualquer lugar: fragmentos sem lugar, sem regra e sem requisito.
   const coringas = bib.fragmentos.filter((f) => f.lugares === 'qualquer' && !f.regras && !f.ganchos && !f.requer);

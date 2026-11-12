@@ -968,6 +968,139 @@
       #diario li {
         margin-bottom: 4px;
       }
+      /* Tela enxuta (revisao de 11/11/2026): andando, so os medidores, a linha "Agora" e ate 3 linhas do que falta. */
+      #noite {
+        max-width: 250px;
+      }
+      #noite .falta {
+        margin-top: 10px;
+        font-size: 13px;
+        line-height: 1.45;
+        opacity: 0.85;
+      }
+      #noite .falta li {
+        margin-bottom: 3px;
+      }
+      /* O aviso do meio da tela: um por vez, com fundo, para se ler em cima de qualquer cenario. */
+      #aviso {
+        left: 50%;
+        right: auto;
+        transform: translateX(-50%);
+        max-width: min(680px, 84vw);
+        padding: 6px 16px;
+        background: rgba(6, 5, 4, 0.66);
+      }
+      /* Com legenda (alguem falando, o sino contando o que houve) ou aviso, o nome do lugar e o aviso do E saem do meio. */
+      .com-legenda #lugar,
+      .com-legenda #agir,
+      .com-aviso #lugar {
+        opacity: 0 !important;
+      }
+      /* A linha de teclas so fica no primeiro minuto. A tecla H traz de volta. */
+      #teclas {
+        max-width: calc(100vw - 40px);
+        padding: 4px 10px;
+        background: rgba(6, 5, 4, 0.5);
+        transition: opacity 0.6s;
+      }
+      .sem-teclas #teclas {
+        opacity: 0;
+      }
+      /* O painel completo, atras da tecla Tab: tudo o que saiu da tela de quem anda. */
+      #completo {
+        position: fixed;
+        inset: 0;
+        display: none;
+        padding: 5vh 6vw;
+        background: rgba(6, 5, 4, 0.9);
+        font-size: 15px;
+        line-height: 1.5;
+        overflow: hidden;
+        pointer-events: none;
+        z-index: 5;
+      }
+      #completo.aberto {
+        display: block;
+      }
+      #completo h1 {
+        margin: 0 0 3vh;
+        font-size: 26px;
+        font-weight: normal;
+        letter-spacing: 0.08em;
+      }
+      #completo h1 small {
+        margin-left: 18px;
+        font-size: 13px;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        color: var(--brasa);
+      }
+      #completo .colunas {
+        columns: 3 260px;
+        column-gap: 46px;
+      }
+      #completo section {
+        break-inside: avoid;
+        margin-bottom: 22px;
+      }
+      #completo h2 {
+        margin: 0 0 6px;
+        font-size: 13px;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--brasa);
+        font-weight: normal;
+      }
+      #completo ul {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+      #completo li {
+        margin-bottom: 4px;
+      }
+      #completo .objetivos li::before {
+        content: '';
+        display: inline-block;
+        width: 6px;
+        height: 6px;
+        margin-right: 8px;
+        border-radius: 50%;
+        background: var(--brasa);
+        vertical-align: middle;
+      }
+      #completo li.falhou,
+      #completo li.fora {
+        opacity: 0.45;
+        text-decoration: line-through;
+      }
+      #completo li small,
+      .painel .acusar small {
+        display: block;
+        font-size: 13px;
+        font-style: italic;
+        opacity: 0.8;
+        text-decoration: none;
+      }
+      #completo ul.grupo small {
+        display: inline;
+        margin-left: 8px;
+      }
+      .painel .acusar li {
+        margin-bottom: 8px;
+      }
+      .painel .acusar li.fora {
+        opacity: 0.5;
+      }
+      .painel .acusar .bate {
+        color: var(--brasa);
+        font-style: normal;
+      }
+      .em-espera #completo,
+      .em-abertura #completo,
+      .sem-hud #completo {
+        display: none !important;
+      }
       .sem-hud .painel,
       .sem-hud #diario,
       .sem-hud .hud,
@@ -992,13 +1125,14 @@
     <div class="hud" id="espera-hud"></div>
     <div class="hud" id="gestos"></div>
     <div class="hud" id="folego"><i></i></div>
-    <div class="hud" id="teclas">WASD anda · Shift corre · Espaço pula · C agacha · Z e X espiam · B gestos · P ver-se de fora · E investiga, pega e conversa · V mostra a carta · Q atadura · T tônico · F lampião · G nomes · M mapa · J diário · N passar a hora · R outra noite</div>
+    <div class="hud" id="teclas">WASD anda · Shift corre · Espaço pula · C agacha · E investiga, pega e conversa · Tab objetivos e suspeitos · V mostra a carta · K acusa · L puxa a corda · Q atadura · T tônico · F lampião · M mapa · J diário · H estas teclas</div>
     <div id="abertura">
       <div class="escuro"></div>
       <div id="abertura-plano"></div>
       <div class="como-pular"><kbd>Espaço</kbd> avança · <kbd>Enter</kbd> pula</div>
     </div>
     <div id="mapa"></div>
+    <div id="completo"></div>
     <div id="cena" class="painel"></div>
     <div id="diario"></div>
     <div id="entrada">
@@ -1062,6 +1196,14 @@
           <dd>escolher depois de investigar</dd>
           <dt>J</dt>
           <dd>diário e pistas</dd>
+          <dt>Tab</dt>
+          <dd>segure para ver objetivos, suspeitos e a armadilha</dd>
+          <dt>V</dt>
+          <dd>mostrar a carta a alguém</dd>
+          <dt>K, L</dt>
+          <dd>acusar quem é a Coisa, puxar a corda da armadilha</dd>
+          <dt>H</dt>
+          <dd>mostrar as teclas durante o jogo</dd>
           <dt>N</dt>
           <dd>passar a hora sem esperar</dd>
           <dt>R</dt>

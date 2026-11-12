@@ -21,7 +21,8 @@
     "vozes": "tsx scripts/vozes.ts",
     "sala": "tsx scripts/sala.ts",
     "abertura": "tsx scripts/abertura.ts",
-    "gestos": "tsx scripts/gestos.ts"
+    "gestos": "tsx scripts/gestos.ts",
+    "vilao": "tsx scripts/vilao.ts"
   },
   "dependencies": {
     "three": "^0.187.0"

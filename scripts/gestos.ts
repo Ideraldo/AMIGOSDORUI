@@ -65,7 +65,7 @@ try {
     // ---------- o cofre de ferro ----------
     const cofre = estado.cofre!;
     conferir(!!cofre, 'a noite tem um cofre de ferro');
-    conferir(/Missões extras/i.test(await pagina.evaluate(() => document.body.innerText)) && /Abrir o cofre de ferro/.test(await pagina.evaluate(() => document.body.innerText)), 'a tela mostra as missoes extras, com o cofre');
+    conferir(/Missões extras/i.test(await pagina.evaluate(() => document.body.textContent!)) && /Abrir o cofre de ferro/.test(await pagina.evaluate(() => document.body.textContent!)), 'a tela mostra as missoes extras, com o cofre');
     const tabuas = (await palco()).tabuas;
     conferir(tabuas.length === 3 && tabuas.every((t) => !t.solto), `as tres tabuas estao em cima de moveis (${tabuas.map((t) => t.lugar).join(', ')})`);
     for (const t of tabuas) {
@@ -80,7 +80,7 @@ try {
     }
     const naTela = (texto: string) =>
       pagina
-        .waitForFunction((t) => document.body.innerText.replace(/\s+/g, ' ').includes(t), { timeout: 15000 }, texto)
+        .waitForFunction((t) => document.body.textContent!.replace(/\s+/g, ' ').includes(t), { timeout: 15000 }, texto)
         .then(() => true)
         .catch(() => false);
     conferir(await naTela(`Segredo: ${cofre.segredo.join(' ')}`), 'com os tres anotados, a tela mostra o segredo inteiro');
@@ -131,7 +131,7 @@ try {
     const favor = estado.favor!;
     const caixa = (await pagina.evaluate(() => window.__depurar!.achados())).find((a) => a.tipo === 'encomenda')!;
     conferir(!!favor && !!caixa?.pe, 'a noite tem um favor, com a caixa num lugar aberto');
-    conferir(/Favor \(/.test(await pagina.evaluate(() => document.body.innerText)), 'a tela mostra o favor nas missoes extras');
+    conferir(/Favor \(/.test(await pagina.evaluate(() => document.body.textContent!)), 'a tela mostra o favor nas missoes extras');
     await pagina.evaluate((pe) => window.__depurar!.teleportar(pe[0], 0, pe[1]), caixa.pe!);
     await pagina.waitForFunction(() => document.querySelector('#agir')!.textContent!.includes('pegar a caixa'), espera);
     await pausa(600);

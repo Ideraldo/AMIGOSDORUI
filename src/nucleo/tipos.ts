@@ -172,8 +172,42 @@ export interface Npc {
     confessa: string;
     /** O que ele diz quando lhe mostram a carta e nao foi ele. */
     nega: string;
+    /**
+     * O que ele diz depois de confessar e de dar a dica da regra: que desconfia de alguem.
+     * E uma frase fixa (um arquivo de voz). O traco que ele aponta vem escrito em seguida (`Traco.dica`).
+     */
+    desconfia: string;
+  };
+  /**
+   * Como ele ficaria por baixo da fantasia da Coisa. Todo NPC tem tres tracos (ids de `Biblioteca.disfarce.tracos`),
+   * cada um dividido com um outro NPC: so os tres juntos apontam uma pessoa.
+   */
+  disfarce: {
+    tracos: string[];
+    /** O que ele diz na hora em que a mascara cai. Dito em voz. */
+    pego: string;
+    /** O motivo dele, para o fim da noite em que foi desmascarado. */
+    motivo: string;
   };
 }
+
+/** O objeto que a Coisa deixou para tras e que mostra um traco de quem a veste. */
+export type ObjetoDoVestigio = 'bota' | 'luva' | 'retalho';
+
+/** Um traco de quem veste a fantasia. Dois NPCs dividem cada traco. Nenhum texto daqui diz nome de gente. */
+export interface Traco {
+  id: string;
+  objeto: ObjetoDoVestigio;
+  /** O que se le ao examinar o vestigio. */
+  achado: string;
+  /** Como o traco se nota numa pessoa, visto de perto. Curto, para a lista de suspeitos. */
+  sinal: string;
+  /** O que quem escreveu a carta aponta, depois de confessar. */
+  dica: string;
+}
+
+/** As pecas da armadilha, na ordem em que a tela as lista. */
+export type PecaDaArmadilha = 'corda' | 'sino' | 'lampiao';
 
 export interface Pista {
   id: string;
@@ -193,6 +227,12 @@ export interface Biblioteca {
   pistas: Pista[];
   fragmentos: Fragmento[];
   epilogos: Epilogo[];
+  /** A Coisa e gente fantasiada: os tracos que a denunciam e o que o fim diz quando ninguem arranca a mascara. */
+  disfarce: {
+    tracos: Traco[];
+    /** O fim da noite em que a Coisa nao foi desmascarada. */
+    solto: string;
+  };
 }
 
 export interface Personagem {
@@ -225,7 +265,7 @@ export interface Cena {
 
 export interface Registro {
   rodada: number;
-  tipo: 'gancho' | 'cena' | 'escolha' | 'pista' | 'pressagio' | 'ameaca' | 'lugar' | 'carta' | 'cofre' | 'favor' | 'fim';
+  tipo: 'gancho' | 'cena' | 'escolha' | 'pista' | 'pressagio' | 'ameaca' | 'lugar' | 'carta' | 'cofre' | 'favor' | 'vilao' | 'fim';
   texto: string;
   quem?: string[];
   lugar?: LugarId;
@@ -235,10 +275,10 @@ export interface Registro {
   privada?: boolean;
 }
 
-export type TipoDeAchado = 'querosene' | 'bilhete' | 'atadura' | 'tonico' | 'prova' | 'encomenda';
+export type TipoDeAchado = 'querosene' | 'bilhete' | 'atadura' | 'tonico' | 'prova' | 'encomenda' | 'vestigio' | 'peca';
 
 /** Quantos de cada coisa a noite espalha pelos lugares abertos. As provas dependem de quantos jogam, e a encomenda e do favor. */
-export const ACHADOS_POR_NOITE: Record<Exclude<TipoDeAchado, 'prova' | 'encomenda'>, number> = { querosene: 3, bilhete: 1, atadura: 1, tonico: 2 };
+export const ACHADOS_POR_NOITE: Record<Exclude<TipoDeAchado, 'prova' | 'encomenda' | 'vestigio' | 'peca'>, number> = { querosene: 3, bilhete: 1, atadura: 1, tonico: 2 };
 /** Quanto de medo um tonico tira. */
 export const ALIVIO_DO_TONICO = 2;
 
@@ -249,6 +289,8 @@ export const ALIVIO_DO_TONICO = 2;
  * - atadura e tonico: vao para a bolsa de quem pegou, para usar quando quiser.
  * - prova: mostra que um dos suspeitos nao escreveu a carta. So quem pegou fica sabendo.
  * - encomenda: a caixa que um NPC pediu de favor. Quem pegou leva ate ele (ver `Favor`).
+ * - vestigio: um pedaco da fantasia da Coisa, que mostra um traco de quem a veste. So quem pegou le.
+ * - peca: uma das tres pecas da armadilha. Quem pegou carrega ate montar no poco (ver `Armadilha`).
  */
 export interface Achado {
   id: string;
@@ -266,6 +308,35 @@ export interface Achado {
   /** Na prova: o NPC que ela inocenta, e qual dos alibis dele ela e. Na encomenda: o dono dela. */
   npc?: string;
   variante?: number;
+  /** So no vestigio: o traco que ele mostra. */
+  traco?: string;
+  /** So na peca da armadilha: qual delas e. */
+  peca?: PecaDaArmadilha;
+}
+
+/**
+ * A armadilha do ato 3: tres pecas montadas no poco da praca, um nome acusado por cada jogador
+ * e a corda, que alguem puxa quando a Coisa chega perto. Existe em toda noite que tem vilao.
+ */
+export interface Armadilha {
+  /** As pecas ja postas no poco. */
+  montadas: PecaDaArmadilha[];
+  /** Quem cada jogador acusa. Vale o nome mais votado entre os vivos, e empate vai a sorteio. */
+  acusacoes: Record<string, string>;
+  /** Quando a terceira peca foi posta: e dai em diante que a Coisa vem ver o lampiao de sinal. */
+  armadaEm?: { rodada: number; restante: number };
+  /** Puxaram a corda com o nome errado: a armadilha se perdeu. */
+  perdida: boolean;
+  /** A rodada em que erraram: no sino dela a Coisa ataca com certeza. */
+  furia?: number;
+}
+
+/** A mascara caiu: quem estava por baixo, quem puxou a corda e onde a Coisa ficou presa. */
+export interface Desmascarado {
+  npc: string;
+  por: string;
+  x: number;
+  z: number;
 }
 
 /**
@@ -321,7 +392,7 @@ export interface Tarefa {
 
 /** Um objetivo da noite, do jeito que a tela mostra. Sai do estado, nao e guardado nele. */
 export interface Objetivo {
-  id: 'carta' | 'entender' | 'amanhecer';
+  id: 'carta' | 'vilao' | 'entender' | 'amanhecer';
   texto: string;
   feito: boolean;
   /** Nao da mais para cumprir (o personagem morreu). */
@@ -336,6 +407,8 @@ export interface Fim {
   revelacao: string;
   /** Quem escreveu a carta, e se o grupo chegou a essa pessoa. */
   carta: { autor: string; achou: boolean };
+  /** Quem era a Coisa (vazio: noite sem vilao), se a mascara caiu e o que o fim conta disso. */
+  vilao: { npc: string; desmascarado: boolean; por?: string; texto: string };
   epilogos: { id: string; nome: string; vivo: boolean; sabia: boolean; texto: string }[];
 }
 
@@ -363,6 +436,11 @@ export interface Estado extends ComRng {
   cofre: Cofre | null;
   /** null: ninguem do elenco tem favor a pedir nesta noite. */
   favor: Favor | null;
+  /** Quem veste a fantasia da Coisa: um suspeito que nao escreveu a carta. Vazio: noite sem vilao. */
+  vilao: string;
+  /** null: noite sem vilao. */
+  armadilha: Armadilha | null;
+  desmascarado: Desmascarado | null;
   diario: Registro[];
   fim: Fim | null;
 }

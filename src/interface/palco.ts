@@ -1,6 +1,7 @@
 // O palco: poe no mundo o que a partida tem para ser VISTO, alem de lido.
 // - O adereco de cada cena, no ponto de investigacao do lugar, e o gesto da escolha vencedora.
 // - O cofre de ferro, as tabuas com os numeros do segredo e a caixa do favor ja entregue.
+// - A armadilha montada no poco da praca e a cena da mascara caindo (src/mundo/armadilha.ts).
 //
 // Nada aqui e evento: tudo sai do estado (cenas abertas, diario, cofre, favor), a cada quadro.
 // Por isso, numa sala, quem esta no lugar ve o mesmo que os outros, e quem chega depois
@@ -9,8 +10,10 @@
 import * as THREE from 'three';
 import type { Jogador } from '../jogador/jogador.ts';
 import { criarAdereco, descartar, type Peca } from '../mundo/aderecos.ts';
+import { criarArmadilha, criarRevelacao, type Revelacao } from '../mundo/armadilha.ts';
 import { criarCaixa, criarCofreDeFerro, criarTabua, type CofreDeFerro } from '../mundo/cofreDeFerro.ts';
-import { LUGARES, PAREDE, direcao, pegada, zDasJanelasLaterais, type LugarId } from '../mundo/planta.ts';
+import { figura } from '../mundo/gente.ts';
+import { LUGARES, PAREDE, PRACA, direcao, pegada, zDasJanelasLaterais, type LugarId } from '../mundo/planta.ts';
 import { pontoDaHora, type Ponto } from '../mundo/pontos.ts';
 import { cenasNoMundo, type CenaNoMundo } from '../nucleo/gestos.ts';
 import { cenaDe } from '../nucleo/partida.ts';
@@ -27,6 +30,8 @@ const DURACAO: Partial<Record<Gesto, number>> = {
 };
 /** A camera mira um pouco abaixo do adereco, para ele ficar acima do painel da cena. */
 const BAIXAR_A_MIRA = 0.15;
+/** Quanto dura a cena da mascara caindo, em segundos. */
+const DURACAO_DA_MASCARA = 4.2;
 /** Altura do caixote que segura o adereco onde nao ha movel. */
 const CAIXOTE = 0.83;
 
@@ -126,11 +131,21 @@ export class Palco {
   cofreAoAlcance = false;
   private readonly aux = new THREE.Vector3();
   private readonly olhar = new THREE.Vector3();
+  /** A armadilha do poco: sempre na cena (a luz dela apagada vale zero), so aparece o que ja foi montado. */
+  private readonly armadilha = criarArmadilha();
+  private pecasVistas = 0;
+  private perdidaVista = false;
+  /** O sacolejo da corda puxada, de 1 a 0. */
+  private puxao = 0;
+  /** A cena da mascara: de quem e, e em que ponto esta (1: acabou). */
+  private revelacao: { npc: string; cena: Revelacao; k: number } | null = null;
 
   constructor(private readonly m: Arredores) {
     m.cena.add(this.luz);
     this.caixa.visible = false;
     m.cena.add(this.caixa);
+    this.armadilha.grupo.position.set(PRACA.x, 0, PRACA.z);
+    m.cena.add(this.armadilha.grupo);
   }
 
   private get estado(): Estado {
@@ -246,6 +261,7 @@ export class Palco {
     this.atualizarCofre(dt, t, outraNoite);
     this.atualizarTabuas(t);
     this.atualizarCaixa();
+    this.atualizarArmadilha(dt, t, outraNoite);
 
     // A camera vira para o que interessa quando a cena abre, quando a escolha vence e no cofre.
     const modo = partida.modo;
@@ -260,6 +276,9 @@ export class Palco {
       } else if (modo === 'cofre' && this.cofre) {
         const p = this.cofre.grupo.position;
         this.mira = { x: p.x, y: p.y + 0.3, z: p.z, resta: 2.5 };
+      } else if (modo === 'revelacao' && e.desmascarado) {
+        // A mascara caiu: a camera vira para ver.
+        this.mira = { x: e.desmascarado.x, y: 1.9, z: e.desmascarado.z, resta: 3 };
       }
       this.modoAntes = modo;
     }
@@ -296,6 +315,7 @@ export class Palco {
     this.emCena.clear();
     for (const g of this.tabuas.values()) descartar(g);
     this.tabuas.clear();
+    this.tirarRevelacao();
     this.anotando.clear();
     this.mira = null;
     this.passo = null;
@@ -513,6 +533,69 @@ export class Palco {
     this.caixa.rotation.y = frente;
   }
 
+  // ---------- a armadilha e a mascara ----------
+
+  private tirarRevelacao(): void {
+    if (!this.revelacao) return;
+    descartar(this.revelacao.cena.grupo);
+    this.revelacao = null;
+  }
+
+  private atualizarArmadilha(dt: number, t: number, outraNoite: boolean): void {
+    const e = this.estado;
+    const a = e.armadilha;
+    const d = e.desmascarado;
+    const montadas = a?.montadas ?? [];
+    const ouve = this.perto(PRACA.x, PRACA.z, 30);
+    if (outraNoite) {
+      this.puxao = 0;
+    } else {
+      // Peca nova no poco, corda arrebentada, corda puxada: o que e novo faz barulho e se mexe.
+      if (montadas.length > this.pecasVistas && ouve) {
+        this.m.tocar('passo-madeira-1', { volume: 0.5, tom: 0.9 });
+        if (montadas.length === 3) this.m.tocar('lampiao', { volume: 0.7, tom: 0.8, atraso: 0.4 });
+      }
+      if (a?.perdida && !this.perdidaVista) {
+        this.puxao = 1;
+        if (ouve) for (const atraso of [0, 0.12, 0.3]) this.m.tocar('lampiao', { volume: 0.6, tom: 2.1, atraso });
+        if (this.perto(PRACA.x, PRACA.z, 12)) this.m.susto();
+      }
+    }
+    this.pecasVistas = montadas.length;
+    this.perdidaVista = !!a?.perdida;
+    this.puxao = Math.max(0, this.puxao - dt / 1.6);
+
+    // A cena da mascara: a pessoa do NPC, em pernas de pau, no lugar em que a Coisa foi laçada.
+    if (d && this.revelacao?.npc !== d.npc) {
+      this.tirarRevelacao();
+      const i = this.m.bib.npcs.findIndex((n) => n.id === d.npc);
+      const tipo = this.m.bib.npcs[i]?.figura ?? 'homem';
+      const cena = criarRevelacao(figura(tipo, Math.max(0, i)), 1.58 * (tipo === 'crianca' ? 0.72 : 1));
+      cena.grupo.position.set(d.x, 0, d.z);
+      // De frente para o poco, que e para onde ela vinha.
+      cena.grupo.rotation.y = Math.atan2(PRACA.x - d.x, PRACA.z - d.z);
+      this.m.cena.add(cena.grupo);
+      // Quem viu a corda ser puxada ve a mascara cair. Quem chega depois encontra como ficou.
+      const aoVivo = !outraNoite && this.semente === e.semente;
+      this.revelacao = { npc: d.npc, cena, k: aoVivo ? 0 : 1 };
+      if (aoVivo) {
+        this.puxao = 1;
+        if (ouve) {
+          for (const atraso of [0, 0.1, 0.22, 0.4, 0.62]) this.m.tocar('lampiao', { volume: 0.6, tom: 2.1, atraso });
+          this.m.tocar('passo-madeira-2', { volume: 0.7, tom: 0.5, atraso: 2.4 });
+          this.m.tocar('passo-terra-1', { volume: 0.7, tom: 0.6, atraso: 3.3 });
+        }
+      }
+    } else if (!d) {
+      this.tirarRevelacao();
+    }
+    if (this.revelacao) {
+      this.revelacao.k = Math.min(1, this.revelacao.k + dt / DURACAO_DA_MASCARA);
+      this.revelacao.cena.posar(this.revelacao.k, t);
+    }
+    this.armadilha.mostrar(montadas, !!a?.perdida, d ? { x: d.x - PRACA.x, z: d.z - PRACA.z } : null, this.puxao, t);
+  }
+
   /** Para os scripts de conferencia. */
   depurar(): {
     /** `tela` e onde o meio do adereco cai na tela, em pontos (null: atras da camera). */
@@ -521,6 +604,9 @@ export class Palco {
     tabuas: { numero: number; lugar: LugarId; x: number; y: number; z: number; pe: [number, number]; solto: boolean }[];
     caixaEntregue: boolean;
     mirando: boolean;
+    /** A armadilha do poco: o que esta montado, se o lampiao de sinal esta aceso e a cena da mascara. */
+    armadilha: { montadas: string[]; acesa: boolean; perdida: boolean };
+    mascara: { npc: string; k: number; x: number; z: number } | null;
   } {
     const c = this.estado.cofre;
     const p = this.pontoDoCofre;
@@ -539,6 +625,8 @@ export class Palco {
       }),
       caixaEntregue: this.caixa.visible,
       mirando: this.mirando,
+      armadilha: { montadas: [...(this.estado.armadilha?.montadas ?? [])], acesa: this.armadilha.luz.intensity > 0, perdida: !!this.estado.armadilha?.perdida },
+      mascara: this.revelacao ? { npc: this.revelacao.npc, k: this.revelacao.k, x: this.revelacao.cena.grupo.position.x, z: this.revelacao.cena.grupo.position.z } : null,
     };
   }
 }
