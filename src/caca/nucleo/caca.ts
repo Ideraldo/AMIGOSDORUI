@@ -16,7 +16,7 @@ import { furiaFinal, passoDaCoisa } from './bicho.ts';
 import { JEITO } from './gente.ts';
 import { passoDasMaos, passoDosEstados } from './maos.ts';
 import { passoDosMoradores } from './moradores.ts';
-import { camposDaPartida, camposDoCacador, iniciarTraidor, marcarTrem, marcarMascara, modoDaPartida, passoDoTraidor, type OpcoesDeTraidor } from './traidor.ts';
+import { camposDaPartida, camposDoCacador, iniciarTraidor, marcarTrem, marcarMascara, modoDaPartida, passoDoTraidor, traidorSaiu, type OpcoesDeTraidor } from './traidor.ts';
 import {
   CORAGEM_CHEIA,
   DURACAO,
@@ -219,6 +219,8 @@ export function ausentar(caca: Caca, id: string): void {
   h.ausente = true;
   h.ocupado = null;
   h.progresso = 0;
+  // O Traidor que sai deixa a fantasia caida onde estava e a partida acaba (traidor.ts).
+  traidorSaiu(caca, h);
 }
 
 function passar(caca: Caca, dt: number, amb: Ambiente): void {

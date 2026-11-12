@@ -118,7 +118,14 @@ export class AnfitriaoDeSala extends AnfitriaoLocal {
 
   /** Quem nao esta mais na sala: o cacador dele fica parado e deixa de ser alvo. Chamado a cada aviso da sala. */
   conferirPresentes(ids: readonly string[]): void {
-    for (const h of this.caca.cacadores) if (!ids.includes(h.id)) ausentar(this.caca, h.id);
+    let mudou = false;
+    for (const h of this.caca.cacadores) {
+      if (ids.includes(h.id) || h.ausente) continue;
+      ausentar(this.caca, h.id);
+      mudou = true;
+    }
+    // Quem sai pode acabar a partida (o Traidor fantasiado que sai): `avancar` nao anda depois do fim, entao o estado vai agora.
+    if (mudou && this.caca.fim && !this.fimEnviado) this.mandarEstado();
   }
 
   override avancar(dt: number): void {

@@ -43,7 +43,7 @@ test('o placar de cada fim: titulo, tempo, estrelas com o que cada uma e, quem e
     const html = htmlDoFim(c, quem, 'a');
     assert.ok(html.includes('★'), tipo);
     assert.ok(html.includes('desmascarou sem derrubar') && html.includes('ninguém desmaiou') && html.includes('acabou na metade do tempo'), tipo);
-    if (tipo === 'traidor' || tipo === 'votado') assert.ok(html.includes('O Traidor era Beto.') && html.includes('era o Traidor'), tipo);
+    if (tipo === 'traidor' || tipo === 'votado') assert.ok(html.includes('O Traidor era <b>Beto</b>.') && html.includes('era o Traidor'), tipo);
     else {
       assert.ok(html.includes('Era Seu Honório, coveiro.'), tipo);
       assert.ok(html.includes('Sombra'), 'o nome e a fraqueza da assombracao aparecem no fim');
@@ -58,4 +58,49 @@ test('o placar de cada fim: titulo, tempo, estrelas com o que cada uma e, quem e
   assert.equal(formatarTempo(65), '1:05');
   assert.equal(formatarTempo(720), '12:00');
   assert.equal(formatarTempo(0.2), '0:01');
+});
+
+test('modo Traidor: o cartao e o caderno de cada papel, o titulo do placar de cada um, sem travessao e sem entregar o outro papel', async () => {
+  const { CARTAO_DO_PAPEL, tituloDoTraidor } = await import('../src/caca/textos.ts');
+  assert.ok(CARTAO_DO_PAPEL.cacador.titulo.includes('CAÇADOR') && !/TRAIDOR/.test(CARTAO_DO_PAPEL.cacador.titulo + CARTAO_DO_PAPEL.cacador.linha));
+  assert.ok(CARTAO_DO_PAPEL.traidor.titulo.includes('TRAIDOR') && CARTAO_DO_PAPEL.traidor.linha.includes('3 moradores'));
+  for (const papel of ['cacador', 'traidor'] as const) {
+    const html = htmlDoCaderno([], { papel, pistas: [{ de: 'lenco', valor: 2 }], tocas: 1 });
+    assert.ok(html.includes('Seu papel') && html.includes('Reunião no sino') && html.includes(CARTAO_DO_PAPEL[papel].titulo), papel);
+    assert.equal(html.includes('Duas assombrações'), false, 'no modo Traidor nao ha duas assombracoes');
+    assert.ok(html.includes('lenço'), 'a pista aparece');
+    assert.equal(TRAVESSAO.test(html), false);
+  }
+  // O caderno da cacada comum e o de sempre.
+  assert.equal(htmlDoCaderno([]).includes('Seu papel'), false);
+  // O titulo do placar: o Traidor tem o dele.
+  const fim = (tipo: 'traidor' | 'votado' | 'trem' | 'desmascarada', extra = {}) => ({ tipo, tempo: 100, estrelas: 0, ...extra });
+  assert.equal(tituloDoTraidor(fim('traidor'), true), 'Você venceu: a cidade é sua');
+  assert.equal(tituloDoTraidor(fim('votado'), true), 'Pegaram você');
+  assert.equal(tituloDoTraidor(fim('desmascarada'), true), 'Pegaram você');
+  assert.equal(tituloDoTraidor(fim('votado'), false), 'O Traidor foi descoberto');
+  assert.equal(tituloDoTraidor(fim('votado', { abandono: true }), false), 'O Traidor fugiu da sala');
+  assert.ok(tituloDoTraidor(fim('trem'), false).includes('ficou de pé'));
+  for (const t of [true, false]) for (const tipo of ['traidor', 'votado', 'trem', 'desmascarada'] as const) assert.equal(TRAVESSAO.test(tituloDoTraidor(fim(tipo), t)), false);
+});
+
+test('modo Traidor: o placar mostra o papel de cada um e so o que cada um fez, e quem terminou o jogo', () => {
+  const c = partida({ modo: 'traidor', traidor: 'b' }, 7, [
+    { id: 'a', nome: 'Ana' },
+    { id: 'b', nome: 'Beto' },
+    { id: 'c', nome: 'Cida' },
+  ]);
+  c.fim = { tipo: 'traidor', por: 'b', traidor: 'b', tempo: 200, estrelas: 0 };
+  c.cacadores[1]!.espantou = 3;
+  const deleHtml = htmlDoFim(c, undefined, 'b');
+  assert.ok(deleHtml.includes('Você venceu: a cidade é sua') && deleHtml.includes('3 moradores espantados') && deleHtml.includes('espantou o último'));
+  assert.equal(deleHtml.includes('arrancou a máscara'), false, 'quem espantou o ultimo nao arrancou mascara nenhuma');
+  assert.equal(deleHtml.includes('0 sustos'), false, 'o que nao houve nao se conta');
+  const daTurma = htmlDoFim(c, undefined, 'a');
+  assert.ok(daTurma.includes('A cidade esvaziou') && daTurma.includes('O Traidor era <b>Beto</b>') && daTurma.includes('caçador'));
+  // Sem estrelas para ele nem para a vitoria dele.
+  assert.equal(deleHtml.includes('★'), false);
+  c.fim = { tipo: 'votado', traidor: 'b', tempo: 200, estrelas: 2 };
+  assert.ok(htmlDoFim(c, undefined, 'a').includes('★') && !htmlDoFim(c, undefined, 'b').includes('★'));
+  assert.equal(TRAVESSAO.test(deleHtml + daTurma), false);
 });

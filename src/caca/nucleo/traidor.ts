@@ -479,3 +479,28 @@ export function marcarTrem(caca: Caca): void {
 export function marcarMascara(caca: Caca): void {
   if (caca.traidor && caca.fim && caca.fim.traidor === undefined) caca.fim.traidor = caca.traidor.id;
 }
+
+/**
+ * O Traidor saiu da sala (ou caiu): se estava fantasiado, a fantasia cai no chao onde ele estava, e a
+ * partida acaba na hora, com os cacadores vencendo por abandono (`votado` com `abandono`).
+ */
+export function traidorSaiu(caca: Caca, h: Cacador): void {
+  const tr = caca.traidor;
+  if (!tr || tr.id !== h.id || caca.fim) return;
+  const c = caca.coisa;
+  if (tr.fantasiado) {
+    tr.caiuEm = { x: c.x, y: c.y ?? 0, z: c.z };
+    tr.fantasiado = false;
+    c.modo = 'guardada';
+    c.alvo = null;
+    c.destino = null;
+    c.rota = [];
+    c.ate = 0;
+    c.mascara = 0;
+    c.x = FORA_DO_MUNDO.x;
+    c.z = FORA_DO_MUNDO.z;
+    c.y = 0;
+  }
+  caca.reuniao = null;
+  caca.fim = { tipo: 'votado', abandono: true, traidor: tr.id, tempo: Math.min(caca.tempo, caca.duracao), estrelas: 0 };
+}

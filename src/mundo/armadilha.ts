@@ -257,7 +257,8 @@ const ALTURA_DA_MASCARA = 2.3;
  * A cena da mascara. `pessoa` e a figura do NPC (src/mundo/gente.ts), com os pes em y = 0, e
  * `cabeca` e a altura da cabeca dela: as pernas de pau a levantam ate a mascara.
  */
-export function criarRevelacao(pessoa: THREE.Group, cabeca: number): Revelacao {
+/** `calmo`: ninguem esta preso (o Traidor que tira a mascara sozinho): sem laco no peito e sem se debater. */
+export function criarRevelacao(pessoa: THREE.Group, cabeca: number, calmo = false): Revelacao {
   const grupo = new THREE.Group();
   const escuro = new THREE.MeshBasicMaterial({ color: 0x030304 });
   const olhos = new THREE.MeshBasicMaterial({ color: 0xd8e2ff, fog: false });
@@ -271,6 +272,7 @@ export function criarRevelacao(pessoa: THREE.Group, cabeca: number): Revelacao {
   // O laço fechado no peito.
   const laco = peca(grupo, new THREE.TorusGeometry(0.3, 0.022, 6, 16), mat(CORDA), 0, altura + 1.15 * (cabeca / 1.58), 0);
   laco.rotation.x = Math.PI / 2;
+  laco.visible = !calmo;
 
   // A fantasia: o mesmo feitio do vulto (src/mundo/vulto.ts), um pouco mais larga, para cobrir quem esta dentro.
   const capa = new THREE.Group();
@@ -298,7 +300,7 @@ export function criarRevelacao(pessoa: THREE.Group, cabeca: number): Revelacao {
     grupo,
     posar(k, t) {
       // 0 a 0,3: presa, se debatendo. 0,25 a 0,6: a mascara voa. 0,5 a 0,9: a capa cai.
-      const debate = 1 - suave((k - 0.55) / 0.3);
+      const debate = calmo ? 0 : 1 - suave((k - 0.55) / 0.3);
       const voa = suave((k - 0.25) / 0.35);
       const cai = suave((k - 0.5) / 0.4);
       grupo.rotation.z = Math.sin(t * 17) * 0.05 * debate;

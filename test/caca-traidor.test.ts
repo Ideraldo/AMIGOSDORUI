@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { NASCIMENTO } from '../src/mundo/planta.ts';
+import { NASCIMENTO, SINO_DA_ESTACAO } from '../src/mundo/planta.ts';
 import { frenteDaPorta } from '../src/nucleo/coisa.ts';
-import { agir, avancar, restante, resumoDoFim, velocidadeDoCacador, velocidadeMaximaDe, visaoDe } from '../src/caca/nucleo/caca.ts';
+import { agir, ausentar, avancar, restante, resumoDoFim, velocidadeDoCacador, velocidadeMaximaDe, visaoDe } from '../src/caca/nucleo/caca.ts';
 import { ALCAPOES, TOCAS_POSSIVEIS } from '../src/caca/nucleo/lugares.ts';
 import {
   CORRIDA,
@@ -706,7 +706,8 @@ test('visaoDe: o papel, as tocas e o frouxo so aparecem a quem pode saber', () =
 
 /** Todos perto do sino, na estacao. */
 function naEstacao(): Poses {
-  return { a: pose(NASCIMENTO.x + 1, NASCIMENTO.z), b: pose(NASCIMENTO.x - 1, NASCIMENTO.z), c: pose(NASCIMENTO.x, NASCIMENTO.z + 1), d: pose(NASCIMENTO.x, NASCIMENTO.z - 1) };
+  const s = SINO_DA_ESTACAO;
+  return { a: pose(s.x + 1, s.z), b: pose(s.x - 1, s.z), c: pose(s.x, s.z + 1), d: pose(s.x, s.z - 1) };
 }
 
 test('reuniao: o sino abre 30 s de votacao, uma vez por jogador, e o relogio do trem para', () => {
@@ -716,10 +717,10 @@ test('reuniao: o sino abre 30 s de votacao, uma vez por jogador, e o relogio do 
   caca.tempo = 100;
   const v = vigiar(caca);
   // Longe nao toca.
-  ps.b = pose(NASCIMENTO.x + 10, NASCIMENTO.z);
+  ps.b = pose(SINO_DA_ESTACAO.x + 10, SINO_DA_ESTACAO.z);
   agir(caca, 'b', { t: 'tocarSino' }, amb);
   assert.equal(caca.reuniao, null);
-  ps.b = pose(NASCIMENTO.x - 1, NASCIMENTO.z);
+  ps.b = pose(SINO_DA_ESTACAO.x - 1, SINO_DA_ESTACAO.z);
   agir(caca, 'b', { t: 'tocarSino' }, amb);
   assert.ok(caca.reuniao);
   assert.equal(reuniaoDe(caca)!.por, 'b');
@@ -901,7 +902,8 @@ test('fins: a mascara arrancada da Coisa presa fantasiada e vitoria dos cacadore
 
 test('confusao: partidas inteiras com 4 jogadores e acoes sorteadas, sem erro e com estado serializavel', () => {
   const vistos = new Set<string>();
-  for (let semente = 1; semente <= 6; semente++) {
+  const exigidos = ['apagao', 'uivo', 'sino-da-estacao', 'pregou', 'trancou', 'tunel'];
+  for (let semente = 1; semente <= 60 && !(semente > 6 && exigidos.every((t) => vistos.has(t))); semente++) {
     const caca = partida({ modo: 'traidor' }, semente, J4);
     const dado = { s: semente * 7919 };
     const sorteio = () => {
@@ -918,6 +920,7 @@ test('confusao: partidas inteiras com 4 jogadores e acoes sorteadas, sem erro e 
       ...ALCAPOES.map((a) => a.cima),
       ...ALCAPOES.map((a) => a.baixo),
       NASCIMENTO,
+      SINO_DA_ESTACAO,
       ...caca.moradores.map((m) => ({ x: m.x, z: m.z })),
       ...caca.postos,
       ...caca.soltos.filter((s) => s.x !== undefined).map((s) => ({ x: s.x!, z: s.z! })),
@@ -965,7 +968,7 @@ test('confusao: partidas inteiras com 4 jogadores e acoes sorteadas, sem erro e 
         // Quase sempre fica parado para as tarefas andarem: sorteia a acao so as vezes.
         if (sorteio() < 0.3) agir(caca, id, um(acoes) as never, amb);
         const eu = caca.cacadores.find((c) => c.id === id)!;
-        if (sorteio() < 0.02 && eu.itens.length < 2) eu.itens.push(um(['tabuas', 'corda', 'latas'] as const));
+        if (sorteio() < 0.05 && eu.itens.length < 2) eu.itens.push(um(['tabuas', 'tabuas', 'corda', 'latas'] as const));
       }
       avancar(caca, 0.1, amb);
       for (const e of caca.eventos) vistos.add(e.tipo);
@@ -985,7 +988,7 @@ test('confusao: partidas inteiras com 4 jogadores e acoes sorteadas, sem erro e 
     visaoDe(caca, 'b');
   }
   // A confusao chega a usar as regras novas de verdade.
-  for (const tipo of ['apagao', 'uivo', 'sino-da-estacao', 'pregou', 'trancou', 'tunel']) assert.ok(vistos.has(tipo), 'a confusao nunca produziu ' + tipo);
+  for (const tipo of exigidos) assert.ok(vistos.has(tipo), 'a confusao nunca produziu ' + tipo);
 });
 
 test('o modo de cacada comum segue igual: 2 jogadores, a Coisa do jogo anda e caca', () => {
@@ -997,4 +1000,32 @@ test('o modo de cacada comum segue igual: 2 jogadores, a Coisa do jogo anda e ca
   rodar(caca, amb, 20);
   assert.ok(Math.hypot(caca.coisa.x - antes.x, caca.coisa.z - antes.z) > 1, 'ronda');
   assert.equal(caca.coisa.modo === 'guardada', false);
+});
+
+test('sair da sala: o Traidor fantasiado larga a fantasia onde estava e a partida acaba (votado por abandono); cacador que sai nao acaba nada', () => {
+  const caca = pt();
+  const ps = longe();
+  const amb = ambiente(ps);
+  vestido(caca, ps);
+  ps.a = pose(10, -30);
+  rodar(caca, amb, 0.1);
+  ausentar(caca, 'c');
+  assert.equal(caca.fim, null);
+  ausentar(caca, 'a');
+  const fim = fimDe(caca)!;
+  assert.ok(fim);
+  assert.equal(fim.tipo, 'votado');
+  assert.equal(fim.abandono, true);
+  assert.equal(fim.traidor, 'a');
+  assert.equal(caca.traidor!.fantasiado, false);
+  assert.equal(caca.coisa.modo, 'guardada');
+  assert.ok(Math.abs(caca.traidor!.caiuEm!.x - 10) < 0.5 && Math.abs(caca.traidor!.caiuEm!.z + 30) < 0.5, 'a fantasia cai onde ele estava');
+  assert.deepEqual(JSON.parse(JSON.stringify(caca)), caca);
+  const outra = pt();
+  ausentar(outra, 'a');
+  assert.equal(fimDe(outra)!.abandono, true);
+  assert.equal(outra.traidor!.caiuEm, undefined);
+  const comum = partida({}, 7);
+  ausentar(comum, 'a');
+  assert.equal(comum.fim, null);
 });

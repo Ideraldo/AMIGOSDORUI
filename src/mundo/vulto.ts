@@ -39,6 +39,8 @@ export class Vulto {
   private garra = 0;
   /** A cacada: 'acenar' (adeus, no fim do trem) ou 'debater' (presa no laco, os dois bracos para o alto). */
   gesto: 'acenar' | 'debater' | null = null;
+  /** O golpe (modo Traidor): quanto falta do balanco do braco, em segundos. */
+  private golpeRestante = 0;
 
   constructor(cena: THREE.Scene) {
     const mat = (cor: number, extra: THREE.MeshStandardMaterialParameters = {}) => {
@@ -159,6 +161,11 @@ export class Vulto {
     return this.panos.map((p) => p.pivo);
   }
 
+  /** Balanca o braco direito num golpe (a tela chama quando ha o evento `golpe`). */
+  golpear(): void {
+    this.golpeRestante = 0.45;
+  }
+
   /** Esta na cena agora (aparecendo, a vista ou sumindo)? */
   get ativo(): boolean {
     return this.grupo.visible;
@@ -238,6 +245,14 @@ export class Vulto {
       this.bracos[1]!.rotation.x = -2.6 + Math.sin(t * 15 + 1) * 0.5;
       this.bracos[0]!.rotation.z = -0.5 + Math.sin(t * 13) * 0.3;
       this.bracos[1]!.rotation.z = 0.5 - Math.sin(t * 14) * 0.3;
+    }
+
+    if (this.golpeRestante > 0) {
+      this.golpeRestante = Math.max(0, this.golpeRestante - dt);
+      const k = 1 - this.golpeRestante / 0.45;
+      // O braco sobe depressa e desce de uma vez, para a frente.
+      this.bracos[1]!.rotation.x = k < 0.35 ? -0.4 - (k / 0.35) * 2.2 : -2.6 + ((k - 0.35) / 0.65) * 2.1;
+      this.bracos[1]!.rotation.z = 0.07;
     }
 
     // A capa: cada pano balanca no seu tempo e abre para tras com a velocidade.

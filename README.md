@@ -25,7 +25,7 @@ Reviram as casas (E pega o que está em cima dos móveis), montam armadilhas na 
 | M, P, H | mapa, ver o personagem de fora, estas teclas |
 | R | outra caçada (no fim, ou segurando por 1 s) |
 
-Parâmetros de URL: `?seed=`, `?tipo=sombra` ou `orelhuda`, `?vilao=coveiro`, `?duracao=120` (segundos), `?abertura=0`, `?som=0`, `?dia=1`, `?hud=0`, `?cam=x,y,z,giro,inc` (câmera presa, para capturas). `npm run caca` joga a caçada inteira num Chrome sem janela e `npm run caca:sala` põe dois navegadores na mesma sala para conferir o jogo em grupo.
+Parâmetros de URL: `?seed=`, `?tipo=sombra` ou `orelhuda`, `?vilao=coveiro`, `?duracao=120` (segundos), `?modo=traidor` ou `caca`, `?traidor=<índice ou id>`, `?abertura=0`, `?som=0`, `?dia=1`, `?hud=0`, `?cam=x,y,z,giro,inc` (câmera presa, para capturas). `npm run caca` joga a caçada inteira num Chrome sem janela, `npm run caca:sala` põe dois navegadores na mesma sala para conferir o jogo em grupo e `npm run caca:traidor` põe três (o Traidor sendo o dono e depois sendo um convidado).
 
 Por baixo da cidade há galerias de mina, com três bocas: o porão do bar (só com o bar aberto), o poço da praça e a mina. **Segurando E** ao lado da boca desce, e embaixo, ao pé da escada de mão, segurando E sobe de volta. Lá embaixo é escuro e a assombração da cidade não percebe você, nem você ouve a rua.
 
@@ -38,7 +38,25 @@ De 2 a 6 amigos, na mesma máquina ou na mesma rede (`npm run dev:rede` e passar
 3. Todos esperam na plataforma ao lado do trem, onde dá para andar, acenar e dançar (teclas 1 a 8). Quem criou a sala aperta **Enter** duas vezes (a segunda confirma) para começar. Depois disso ninguém mais entra: quem tentar recebe "A caçada desta sala já começou".
 4. Na caçada cada um vê os outros como os personagens que criaram, com o nome por cima e o lampião na mão. Amigo preso num laço fica pendurado de cabeça para baixo, amigo que caiu num tropeço fica sentado tonto e amigo desmaiado fica deitado: segure **E** ao lado dele para acordar. No fim há um placar com a linha de cada um, e quem criou a sala aperta **R** para outra caçada (todos voltam à plataforma).
 
-Quem criou a sala roda o jogo na tela dele e manda o estado aos outros; se ele fechar a aba, o jogador mais antigo na sala assume e continua do ponto em que estava, e o personagem de quem saiu fica parado na cidade. O ideal é quem hospeda não deixar a aba em segundo plano. A sala em rede ainda não tem o modo em que um dos amigos é a Coisa (`docs/traidor.md`).
+Quem criou a sala roda o jogo na tela dele e manda o estado aos outros; se ele fechar a aba, o jogador mais antigo na sala assume e continua do ponto em que estava, e o personagem de quem saiu fica parado na cidade. O ideal é quem hospeda não deixar a aba em segundo plano. Com **3 ou mais** na sala o modo é o Traidor (descrito abaixo); com 1 ou 2, a caçada com a Coisa do jogo.
+
+### O Traidor (3 a 6 amigos, `docs/traidor.md`)
+
+Um dos amigos é, em segredo, a Coisa. No começo cada tela mostra por 5 s, só para quem a recebe, um cartão de papel: "Você é um CAÇADOR" ou "Você é o TRAIDOR" (o cartão volta no caderno, Tab, que ganha uma página do Traidor). Os caçadores ganham arrancando a máscara da Coisa (ou votando nela na reunião do sino); o Traidor ganha espantando 3 dos 4 moradores antes de o trem partir. Se o trem parte com a Coisa sem nome, é meia vitória da turma.
+
+| Quem | Tecla | O que faz |
+| --- | --- | --- |
+| Traidor | **E segurado num baú** (toca) | veste (3 s) ou tira (3 s) a fantasia. Os baús dele brilham, só na tela dele |
+| Traidor vestido | clique | golpeia (a Coisa assusta o caçador à frente, com recarga de 3 s) |
+| Traidor vestido | **E segurado** num morador, ou numa porta trancada | espanta (4 s) ou arromba (6 s, com barulho de madeira) |
+| Traidor vestido | 1, 2, 3 | apagão (as luzes naquele raio apagam por 15 s), uivo (pernas bambas em quem está perto), túnel (perto de um alçapão: 1 ou 2 escolhem o destino) |
+| Traidor sem fantasia | **Shift+Q segurado** | monta laço ou latas FROUXOS (iguais por fora, não prendem; só ele vê a marca de perto) |
+| Caçador | **V segurado** perto de um laço ou das latas | confere o nó por 1 s: quem conferiu vê "nó frouxo" ou "nó firme" (só ele) |
+| Caçador | **E segurado** na porta, por dentro | tranca ou destranca (a Coisa leva 6 s para arrombar) |
+| Caçador | **E segurado** num baú que já viu, com tábuas na mão | prega o baú (sempre sobra uma toca livre) |
+| Todos | **E** no sino da estação | reunião (uma por pessoa): todos vão à roda diante do sino, votam em 30 s com 1 a 9 e 0 (ninguém); quem está fantasiado fica de fora e o lugar vazio na roda é pista. O mais votado fica amarrado 60 s num banco; se era o Traidor, acabou |
+
+O primeiro tiro certeiro solta um retalho com a cor do lenço ou o jeito do chapéu dele: quem pega vê o ícone (só ele). A Coisa deixa pegadas por 25 s. Quem fecha a aba fantasiado deixa a fantasia caída no chão e a partida acaba (vitória da turma por abandono). Testes: `?modo=traidor|caca` e `?traidor=<índice ou id do jogador>` na URL de quem cria a sala (sozinho, `?modo=traidor` põe você no papel).
 
 A noite da carta, o modo anterior, abre em `carta.html` e é descrita daqui para baixo.
 
@@ -174,6 +192,9 @@ Os arquivos ficam em `public/sons/` e foram gerados pela ElevenLabs com `npm run
 
 ```bash
 npm run conferir   # tipos + testes da planta, da colisão e da partida
+npm run caca       # a caçada inteira num Chrome sem janela (capturas/caca-*.png)
+npm run caca:sala  # dois navegadores na mesma sala da caçada (capturas/cacasala-*.png)
+npm run caca:traidor  # três navegadores no modo Traidor, duas rodadas (capturas/traidor-*.png; uns 25 minutos)
 npm run simular    # bots jogam centenas de noites e mostram sobrevivência, descoberta e falta de cenas
 npm run partida    # joga uma noite inteira pelo teclado num Chrome sem janela
 npm run colisao    # anda pela cidade num Chrome sem janela: portas, becos, caminhos, escadas, frestas, pulo e agachar

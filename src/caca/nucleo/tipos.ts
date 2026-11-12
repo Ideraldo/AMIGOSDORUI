@@ -316,6 +316,8 @@ export interface Fim {
   traidor?: string;
   /** So no Traidor: o trem partiu com a Coisa sem nome. Meia vitoria dos cacadores. */
   meia?: true;
+  /** So no `votado`: o Traidor saiu da sala no meio da partida (os cacadores ganham por abandono). */
+  abandono?: true;
   /** Quem arrancou a mascara. */
   por?: string;
   /** Em que segundo acabou. */
@@ -499,6 +501,8 @@ export interface Traidor {
   ultimaPegada: { x: number; z: number } | null;
   /** O primeiro acerto de sal ja soltou o retalho. */
   pistaDada: boolean;
+  /** Saiu da sala fantasiado: onde a fantasia ficou caida no chao (a partida acaba na hora). */
+  caiuEm?: { x: number; y: number; z: number };
 }
 
 /** Um bau da fantasia. */

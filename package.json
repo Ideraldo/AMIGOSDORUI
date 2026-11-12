@@ -26,6 +26,7 @@
     "coisa": "tsx scripts/coisa.ts",
     "caca": "tsx scripts/caca.ts",
     "caca:sala": "tsx scripts/cacaSala.ts",
+    "caca:traidor": "tsx scripts/cacaTraidor.ts",
     "vitrine": "tsx scripts/vitrine.ts"
   },
   "dependencies": {

@@ -4,7 +4,7 @@
 
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { PISO_DAS_GALERIAS, SUBSOLO } from '../src/mundo/planta.ts';
+import { PISO_DAS_GALERIAS, SINO_DA_ESTACAO, SUBSOLO } from '../src/mundo/planta.ts';
 import { agir, ausentar, avancar } from '../src/caca/nucleo/caca.ts';
 import { ouveEm } from '../src/caca/nucleo/base.ts';
 import { ALCAPOES, TOCAS_POSSIVEIS } from '../src/caca/nucleo/lugares.ts';
@@ -414,7 +414,8 @@ test('ausente: nao conta na reuniao do modo Traidor (nao precisa votar para fech
     { id: 'b', nome: 'Beto' },
     { id: 'c', nome: 'Cida' },
   ]);
-  const ps: Poses = { a: pose(0, 0), b: pose(0, -53), c: pose(0, -53.5) };
+  // A reuniao e no sino do patio da estacao.
+  const ps: Poses = { a: pose(0, 0), b: pose(SINO_DA_ESTACAO.x, SINO_DA_ESTACAO.z + 1), c: pose(SINO_DA_ESTACAO.x, SINO_DA_ESTACAO.z + 1.5) };
   const amb = ambiente(ps);
   caca.tempo = 1;
   agir(caca, 'b', { t: 'tocarSino' }, amb);

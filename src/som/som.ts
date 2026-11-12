@@ -47,7 +47,10 @@ const DO_SINAL: Partial<Record<Sinal, [NomeDeSom, number, number]>> = {
 };
 
 /** Os efeitos que `sintetizar` faz na hora, sem arquivo. */
-export type NomeSintetico = 'tiro' | 'clique' | 'apito' | 'riso' | 'panela' | 'laco' | 'latas' | 'piche' | 'tombo';
+export type NomeSintetico =
+  | 'tiro' | 'clique' | 'apito' | 'riso' | 'panela' | 'laco' | 'latas' | 'piche' | 'tombo'
+  // Modo Traidor: o uivo da Coisa, o alcapao batendo, madeira arrombada, martelo, ofego, o golpe, o apagao e a tranca.
+  | 'uivo' | 'alcapao' | 'madeira' | 'martelo' | 'ofego' | 'golpe' | 'apagao' | 'trinco';
 
 export interface Opcoes {
   /** So para `sintetizar` (o apito): quantos segundos dura. */
@@ -289,6 +292,55 @@ export class Som {
       case 'tombo':
         nota('sine', 130, 42, 0, 0.3, 1);
         sopro('lowpass', 900, 120, 0, 0.25, 0.6);
+        break;
+      case 'uivo': {
+        // Um uivo rouco que sobe e desce, com tremor de voz.
+        const formante = ctx.createBiquadFilter();
+        formante.type = 'bandpass';
+        formante.frequency.value = 760 * tom;
+        formante.Q.value = 1.2;
+        formante.connect(saida);
+        nota('sawtooth', 190, 430, 0, 0.9, 0.7, formante);
+        nota('sawtooth', 430, 470, 0.85, 0.7, 0.7, formante);
+        nota('sawtooth', 470, 150, 1.5, 1.5, 0.65, formante);
+        nota('square', 95, 215, 0, 0.9, 0.25, formante);
+        sopro('bandpass', 900, 500, 0, 2.8, 0.1, 2);
+        break;
+      }
+      case 'alcapao':
+        nota('sine', 150, 48, 0, 0.2, 1.1);
+        sopro('lowpass', 2200, 260, 0, 0.28, 0.9);
+        nota('sine', 120, 42, 0.17, 0.22, 0.8);
+        sopro('bandpass', 700, 300, 0.17, 0.2, 0.7, 2);
+        break;
+      case 'madeira':
+        sopro('bandpass', 1100, 420, 0, 0.13, 1, 4);
+        nota('triangle', 240, 110, 0, 0.12, 0.6);
+        sopro('highpass', 2500, 2500, 0.1, 0.05, 0.4);
+        break;
+      case 'martelo':
+        nota('square', 950, 320, 0, 0.05, 0.45);
+        sopro('highpass', 3200, 3200, 0, 0.04, 0.6);
+        nota('sine', 190, 85, 0, 0.13, 0.8);
+        break;
+      case 'ofego':
+        sopro('bandpass', 650, 1300, 0, 0.5, 0.55, 1);
+        sopro('bandpass', 1300, 520, 0.55, 0.55, 0.5, 1);
+        break;
+      case 'golpe':
+        sopro('bandpass', 380, 2600, 0, 0.2, 0.8, 1);
+        nota('sine', 130, 48, 0.17, 0.22, 1);
+        sopro('lowpass', 800, 150, 0.17, 0.18, 0.6);
+        break;
+      case 'apagao':
+        nota('sine', 70, 38, 0, 0.7, 0.8);
+        sopro('lowpass', 3200, 90, 0, 0.7, 0.7);
+        for (const ini of [0.05, 0.2, 0.36]) sopro('highpass', 4200, 4200, ini, 0.03, 0.45);
+        break;
+      case 'trinco':
+        nota('square', 1250, 900, 0, 0.04, 0.4);
+        sopro('highpass', 4000, 4000, 0.07, 0.03, 0.5);
+        nota('sine', 320, 200, 0.06, 0.1, 0.55);
         break;
     }
     this.tocados.push(`~${nome}`);

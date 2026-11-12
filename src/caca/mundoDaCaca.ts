@@ -15,6 +15,8 @@ import { Vulto } from '../mundo/vulto.ts';
 import type { LugarId } from '../mundo/planta.ts';
 import type { Aparencia } from '../rede/aparencia.ts';
 import { aparenciaPadrao } from '../rede/aparencia.ts';
+import { ExtrasDoTraidor } from './mundo/extrasDoTraidor.ts';
+import { noApagao } from './nucleo/papeis.ts';
 import { LACO, LATAS, PICHE, FURIA_FINAL, type Caca, type Item, type Morador, type Solto, type TipoDePosto } from './nucleo/tipos.ts';
 import { modeloDaPanela, modeloDoItem, modeloDoPosto, vestirCoisa, type PostoNoMundo } from './mundo/modelos.ts';
 
@@ -72,6 +74,16 @@ export class MundoDaCaca {
   readonly moradores = new Map<string, MoradorNoMundo>();
   /** Fim de jogo: a cena final manda na Coisa, o mundo nao a poe mais. */
   coisaSolta = false;
+  /** A cena final do Traidor poe os moradores onde quer (na plataforma, com as malas). */
+  moradoresSoltos = false;
+  /** So no modo Traidor: tabuas, tocas, pegadas, trancas e marcas. */
+  readonly extras: ExtrasDoTraidor | null;
+  /** Moradores que alguem esta espantando agora (tremem). A tela diz a cada quadro. */
+  readonly assustados = new Set<string>();
+  /** Para o jeito de andar da Coisa fantasiada: a que velocidade ela anda (suavizada). */
+  private velocidadeDaCoisa = 0;
+  private xDaCoisa = 0;
+  private zDaCoisa = 0;
   private readonly itens = new Map<string, ItemNoMundo>();
   private readonly reservaDeItens = new Map<string, ItemNoMundo[]>();
   private readonly postos = new Map<string, PostoVisto>();
@@ -100,6 +112,7 @@ export class MundoDaCaca {
     this.vulto.grupo.rotation.order = 'YXZ';
     vestirCoisa(this.vulto, caca.coisa.tipo);
     this.vulto.mostrar(true);
+    this.extras = caca.traidor ? new ExtrasDoTraidor(cena, caca) : null;
     // Estrelinhas de quem esta tonto: tres sprites que giram sobre a cabeca.
     const tex = estrelaTextura();
     for (let i = 0; i < 3; i++) {
@@ -184,9 +197,11 @@ export class MundoDaCaca {
   private atualizarMoradores(dt: number, t: number, caca: Caca, jogador: Olhar): void {
     const tempo = caca.tempo;
     for (const m of caca.moradores) {
+      if (this.moradoresSoltos) break;
       const w = this.moradores.get(m.npc)!;
       const g = w.figura.grupo;
       const emCasa = m.modo === 'casa';
+      const tremendo = this.assustados.has(m.npc) && m.modo !== 'espantado';
       let x = m.x;
       let z = m.z;
       let rumo = m.rumo;
@@ -204,19 +219,20 @@ export class MundoDaCaca {
       w.xAntes = x;
       w.zAntes = z;
       w.velocidade += ((andou < 12 ? andou : 0) - w.velocidade) * Math.min(1, 10 * dt);
-      g.position.set(x, 0, z);
+      g.position.set(x + (tremendo ? Math.sin(t * 61) * 0.035 : 0), 0, z);
       let giro = rumo - g.rotation.y;
       giro = Math.atan2(Math.sin(giro), Math.cos(giro));
       g.rotation.y += giro * Math.min(1, (emCasa ? 3 : 9) * dt);
 
       const seguindo = m.modo === 'seguindo';
-      const foge = m.modo === 'fugindo';
+      // O espantado sai correndo de bracos para o alto, como quem fugiu do monstro.
+      const foge = m.modo === 'fugindo' || m.modo === 'espantado';
       const assustado = m.modo === 'assustado';
       const batendo = m.ordem === 'isca' && m.modo === 'posto';
       const vendo = m.veAte > tempo;
       animar(w.figura, { velocidade: foge ? Math.max(w.velocidade, 5) : w.velocidade, gesto: null, agachado: assustado, espia: 0, lampiao: seguindo }, dt);
       // A luz do lampiao: so quem segue leva luz acesa (e ela e a luz fixa do boneco).
-      w.figura.luz.intensity = seguindo ? 11 : 0;
+      w.figura.luz.intensity = seguindo && !noApagao(caca, x, z) ? 11 : 0;
       const p = w.figura.partes;
       w.panela.visible = m.ordem === 'isca' && (m.modo === 'indo' || m.modo === 'posto');
       if (batendo) {
@@ -225,7 +241,7 @@ export class MundoDaCaca {
         p.bracoD.rotation.x = -1.2 - bate * 0.5;
         p.anteD.rotation.x = -0.9 - bate * 0.4;
         w.colher.rotation.z = 1.2 - bate * 0.6;
-      } else if (foge || assustado) {
+      } else if (foge || assustado || tremendo) {
         // De bracos para o alto, balancando, como quem esta fugindo de um monstro.
         p.bracoD.rotation.x = -2.9 + Math.sin(t * 14) * 0.25;
         p.bracoE.rotation.x = -2.9 + Math.sin(t * 14 + 1.6) * 0.25;
@@ -371,7 +387,8 @@ export class MundoDaCaca {
     }
     if (sinal) {
       this.luzDoSinal.position.set(sinal.x, 1.3 + (sinal.y ?? 0), sinal.z);
-      this.luzDoSinal.intensity = 9 * (1 + Math.sin(t * 9) * 0.08 + Math.sin(t * 23.7) * 0.05);
+      // Dentro de um apagao a luz do lampiao de sinal tambem se apaga.
+      this.luzDoSinal.intensity = noApagao(caca, sinal.x, sinal.z) ? 0 : 9 * (1 + Math.sin(t * 9) * 0.08 + Math.sin(t * 23.7) * 0.05);
     } else this.luzDoSinal.intensity = 0;
   }
 
@@ -455,10 +472,21 @@ export class MundoDaCaca {
     if (furiosa !== this.furiosa) this.pintarDeFuria(furiosa);
     const v = this.vulto;
     const g = v.grupo;
-    const jeito = modo === 'caca' || (furiosa && modo === 'confere') ? 'corre' : modo === 'confere' || modo === 'cerca' ? 'procura' : noChao ? 'para' : 'anda';
+    // A Coisa do Traidor copia a pose dele (sem IA): anda ou corre conforme a velocidade com que se mexe.
+    const andou = dt > 0 ? Math.hypot(c.x - this.xDaCoisa, c.z - this.zDaCoisa) / dt : 0;
+    this.xDaCoisa = c.x;
+    this.zDaCoisa = c.z;
+    this.velocidadeDaCoisa += ((andou < 12 ? andou : 0) - this.velocidadeDaCoisa) * Math.min(1, 8 * dt);
+    const jeito = caca.traidor ? (this.velocidadeDaCoisa > 4.6 ? 'corre' : noChao ? 'para' : 'anda') : modo === 'caca' || (furiosa && modo === 'confere') ? 'corre' : modo === 'confere' || modo === 'cerca' ? 'procura' : noChao ? 'para' : 'anda';
     const olha = modo === 'caca' || modo === 'cerca';
     v.gesto = modo === 'presa' ? 'debater' : null;
-    v.mostrar(true);
+    // No modo Traidor a fantasia so existe no mundo vestida (guardada, esta fora dele).
+    const naCidade = !caca.traidor || caca.traidor.fantasiado;
+    v.mostrar(naCidade);
+    if (!naCidade) {
+      v.atualizar(dt, c.x, c.y ?? 0, c.z, c.rumo, 'para', false, jogador.x, jogador.z);
+      return;
+    }
     // A fantasia do Traidor copia a pose dele: no andar de cima ou nas galerias, na altura de la.
     const chao = c.y ?? 0;
     const y = chao + (modo === 'derrubada' ? 0.3 : modo === 'caida' ? 0.1 : 0);
@@ -496,6 +524,7 @@ export class MundoDaCaca {
   destruir(): void {
     this.vulto.grupo.removeFromParent();
     this.vulto.sumir();
+    this.extras?.destruir();
     for (const m of this.moradores.values()) descartarPersonagem(m.figura);
     this.moradores.clear();
     for (const w of this.itens.values()) w.grupo.removeFromParent();

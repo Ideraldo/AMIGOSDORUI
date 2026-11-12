@@ -39,6 +39,8 @@ export interface DepsDasReacoes {
   coice: () => void;
   /** O sino da estacao tocou (o balanco e o som grave sao da tela, que tem o sino na cena). */
   sinoDaEstacao?: () => void;
+  /** A Coisa golpeou: o braco dela balanca (o boneco e da tela). */
+  golpeDaCoisa?: () => void;
   eu: string;
   bib: Biblioteca;
 }
@@ -80,6 +82,14 @@ export class Reacoes {
     if (n) voz.falar(texto, n.id, n.figura ?? 'homem', bib.npcs.indexOf(n));
   }
 
+  /** O barulho de uma tarefa que dura (arrombar, despregar, pregar): a tela repete enquanto o estado diz que alguem a faz. */
+  barulhoDeTarefa(som: 'madeira' | 'martelo', x: number, z: number, y = 0): void {
+    const { jogador } = this.d;
+    if (Math.abs(y) > 0.01 && Math.abs(y - jogador.posicao.y) > 2) return;
+    const o = this.ouvido(x, z, 35, 0.9);
+    if (o) this.d.som.sintetizar(som, { ...o, tom: 0.88 + Math.random() * 0.24 });
+  }
+
   /** Trata os eventos novos. Chamado a cada quadro, com o estado de agora. */
   processar(caca: Caca): void {
     for (const e of this.leitor.novos(caca)) {
@@ -99,6 +109,8 @@ export class Reacoes {
       case 'pegou': {
         const o = this.ouvido(e.x, e.z, 14, meu ? 0.5 : 0.35);
         if (o) som.tocar('passo-madeira-1', { ...o, tom: 1.5 * acaso });
+        // Quem pega o retalho fica com a pista (ela aparece no HUD e no caderno, so para ele).
+        if (meu && e.o === 'retalho') hud.avisar('Um retalho de pano. A pista fica no caderno.', 'bom', 3200);
         break;
       }
       case 'largou': {
@@ -254,6 +266,85 @@ export class Reacoes {
         // O balanco do sino e o som grave: da tela (o sino e um objeto da cidade).
         this.d.sinoDaEstacao?.();
         break;
+      // ---------- modo Traidor ----------
+      case 'apagao': {
+        // As luzes apagam de verdade (a tela faz isso olhando o estado); aqui o estalo e o susto de quem esta dentro.
+        const o = this.ouvido(e.x, e.z, 90, 0.9);
+        if (o) som.sintetizar('apagao', { ...o, tom: acaso });
+        if (Math.hypot(e.x - jogador.posicao.x, e.z - jogador.posicao.z) <= 30 && !meu) efeitos.sinal('susto');
+        break;
+      }
+      case 'uivo': {
+        const o = this.ouvido(e.x, e.z, 95, 1);
+        if (o) som.sintetizar('uivo', { ...o, tom: acaso });
+        if (!meu && Math.hypot(e.x - jogador.posicao.x, e.z - jogador.posicao.z) <= 15) {
+          efeitos.sinal('susto');
+          efeitos.sinal('medo');
+        }
+        break;
+      }
+      case 'tunel': {
+        const o = this.ouvido(e.x, e.z, 50, 0.95);
+        if (o) som.sintetizar('alcapao', { ...o, tom: acaso });
+        break;
+      }
+      case 'arrombou': {
+        const o = this.ouvido(e.x, e.z, 45, 1);
+        if (o) som.sintetizar('madeira', { ...o, tom: e.o === 'comecou' ? acaso : 0.7 });
+        break;
+      }
+      case 'trancou':
+      case 'destrancou': {
+        const o = this.ouvido(e.x, e.z, 20, 0.8);
+        if (o) som.sintetizar('trinco', { ...o, tom: e.tipo === 'trancou' ? acaso : 0.8 });
+        break;
+      }
+      case 'pregou': {
+        const o = this.ouvido(e.x, e.z, 35, 1);
+        if (o) som.sintetizar('martelo', { ...o, tom: 0.85 * acaso });
+        break;
+      }
+      case 'despregou': {
+        const o = this.ouvido(e.x, e.z, 40, 1);
+        if (o) som.sintetizar('madeira', { ...o, tom: e.o === 'fim' ? 0.6 : acaso });
+        break;
+      }
+      case 'espantou': {
+        // O morador espantado grita: todos por perto ouvem.
+        const o = this.ouvido(e.x, e.z, 45, 0.9);
+        if (o) som.tocar('medo', { ...o, tom: 1.15 });
+        this.fala(e.quem!, 'assustado', e.x, e.z);
+        break;
+      }
+      case 'golpe': {
+        const o = this.ouvido(e.x, e.z, 28, 1);
+        if (o) som.sintetizar('golpe', { ...o, tom: acaso });
+        // O braco da Coisa balanca em todas as telas (o corpo dela e o mesmo para quem ve).
+        this.d.golpeDaCoisa?.();
+        break;
+      }
+      case 'ofegante': {
+        const o = this.ouvido(e.x, e.z, 26, 0.85);
+        if (o) som.sintetizar('ofego', { ...o, tom: 0.9 + ((e.n % 3) - 1) * 0.04 });
+        break;
+      }
+      case 'retalho': {
+        const o = this.ouvido(e.x, e.z, 30, 0.6);
+        if (o) som.tocar('pista', { ...o, tom: 1.2 });
+        break;
+      }
+      case 'voto-fechado': {
+        som.tocar('pista', { volume: 0.5, tom: 0.8 });
+        const nome = caca.cacadores.find((c) => c.id === e.o)?.nome;
+        hud.avisar(nome ? `A reunião votou em ${nome}.` : 'A reunião não escolheu ninguém.', nome ? 'mau' : '', 4200);
+        break;
+      }
+      case 'amarrado': {
+        const nome = caca.cacadores.find((c) => c.id === e.quem)?.nome ?? 'Alguém';
+        som.sintetizar('trinco', { volume: 0.7, tom: 0.7 });
+        if (!meu) hud.legendar(`${nome} ficou amarrado no banco da estação.`, '', true, 4200);
+        break;
+      }
     }
   }
 }

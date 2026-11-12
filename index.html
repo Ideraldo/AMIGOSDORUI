@@ -1080,7 +1080,347 @@
       #preparando.sim {
         display: grid;
       }
+      /* ---------- modo Traidor: o cartao de papel, a mascara, o calor, os poderes, a reuniao e o amarrado ---------- */
+      #papel {
+        z-index: 7;
+        top: 50%;
+        left: 50%;
+        width: min(560px, 88vw);
+        transform: translate(-50%, -50%) rotate(-1.2deg);
+        display: none;
+        padding: 26px 34px 24px;
+        background: #e8d9b0;
+        color: #14100c;
+        border: 3px solid #5a4630;
+        box-shadow: 0 14px 70px #000, inset 0 0 40px rgba(90, 60, 20, 0.35);
+        text-align: center;
+        text-shadow: none;
+      }
+      #papel.sim {
+        display: block;
+        animation: papel-entra 0.5s ease-out;
+      }
+      @keyframes papel-entra {
+        from {
+          opacity: 0;
+          transform: translate(-50%, -46%) rotate(-4deg) scale(0.92);
+        }
+      }
+      #papel h2 {
+        margin: 0 0 10px;
+        font-size: 38px;
+        font-weight: normal;
+        letter-spacing: 0.04em;
+      }
+      #papel.eleito h2 {
+        color: #7a1208;
+      }
+      #papel p {
+        margin: 0;
+        font-size: 20px;
+        line-height: 1.35;
+        font-style: italic;
+      }
+      #papel small {
+        display: block;
+        margin-top: 12px;
+        font-size: 13px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        opacity: 0.6;
+      }
+      #vinheta-mascara,
+      #ofego {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        opacity: 0;
+      }
+      #vinheta-mascara {
+        background: radial-gradient(ellipse 64% 58% at 50% 50%, transparent 60%, rgba(10, 7, 4, 0.55) 80%, rgba(4, 3, 2, 0.94) 100%);
+        box-shadow: inset 0 0 160px 40px rgba(0, 0, 0, 0.5);
+        transition: opacity 0.6s;
+      }
+      #vinheta-mascara.sim {
+        opacity: 1;
+      }
+      #ofego {
+        background: radial-gradient(ellipse at center, transparent 30%, rgba(120, 8, 4, 0.55) 80%, rgba(40, 0, 0, 0.9) 100%);
+        transition: opacity 0.4s;
+      }
+      #ofego.sim {
+        animation: ofega 1.15s ease-in-out infinite;
+      }
+      @keyframes ofega {
+        0%,
+        100% {
+          opacity: 0.25;
+          transform: scale(1.06);
+        }
+        45% {
+          opacity: 0.95;
+          transform: scale(1);
+        }
+      }
+      #traidor-hud,
+      #cidade-hud {
+        top: 16px;
+        right: 20px;
+        display: none;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 8px;
+        font-size: 22px;
+        font-variant-numeric: tabular-nums;
+      }
+      #traidor-hud.sim,
+      #cidade-hud.sim {
+        display: flex;
+      }
+      #traidor-hud .linha,
+      #cidade-hud .linha {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      #traidor-hud svg,
+      #cidade-hud svg {
+        color: var(--brasa);
+      }
+      #traidor-hud small,
+      #cidade-hud small {
+        font-size: 11px;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        opacity: 0.7;
+      }
+      #calor {
+        width: 150px;
+        height: 12px;
+        border: 1px solid rgba(232, 217, 176, 0.7);
+        border-radius: 6px;
+        background: rgba(6, 5, 4, 0.75);
+        overflow: hidden;
+      }
+      #calor i {
+        display: block;
+        height: 100%;
+        width: 0;
+        background: linear-gradient(90deg, #e0a03c, #e2553f);
+      }
+      #calor.cheio {
+        border-color: #ff6a4a;
+        box-shadow: 0 0 12px #ff3a10;
+        animation: ofegar 0.7s ease-in-out infinite alternate;
+      }
+      @keyframes ofegar {
+        to {
+          transform: scale(1.1);
+        }
+      }
+      #pistas {
+        top: 58px;
+        left: 20px;
+        display: flex;
+        gap: 6px;
+      }
+      #pistas span {
+        display: grid;
+        place-items: center;
+        width: 46px;
+        height: 46px;
+        border: 2px solid rgba(232, 217, 176, 0.5);
+        border-radius: 8px;
+        background: rgba(8, 6, 5, 0.65);
+      }
+      #poderes {
+        bottom: 22px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: none;
+        gap: 10px;
+      }
+      #poderes.sim {
+        display: flex;
+      }
+      #poderes .poder {
+        position: relative;
+        width: 66px;
+        height: 66px;
+        display: grid;
+        place-items: center;
+        overflow: hidden;
+        border: 2px solid rgba(232, 217, 176, 0.4);
+        border-radius: 8px;
+        background: rgba(8, 6, 5, 0.7);
+        color: var(--papel);
+      }
+      #poderes .poder.pronto {
+        border-color: var(--brasa);
+        box-shadow: 0 0 12px rgba(255, 166, 77, 0.4);
+        color: #fff1d2;
+      }
+      #poderes .poder em {
+        position: absolute;
+        left: 5px;
+        top: 2px;
+        font-size: 12px;
+        font-style: normal;
+        color: var(--brasa);
+        z-index: 1;
+      }
+      #poderes .poder i {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.62);
+      }
+      #poderes .poder b {
+        position: absolute;
+        font-size: 22px;
+        font-weight: normal;
+        color: #fff;
+      }
+      #poderes .poder span {
+        position: absolute;
+        bottom: 1px;
+        font-size: 10px;
+        font-style: italic;
+        white-space: nowrap;
+        opacity: 0.85;
+      }
+      #destino {
+        top: 38%;
+        left: 50%;
+        transform: translateX(-50%);
+        display: none;
+        padding: 12px 22px;
+        background: rgba(8, 6, 5, 0.85);
+        border: 1px solid #5a4a36;
+        text-align: center;
+        font-size: 18px;
+      }
+      #destino h4 {
+        margin: 0 0 8px;
+        font-size: 12px;
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+        color: var(--brasa);
+        font-weight: normal;
+      }
+      #destino .linha {
+        display: flex;
+        gap: 24px;
+        justify-content: center;
+      }
+      #reuniao {
+        position: fixed;
+        inset: 0;
+        z-index: 4;
+        display: none;
+        pointer-events: none;
+        background: radial-gradient(ellipse at 50% 55%, rgba(0, 0, 0, 0.28) 30%, rgba(0, 0, 0, 0.78) 100%);
+        text-shadow: 0 1px 3px #000, 0 0 8px #000;
+      }
+      #reuniao.sim {
+        display: block;
+      }
+      #reuniao .quadro {
+        position: absolute;
+        top: 88px;
+        left: 22px;
+        min-width: 260px;
+        padding: 16px 26px 14px;
+        background: rgba(10, 8, 6, 0.8);
+        border: 1px solid #5a4a36;
+      }
+      #reuniao h3 {
+        margin: 0 0 4px;
+        font-size: 13px;
+        letter-spacing: 0.3em;
+        text-transform: uppercase;
+        color: var(--brasa);
+        font-weight: normal;
+        text-align: center;
+      }
+      #reuniao .relogio {
+        margin-bottom: 10px;
+        font-size: 44px;
+        text-align: center;
+        font-variant-numeric: tabular-nums;
+      }
+      #reuniao .relogio.pouco {
+        color: #ff8a6e;
+      }
+      #reuniao ul {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+        font-size: 22px;
+      }
+      #reuniao li {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 3px 0;
+      }
+      #reuniao li .votou {
+        margin-left: auto;
+        padding-left: 18px;
+        color: #bde8a0;
+      }
+      #reuniao li.meu {
+        color: #ffd9a0;
+      }
+      #reuniao .fora {
+        font-size: 17px;
+        font-style: italic;
+        text-align: center;
+        opacity: 0.85;
+      }
+      #amarrado {
+        position: fixed;
+        inset: 0;
+        z-index: 3;
+        display: none;
+        pointer-events: none;
+        background: radial-gradient(ellipse at center, transparent 35%, rgba(20, 12, 4, 0.7) 85%, rgba(6, 3, 0, 0.95) 100%);
+        text-align: center;
+      }
+      #amarrado.sim {
+        display: block;
+      }
+      #amarrado div {
+        position: absolute;
+        bottom: 18%;
+        left: 50%;
+        transform: translateX(-50%);
+        max-width: min(640px, 88vw);
+        padding: 8px 20px;
+        background: rgba(6, 5, 4, 0.6);
+        font-size: 22px;
+        font-style: italic;
+        text-shadow: 0 1px 3px #000;
+      }
+      #amarrado small {
+        display: block;
+        margin-top: 4px;
+        font-size: 14px;
+        opacity: 0.75;
+      }
+      .em-abertura #papel,
+      .em-abertura #reuniao,
+      .em-abertura #amarrado,
+      .em-abertura #vinheta-mascara,
+      .em-abertura #ofego {
+        display: none !important;
+      }
       .sem-hud .hud,
+      .sem-hud #reuniao,
+      .sem-hud #amarrado,
+      .sem-hud #vinheta-mascara,
+      .sem-hud #ofego,
       .sem-hud #entrada,
       .sem-hud #rodape,
       .sem-hud #abertura,
@@ -1092,6 +1432,8 @@
   </head>
   <body>
     <canvas id="jogo"></canvas>
+    <div id="vinheta-mascara"></div>
+    <div id="ofego"></div>
     <div class="hud" id="relogio"></div>
     <div class="hud" id="coragem"></div>
     <div class="hud" id="mira"></div>
@@ -1106,6 +1448,14 @@
     <div class="hud" id="teclas"></div>
     <div class="hud" id="espera-hud"></div>
     <div class="hud" id="gestos"></div>
+    <div class="hud" id="traidor-hud"></div>
+    <div class="hud" id="cidade-hud"></div>
+    <div class="hud" id="pistas"></div>
+    <div class="hud" id="poderes"></div>
+    <div class="hud" id="destino"></div>
+    <div id="reuniao"></div>
+    <div id="amarrado"></div>
+    <div class="hud" id="papel"></div>
     <div id="escuro"></div>
     <div id="preparando">Preparando a cidade...</div>
     <div id="estrelinhas"><span>✦</span><span>✦</span><span>✦</span></div>
@@ -1155,11 +1505,11 @@
           <dt>WASD</dt>
           <dd>andar (Shift corre, Espaço pula, C agacha)</dd>
           <dt>E</dt>
-          <dd>pegar, falar com morador; segurar: máscara, acordar, recolher</dd>
+          <dd>pegar, falar com morador; segurar: máscara, acordar, recolher, trancar a porta, pregar baú; no sino da estação: reunião</dd>
           <dt>1 2</dt>
           <dd>escolher o que está na mão</dd>
-          <dt>Q</dt>
-          <dd>segurar para montar no chão</dd>
+          <dt>Q, V</dt>
+          <dd>Q segurado monta no chão; V segurado perto de um laço confere o nó</dd>
           <dt>G</dt>
           <dd>largar</dd>
           <dt>Mouse</dt>

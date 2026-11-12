@@ -57,6 +57,10 @@ export class Jogador {
   tremor = 0;
   /** Quanto do andar normal vale (a cacada: preso e caido valem 0, piche 0,4). 1 nao muda nada. */
   multiplicador = 1;
+  /** A corrida maxima, em m/s (a cacada: a Coisa fantasiada corre menos que a turma). */
+  tetoDeCorrida = VELOCIDADE_CORRENDO;
+  /** Sobe os olhos, em metros (a fantasia deixa a cabeca mais alta). */
+  alturaExtra = 0;
   /** Piche: o corpo escorrega, a velocidade demora a acompanhar o que se quer. */
   derrapar = false;
   /** Inclina a vista de lado, em radianos (a cacada: caido, pendurado de cabeca para baixo). */
@@ -226,7 +230,7 @@ export class Jogador {
       if (this.folego >= FOLEGO_PARA_VOLTAR) this.exausto = false;
     }
     if (andar !== 0 || lado !== 0) {
-      const velocidade = (this.agachado ? VELOCIDADE_AGACHADO : correndo ? VELOCIDADE_CORRENDO : VELOCIDADE) * (espiando ? 0.5 : 1) * this.multiplicador;
+      const velocidade = (this.agachado ? VELOCIDADE_AGACHADO : correndo ? this.tetoDeCorrida : VELOCIDADE) * (espiando ? 0.5 : 1) * this.multiplicador;
       const v = (velocidade * dt) / Math.hypot(andar, lado);
       const f = this.frente();
       // (-f.z, f.x) e o vetor para a direita de quem olha.
@@ -276,7 +280,7 @@ export class Jogador {
     const olho = this.olho;
     const rumo = this.rumo;
     olho.x = this.posicao.x;
-    olho.y = this.pesSuave + this.olhos + balanco - this.baixar;
+    olho.y = this.pesSuave + this.olhos + balanco - this.baixar + this.alturaExtra;
     olho.z = this.posicao.z;
     let rolar = 0;
     const fora = this.vistoDeFora;

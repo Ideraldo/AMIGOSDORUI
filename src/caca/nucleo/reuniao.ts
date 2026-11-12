@@ -4,18 +4,18 @@
 // O relogio do trem para: enquanto a reuniao dura, `duracao` cresce o mesmo que `tempo`, e assim
 // `restante` nao muda e o prazo (`ate = tempo + 30`) continua sendo um segundo da partida.
 
-import { NASCIMENTO } from '../../mundo/planta.ts';
+import { NASCIMENTO, SINO_DA_ESTACAO } from '../../mundo/planta.ts';
 import { cacadorDe, distancia, emitir, fora } from './base.ts';
 import { eOTraidor, fantasiado } from './papeis.ts';
 import { REUNIAO, type Ambiente, type Caca, type Cacador } from './tipos.ts';
 
 export const NINGUEM = 'ninguem';
 
-/** Toca o sino. Vale uma vez por jogador, a ate 4 m da estacao, fora de outra reuniao, e nao fantasiado. */
+/** Toca o sino. Vale uma vez por jogador, a ate 4 m do sino do patio da estacao, fora de outra reuniao, e nao fantasiado. */
 export function tocarSino(caca: Caca, h: Cacador, amb: Ambiente): void {
   const p = amb.poses[h.id];
   if (!p || caca.reuniao || h.tocouSino || fantasiado(caca, h.id)) return;
-  if (distancia(p.x, p.z, NASCIMENTO.x, NASCIMENTO.z) > REUNIAO.alcanceDoSino) return;
+  if (distancia(p.x, p.z, SINO_DA_ESTACAO.x, SINO_DA_ESTACAO.z) > REUNIAO.alcanceDoSino) return;
   h.tocouSino = true;
   caca.chamados += 1;
   caca.reuniao = { por: h.id, ate: caca.tempo + REUNIAO.prazo, votos: {}, chamados: caca.chamados, ausente: caca.traidor?.fantasiado ? caca.traidor.id : null };
@@ -24,7 +24,7 @@ export function tocarSino(caca: Caca, h: Cacador, amb: Ambiente): void {
     c.ocupado = null;
     c.progresso = 0;
   }
-  emitir(caca, 'sino-da-estacao', NASCIMENTO.x, NASCIMENTO.z, h.id);
+  emitir(caca, 'sino-da-estacao', SINO_DA_ESTACAO.x, SINO_DA_ESTACAO.z, h.id);
 }
 
 /** Um voto: em um cacador ou em 'ninguem'. O primeiro voto de cada um vale. O ausente nao vota. */

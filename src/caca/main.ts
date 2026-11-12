@@ -27,7 +27,8 @@ import { brilhoGeral } from '../mundo/base.ts';
 import { ambiente } from '../mundo/cenario.ts';
 import { construirCidade, descartarCidade, type Cidade } from '../mundo/cidade.ts';
 import { chegadaNaEspera, construirEspera, type SalaDeEspera } from '../mundo/espera.ts';
-import { ALCAPOES, LIMITES, LUGARES, NASCIMENTO, SINO_DA_ESTACAO, SUBSOLO, pegada, type LugarId, type Retangulo } from '../mundo/planta.ts';
+import { ALCAPOES, CAIXA_DAGUA, LIMITES, LUGARES, NASCIMENTO, RODA_DO_SINO, SINO_DA_ESTACAO, SUBSOLO, pegada, type LugarId, type Retangulo } from '../mundo/planta.ts';
+import { frenteDaPorta } from '../nucleo/coisa.ts';
 import { plantaSvg } from '../mundo/plantaSvg.ts';
 import { pontosDoLugar, type Ponto } from '../mundo/pontos.ts';
 import { limparAparencia } from '../rede/aparencia.ts';
@@ -41,17 +42,27 @@ import { Hud } from './hud.ts';
 import { COM_ARTIGO } from './icones.ts';
 import { montarPercepcao, type Percepcao } from './mundo/percepcao.ts';
 import { MundoDaCaca } from './mundoDaCaca.ts';
-import { cacadorDe, novaCaca, podeDesmascarar, restante, velocidadeDoCacador } from './nucleo/caca.ts';
+import { cacadorDe, novaCaca, podeDesmascarar, restante, velocidadeDoCacador, velocidadeMaximaDe, visaoDe } from './nucleo/caca.ts';
+import type { Visao } from './nucleo/visao.ts';
+import { noApagao } from './nucleo/papeis.ts';
+import { HudDoTraidor } from './traidorHud.ts';
 import { emitir, fora, mesmoAndar, nasGalerias } from './nucleo/base.ts';
 import { falaDaCaca } from './nucleo/gente.ts';
 import {
   ALCANCE_DAS_MAOS,
   BALAS,
+  CONFERIR,
   CORAGEM_CHEIA,
+  ESPANTAR,
+  FANTASIA,
   GALERIAS_A_PE,
   MAOS,
+  PODERES,
   POSTO_DO_ITEM,
+  REUNIAO,
+  SEGUNDOS_DA_TAREFA,
   SEGUNDOS_PARA_MONTAR,
+  TRANCA,
   SEGUNDOS_PARA_REANIMAR,
   TIPOS_DE_COISA,
   type Acao,
@@ -59,6 +70,7 @@ import {
   type Item,
   type Ordem,
   type Pose,
+  type Toca,
   type TipoDeCoisa,
   type TipoDeEvento,
   type TipoDePosto,
@@ -125,6 +137,7 @@ const hud = new Hud();
 const entrada = new Entrada(canvas);
 const jogador = new Jogador(camera, canvas);
 const outros = new Outros(cena);
+const hudT = new HudDoTraidor();
 
 // ---------- o personagem de quem joga: o criador (tela de entrada) e a figura vista de fora ----------
 
@@ -152,7 +165,10 @@ const tipoPedido = parametros.get('tipo');
 const duracaoPedida = Number(parametros.get('duracao'));
 const tipoDaUrl = (TIPOS_DE_COISA as readonly string[]).includes(tipoPedido ?? '') ? (tipoPedido as TipoDeCoisa) : undefined;
 
+/** `?modo=traidor|caca`: forca o modo (sozinho, `traidor` poe o jogador no papel, para testar). Sem isso: 3 ou mais na sala e Traidor. */
+const modoDaUrl = parametros.get('modo') === 'traidor' || parametros.get('modo') === 'caca' ? (parametros.get('modo') as 'traidor' | 'caca') : undefined;
 let caca: Caca = novaCaca(bib, semente, [{ id: EU, nome: 'Você' }], {
+  ...(modoDaUrl ? { modo: modoDaUrl } : {}),
   tipo: tipoDaUrl,
   vilao: parametros.get('vilao') ?? undefined,
   duracao: duracaoPedida > 0 ? duracaoPedida : undefined,
@@ -222,7 +238,7 @@ let tempoForcado = false;
 let fator = 1;
 let qBloqueado = false;
 let montadasAntes = 0;
-let segurandoE: '' | 'mascara' | 'reanimar' | 'recolher' | 'galeria' = '';
+let segurandoE = '';
 let recolhendo = 0;
 let segurandoR = 0;
 let quadros = 0;
@@ -237,7 +253,33 @@ let saltoVisto = 0;
 /** Quanto a tela esta escura (descer e subir pelo alcapao), de 0 a 1. */
 let escuridao = 0;
 
-const alvoE = { tipo: '' as '' | 'pegar' | 'cheio' | 'mascara' | 'reanimar' | 'recolher' | 'morador' | 'galeria', id: '', texto: '', descendo: false };
+/** O que a tela do modo Traidor guarda de um quadro para o outro. So le o estado: nada aqui muda a partida. */
+const modo = {
+  /** A visao que ESTE jogador tem do modo (o papel e so dele). Nula na cacada comum. */
+  vis: null as Visao | null,
+  /** O ultimo numero de reuniao que ja levou o jogador a roda do sino. */
+  reuniaoVista: 0,
+  naRoda: false,
+  amarrado: false,
+  saltoVisto: 0,
+  cartaoPendente: false,
+  lampiaoForcado: false,
+  lampiaoAntes: true,
+  apagaoK: 0,
+  apagaoEm: null as { x: number; z: number } | null,
+  filtro: '',
+  /** Escolhendo o destino do tunel: de que alcapao. */
+  destino: null as null | { de: string; opcoes: { id: string; nome: string }[] },
+  /** Postos que ja conferiu (para avisar o resultado uma vez). */
+  conferidos: new Set<string>(),
+  segurandoV: false,
+  /** Casas sendo arrombadas, moradores sendo espantados, e o relogio do barulho de cada tarefa que se ouve repetir. */
+  arrombando: new Set<LugarId>(),
+  ruido: new Map<string, number>(),
+  mapaAssinatura: '',
+};
+
+const alvoE = { tipo: '' as string, id: '', texto: '', descendo: false, posto: '' };
 const pontoPedido = { x: 0, z: 0, noChao: false };
 
 function ajustarTamanho(): void {
@@ -366,9 +408,48 @@ function atualizarAbertura(dt: number): void {
 let cenaFinal: CenaFinal | null = null;
 let placarMostrado = false;
 
+/** Tira do ar o que e do modo Traidor (o fim, ou a volta a plataforma). */
+function limparOModo(): void {
+  hudT.limpar();
+  hudT.esconderPapel();
+  hudT.reuniao({ ...caca, reuniao: null }, EU, [], false);
+  hudT.amarrado(null);
+  hudT.destino(null);
+  modo.vis = null;
+  modo.naRoda = false;
+  modo.amarrado = false;
+  modo.destino = null;
+  modo.cartaoPendente = false;
+  modo.conferidos.clear();
+  modo.ruido.clear();
+  modo.arrombando.clear();
+  modo.apagaoK = 0;
+  modo.apagaoEm = null;
+  jogador.congelado = false;
+  jogador.alturaExtra = 0;
+  jogador.tetoDeCorrida = 7.2;
+  if (modo.lampiaoForcado) {
+    modo.lampiaoForcado = false;
+    jogador.seco = false;
+    jogador.lampiao.visible = modo.lampiaoAntes;
+  }
+  if (modo.filtro) {
+    modo.filtro = '';
+    canvas.style.filter = '';
+  }
+  elMaos.style.display = '';
+}
+
 function comecarCenaDoFim(): void {
   const npc = bib.npcs.find((n) => n.id === caca.coisa.npc);
+  // No modo Traidor a cena mostra o jogador, com a aparencia que ele criou (o resto do estado so guarda chapeu e lenco).
+  const idDoTraidor = caca.traidor?.id;
+  const aparenciaDoTraidor = idDoTraidor ? (presencas.find((p) => p.id === idDoTraidor)?.aparencia ?? (idDoTraidor === EU ? criador.aparencia : undefined)) : undefined;
+  limparOModo();
   cenaFinal = new CenaFinal({
+    aparenciaDoTraidor,
+    nomeDoTraidor: idDoTraidor ? caca.cacadores.find((c) => c.id === idDoTraidor)?.nome : undefined,
+    dizer: (texto) => hud.legendar(texto, '', true, 4200),
     cena,
     camera,
     mundo,
@@ -465,6 +546,7 @@ function acharAlvoDeE(): void {
   alvoE.tipo = '';
   alvoE.id = '';
   alvoE.texto = '';
+  alvoE.posto = '';
   const h = cacadorDe(caca, EU)!;
   if (fora(h, caca.tempo) || abertura || caca.fim) return;
   const px = jogador.posicao.x;
@@ -475,7 +557,7 @@ function acharAlvoDeE(): void {
   const cz = camera.position.z;
   const c = caca.coisa;
 
-  if (podeDesmascarar(caca) && Math.hypot(c.x - px, c.z - pz) <= ALCANCE_DAS_MAOS && mesmoAndar(c.y, poseEu.y)) {
+  if (podeDesmascarar(caca) && !modo.vis?.fantasiado && Math.hypot(c.x - px, c.z - pz) <= ALCANCE_DAS_MAOS && mesmoAndar(c.y, poseEu.y)) {
     alvoE.tipo = 'mascara';
     alvoE.texto = 'segure E: arrancar a máscara';
     return;
@@ -489,6 +571,11 @@ function acharAlvoDeE(): void {
       alvoE.texto = `segure E: acordar ${o.nome}`;
       return;
     }
+  }
+  if (caca.traidor) {
+    if (acharAlvoDoTraidor(h)) return;
+    // Fantasiado, ele nao pega, nao recolhe nem fala com ninguem: so o que a Coisa faz.
+    if (modo.vis?.fantasiado) return;
   }
   // As coisas soltas: no movel (so de dentro do lugar), na mira e ao alcance do braco; no chao, por perto.
   let melhor = Infinity;
@@ -534,6 +621,9 @@ function acharAlvoDeE(): void {
       alvoE.tipo = 'recolher';
       alvoE.id = p.id;
       alvoE.texto = p.gasto ? 'segure E: tirar do caminho' : `segure E: recolher ${p.tipo === 'laco' ? 'o laço' : p.tipo === 'piche' ? 'a poça' : p.tipo === 'latas' ? 'o tropeço' : p.tipo === 'sino' ? 'o sino' : 'o lampião'}`;
+      // O no de um laco ou das latas se confere (V segurado), para ver se alguem o montou frouxo.
+      alvoE.posto = !p.gasto && (p.tipo === 'laco' || p.tipo === 'latas') && caca.traidor && !modo.vis?.postos.find((x) => x.id === p.id)?.conferido ? p.id : '';
+      if (alvoE.posto) alvoE.texto += ' · V: conferir o nó';
     }
   }
   if (alvoE.tipo) return;
@@ -554,6 +644,100 @@ function acharAlvoDeE(): void {
       alvoE.texto = `falar com ${bib.npcs.find((n) => n.id === m.npc)?.nome ?? ''}`;
     }
   }
+  if (!alvoE.tipo && caca.traidor) acharTrancaPorDentro();
+}
+
+// ---------- o modo Traidor: o que o E encontra ----------
+
+/** A toca ao alcance de quem esta aqui, so entre as que ele pode saber (a visao dele). */
+function tocaPerto(): Toca | null {
+  if (!modo.vis) return null;
+  for (const t of modo.vis.tocas) {
+    if (!mesmoAndar(t.y, poseEu.y)) continue;
+    if (Math.hypot(t.x - poseEu.x, t.z - poseEu.z) <= FANTASIA.alcanceDaToca - 0.4) return t;
+  }
+  return null;
+}
+
+/** O que o E faz perto de uma toca, de uma porta trancada ou de um morador, conforme o papel. Devolve true se achou. */
+function acharAlvoDoTraidor(h: NonNullable<ReturnType<typeof cacadorDe>>): boolean {
+  const vis = modo.vis!;
+  const px = poseEu.x;
+  const pz = poseEu.z;
+  // O sino da estacao: qualquer um que nao esteja fantasiado toca, uma vez.
+  if (!vis.fantasiado && !h.tocouSino && !caca.reuniao && poseEu.y > SUBSOLO && Math.hypot(SINO_DA_ESTACAO.x - px, SINO_DA_ESTACAO.z - pz) <= REUNIAO.alcanceDoSino - 0.5) {
+    alvoE.tipo = 'sino';
+    alvoE.texto = 'E: tocar o sino (uma reunião por pessoa)';
+    return true;
+  }
+  const toca = tocaPerto();
+  if (vis.fantasiado) {
+    if (toca) {
+      alvoE.id = toca.id;
+      alvoE.tipo = toca.pregada ? 'despregar' : 'despir';
+      alvoE.texto = toca.pregada ? 'segure E: arrancar as tábuas' : 'segure E: tirar a fantasia';
+      return true;
+    }
+    const boca = bocaPerto();
+    if (boca) {
+      alvoE.tipo = 'galeria';
+      alvoE.id = boca.id;
+      alvoE.descendo = boca.descendo;
+      alvoE.texto = boca.descendo ? `segure E: descer ${NOME_DA_BOCA[boca.id] ?? 'daqui'}` : 'segure E: subir para a rua';
+      return true;
+    }
+    // Porta trancada ao alcance: arrombar. Senao, o morador mais perto (a distancia que a regra mede).
+    for (const lugar of caca.trancados) {
+      const porta = frenteDaPorta(lugar);
+      if (Math.hypot(porta.x - px, porta.z - pz) <= TRANCA.alcanceDaPorta - 0.5) {
+        alvoE.tipo = 'arrombar';
+        alvoE.id = lugar;
+        alvoE.texto = 'segure E: arrombar a porta';
+        return true;
+      }
+    }
+    let melhor = ESPANTAR.alcance - 0.3;
+    for (const m of caca.moradores) {
+      if (m.modo === 'espantado' || m.modo === 'assustado') continue;
+      const d = Math.hypot(m.x - px, m.z - pz);
+      if (d < melhor && !nasGalerias(poseEu)) {
+        melhor = d;
+        alvoE.tipo = 'espantar';
+        alvoE.id = m.npc;
+        alvoE.texto = `segure E: espantar ${bib.npcs.find((n) => n.id === m.npc)?.nome ?? 'o morador'}`;
+      }
+    }
+    return alvoE.tipo !== '';
+  }
+  if (toca) {
+    // O Traidor veste a fantasia no bau. Quem leva tabuas prega o bau (so os baus que ja viu).
+    if (vis.papel === 'traidor' && !toca.pregada) {
+      alvoE.id = toca.id;
+      alvoE.tipo = 'vestir';
+      alvoE.texto = 'segure E: vestir a fantasia';
+      return true;
+    }
+    // Sempre sobra uma toca livre: a regra nao deixa pregar a ultima, entao a tela nem oferece.
+    if (vis.papel === 'cacador' && !toca.pregada && h.itens.includes('tabuas') && caca.tocas.filter((k) => !k.pregada).length >= 2) {
+      alvoE.id = toca.id;
+      alvoE.tipo = 'pregar';
+      alvoE.texto = 'segure E: pregar o baú';
+      return true;
+    }
+  }
+  return false;
+}
+
+/** Por dentro de um lugar, perto da porta: segurar E tranca (ou destranca). Nada disso existe para a Coisa fantasiada. */
+function acharTrancaPorDentro(): void {
+  const lugar = poseEu.dentro;
+  if (!lugar || modo.vis?.fantasiado) return;
+  const l = LUGARES.find((x) => x.id === lugar);
+  if (!l || Math.hypot(l.x - poseEu.x, l.z - poseEu.z) > 2.8) return;
+  const trancada = caca.trancados.includes(lugar);
+  alvoE.tipo = trancada ? 'destrancar' : 'trancar';
+  alvoE.id = lugar;
+  alvoE.texto = trancada ? 'segure E: destrancar a porta' : 'segure E: trancar a porta';
 }
 
 // ---------- o que a tecla pede as regras ----------
@@ -567,6 +751,62 @@ function aFrenteDeMim(passo = 0.95): { x: number; z: number } | null {
   const x = jogador.posicao.x + f.x * passo;
   const z = jogador.posicao.z + f.z * passo;
   return percepcao.livre(x, z, jogador.posicao.y) ? { x, z } : null;
+}
+
+const NOME_DO_DESTINO: Record<string, string> = { bar: 'porão do bar', poco: 'poço da praça', mina: 'mina' };
+
+/** As teclas 1, 2 e 3 de quem esta fantasiado: apagao, uivo e tunel (este abre a escolha do destino, 1 e 2). */
+function teclaDePoder(tecla: string): void {
+  const tr = caca.traidor!;
+  if (modo.destino) {
+    const i = tecla === 'Digit1' ? 0 : tecla === 'Digit2' ? 1 : -1;
+    const alvo = i >= 0 ? modo.destino.opcoes[i] : undefined;
+    if (alvo) pedir({ t: 'poder', qual: 'tunel', de: modo.destino.de, para: alvo.id });
+    if (alvo || tecla === 'Escape' || tecla === 'KeyE' || tecla === 'Digit3') modo.destino = null;
+    return;
+  }
+  const qual = tecla === 'Digit1' ? 'apagao' : tecla === 'Digit2' ? 'uivo' : tecla === 'Digit3' ? 'tunel' : null;
+  if (!qual) return;
+  const falta = tr.prontoEm[qual] - caca.tempo;
+  if (falta > 0) {
+    hud.avisar(`recarregando: ${Math.ceil(falta)} s`, '', 900);
+    return;
+  }
+  if (qual === 'apagao') pedir({ t: 'poder', qual: 'apagao' });
+  else if (qual === 'uivo') pedir({ t: 'poder', qual: 'uivo' });
+  else {
+    const boca = bocaPerto();
+    if (!boca) {
+      hud.avisar('O túnel pede um alçapão por perto.', '', 1800);
+      return;
+    }
+    const opcoes = ALCAPOES.filter((a) => a.id !== boca.id && (a.id !== 'bar' || caca.abertos.includes('bar'))).map((a) => ({ id: a.id, nome: NOME_DO_DESTINO[a.id] ?? a.id }));
+    modo.destino = { de: boca.id, opcoes };
+  }
+}
+
+/** Quem esta na roda e pode receber o voto de quem olha (as teclas 1 a 9, na ordem; 0 e "ninguem"). */
+function candidatosDaReuniao(): { id: string; nome: string }[] {
+  const r = caca.reuniao;
+  if (!r) return [];
+  return caca.cacadores.filter((c) => c.id !== EU && !c.ausente && c.id !== r.ausente).map((c) => ({ id: c.id, nome: c.nome }));
+}
+
+/** Na roda do sino so se vota. O primeiro voto vale (a regra ignora os outros). */
+function votarComAsTeclas(h: NonNullable<ReturnType<typeof cacadorDe>>): void {
+  const r = caca.reuniao!;
+  if (h.id in r.votos) return;
+  for (const tecla of entrada.toques) {
+    if (tecla === 'Digit0') {
+      pedir({ t: 'votar', quem: 'ninguem' });
+      return;
+    }
+    const m = /^Digit([1-9])$/.exec(tecla);
+    if (!m) continue;
+    const c = candidatosDaReuniao()[Number(m[1]) - 1];
+    if (c) pedir({ t: 'votar', quem: c.id });
+    return;
+  }
 }
 
 function tratarTeclas(h: ReturnType<typeof cacadorDe> & object, dt: number): void {
@@ -583,7 +823,19 @@ function tratarTeclas(h: ReturnType<typeof cacadorDe> & object, dt: number): voi
     return;
   }
 
+  // Na roda do sino so se vota.
+  if (caca.reuniao && modo.naRoda) {
+    votarComAsTeclas(h);
+    return;
+  }
+  const fantasiado = !!modo.vis?.fantasiado;
+  // O painel do tunel se fecha se a pessoa sai de perto do alcapao.
+  if (modo.destino && !bocaPerto()) modo.destino = null;
   for (const tecla of entrada.toques) {
+    if (fantasiado && !rodinha) {
+      teclaDePoder(tecla);
+      continue;
+    }
     if (rodinha) {
       // Com a rodinha aberta, 1 a 4 escolhem e o E (ou Esc) fecha.
       const ordem: Ordem | null = tecla === 'Digit1' ? 'isca' : tecla === 'Digit2' ? 'vigia' : tecla === 'Digit3' ? 'seguir' : null;
@@ -605,6 +857,7 @@ function tratarTeclas(h: ReturnType<typeof cacadorDe> & object, dt: number): voi
       if (alvoE.tipo === 'pegar') pedir({ t: 'pegar', id: alvoE.id });
       else if (alvoE.tipo === 'cheio') hud.avisar('Mãos cheias. G larga o que está na mão.', '', 2200);
       else if (alvoE.tipo === 'morador') rodinha = alvoE.id;
+      else if (alvoE.tipo === 'sino') pedir({ t: 'tocarSino' });
     }
   }
   // A rodinha se fecha sozinha se a pessoa se afasta do morador.
@@ -618,17 +871,24 @@ function tratarTeclas(h: ReturnType<typeof cacadorDe> & object, dt: number): voi
   }
 
   // Tiro: um clique, com o revolver na mao. O som, o clarao e o coice saem do evento 'tiro'.
-  if (entrada.cliques > 0 && h.revolver && !rodinha) {
+  // Fantasiado, o clique e o golpe da Coisa (o braco, o som e a recarga saem do evento).
+  if (entrada.cliques > 0 && fantasiado && !rodinha) pedir({ t: 'golpear' });
+  else if (entrada.cliques > 0 && h.revolver && !rodinha) {
     camera.getWorldDirection(olhar);
     pedir({ t: 'atirar', x: camera.position.x, y: camera.position.y, z: camera.position.z, dx: olhar.x, dy: olhar.y, dz: olhar.z });
   }
 
   // Segurar E: arrancar a mascara, acordar um amigo, recolher uma armadilha ou descer ao alcapao.
-  const querEmE = alvoE.tipo === 'mascara' || alvoE.tipo === 'reanimar' || alvoE.tipo === 'recolher' || alvoE.tipo === 'galeria';
-  const quer: typeof segurandoE = entrada.seg.has('KeyE') && !rodinha && querEmE ? (alvoE.tipo as typeof segurandoE) : '';
+  // E segurado tambem: vestir, despir, pregar, despregar, espantar, arrombar, trancar e destrancar (modo Traidor).
+  const SEGURAR = ['mascara', 'reanimar', 'recolher', 'galeria', 'vestir', 'despir', 'pregar', 'despregar', 'espantar', 'arrombar', 'trancar', 'destrancar'];
+  const querEmE = SEGURAR.includes(alvoE.tipo);
+  const quer: string = entrada.seg.has('KeyE') && !rodinha && !caca.reuniao && querEmE ? alvoE.tipo : '';
   if (quer === 'mascara') pedir({ t: 'ocupar', com: 'mascara' });
   else if (quer === 'reanimar') pedir({ t: 'reanimar', quem: alvoE.id });
   else if (quer === 'galeria') pedir(alvoE.descendo ? { t: 'descer', de: alvoE.id } : { t: 'subir', de: alvoE.id });
+  else if (quer === 'vestir' || quer === 'despir' || quer === 'pregar' || quer === 'despregar') pedir({ t: quer, toca: alvoE.id });
+  else if (quer === 'espantar') pedir({ t: 'espantar', npc: alvoE.id });
+  else if (quer === 'trancar' || quer === 'destrancar' || quer === 'arrombar') pedir({ t: quer, lugar: alvoE.id as LugarId });
   else if (quer === 'recolher') {
     if (recolhendo >= 0) recolhendo += dt;
     if (recolhendo >= 0.7) {
@@ -640,6 +900,11 @@ function tratarTeclas(h: ReturnType<typeof cacadorDe> & object, dt: number): voi
   if (quer !== 'recolher' && !(quer === '' && entrada.seg.has('KeyE') && recolhendo < 0)) recolhendo = 0;
   if (segurandoE !== '' && quer === '' && (h.ocupado?.com === 'mascara' || h.ocupado?.com === 'reanimar' || h.ocupado?.com === 'tarefa')) pedir({ t: 'ocupar', com: null });
   segurandoE = quer;
+  // V segurado perto do posto: conferir o no (so quem nao esta fantasiado).
+  const querV = !!alvoE.posto && entrada.seg.has('KeyV') && !fantasiado && !rodinha && !caca.reuniao;
+  if (querV) pedir({ t: 'conferir', id: alvoE.posto });
+  else if (modo.segurandoV && h.ocupado?.com === 'tarefa' && h.ocupado.tarefa.qual === 'conferir') pedir({ t: 'ocupar', com: null });
+  modo.segurandoV = querV;
 
   // Segurar Q: montar no chao, um passo a frente, com um fantasma de onde vai ficar.
   const item = h.itens[escolhido];
@@ -649,12 +914,14 @@ function tratarTeclas(h: ReturnType<typeof cacadorDe> & object, dt: number): voi
     // Montou: so monta outra depois de soltar o Q.
     qBloqueado = true;
   }
-  if (entrada.seg.has('KeyQ') && item && item !== 'tabuas' && !qBloqueado && !rodinha) {
+  if (entrada.seg.has('KeyQ') && item && item !== 'tabuas' && !qBloqueado && !rodinha && !fantasiado) {
     const ponto = aFrenteDeMim();
     if (ponto) {
       mundo.fantasma(POSTO_DO_ITEM[item] as TipoDePosto, ponto.x, ponto.z, jogador.posicao.y);
       // So comeca parado: andar com o Q apertado nao conta (a regra cancela quem se mexe).
-      if (h.ocupado?.com === 'montar' || jogador.velocidade < 0.5) pedir({ t: 'montar', indice: escolhido, x: ponto.x, z: ponto.z });
+      // Shift+Q: o Traidor monta frouxo (para os outros e igual; so ele ve a marca de perto).
+      const frouxo = modo.vis?.papel === 'traidor' && (entrada.seg.has('ShiftLeft') || entrada.seg.has('ShiftRight'));
+      if (h.ocupado?.com === 'montar' || jogador.velocidade < 0.5) pedir({ t: 'montar', indice: escolhido, x: ponto.x, z: ponto.z, ...(frouxo ? { frouxo: true as const } : {}) });
     } else mundo.fantasma(null);
   } else {
     mundo.fantasma(null);
@@ -680,6 +947,161 @@ function falhaDaLuz(i: number, t: number): number {
   if (d >= 14) return 1;
   const n = Math.sin((Math.floor(t * 14) + i * 31.7) * 12.9898) * 43758.5453;
   return 1 - (1 - d / 14) * (0.3 + 0.7 * (n - Math.floor(n)));
+}
+
+/** Quanto de uma luz da cidade sobra no apagao: zero dentro do raio (o raio de `PODERES.apagao`), tudo fora. */
+function apagaoDaLuz(i: number): number {
+  const a = modo.apagaoEm;
+  if (!a || modo.apagaoK <= 0 || !luzesNoMundo) return 1;
+  return Math.hypot(luzesNoMundo[i * 2]! - a.x, luzesNoMundo[i * 2 + 1]! - a.z) <= PODERES.apagao.raio ? 1 - modo.apagaoK : 1;
+}
+
+// ---------- o modo Traidor: o que acontece em cada quadro ----------
+
+/** Onde ficam amarrados os que a reuniao votou: tres bancos da plataforma (a plataforma fica a 0,3 m do chao). */
+const BANCOS = [
+  { x: 24.2, z: -66.7 },
+  { x: 27.2, z: -66.7 },
+  { x: 13.8, z: -66.7 },
+] as const;
+const CHAO_DA_PLATAFORMA = 0.3;
+
+/**
+ * Tudo o que a tela do modo faz com o estado ANTES do quadro: o cartao de papel, o salto do tunel, a roda do sino, o banco
+ * dos amarrados, a fantasia (olhos mais altos, corrida menor, lampiao apagado) e o apagao. So le `caca` e a visao.
+ */
+function modoDoTraidor(h: NonNullable<ReturnType<typeof cacadorDe>>, dt: number): void {
+  const vis = modo.vis;
+  // Quem nao esta num modo de traidor volta ao normal (e a corrida de sempre).
+  if (!vis || !caca.traidor) {
+    jogador.tetoDeCorrida = 7.2;
+    jogador.alturaExtra = 0;
+    jogador.congelado = false;
+    return;
+  }
+  const t = caca.tempo;
+  // O cartao de papel: 5 s, so nesta tela, quando se entra de fato na cidade.
+  if (modo.cartaoPendente && !abertura && !caca.fim && (naSala || jogador.travado || tempoForcado)) {
+    modo.cartaoPendente = false;
+    hudT.mostrarPapel(vis.papel);
+  }
+  // O tunel do Traidor: a tela dele teleporta quando o salto cresce (o do cacador, `h.salto`, e tratado no quadro).
+  const salto = caca.traidor.id === EU ? caca.traidor.salto : null;
+  if (salto && salto.n > modo.saltoVisto) {
+    modo.saltoVisto = salto.n;
+    jogador.teleportar(salto.x, salto.y, salto.z);
+    escuridao = 1;
+    som.tocar('passo-madeira-2', { volume: 0.7, tom: 0.7 });
+  }
+  // A reuniao: todos (menos o fantasiado) sao levados a roda diante do sino, olhando para o centro, e nao andam.
+  const r = caca.reuniao;
+  if (r && r.chamados > modo.reuniaoVista) {
+    modo.reuniaoVista = r.chamados;
+    // Quem esta fantasiado fica de fora; quem esta amarrado no banco tambem nao sai dele.
+    if (r.ausente !== EU && !h.ausente && !(h.amarradoAte > t)) {
+      const i = Math.max(0, caca.cacadores.findIndex((c) => c.id === EU));
+      const a = (i / caca.cacadores.length) * Math.PI * 2;
+      const x = RODA_DO_SINO.x + Math.sin(a) * RODA_DO_SINO.raio;
+      const z = RODA_DO_SINO.z + Math.cos(a) * RODA_DO_SINO.raio;
+      jogador.teleportar(x, 0, z);
+      jogador.giro = Math.atan2(-(RODA_DO_SINO.x - x), -(RODA_DO_SINO.z - z));
+      jogador.inclinacao = 0;
+      modo.naRoda = true;
+      modo.destino = null;
+      rodinha = null;
+      escuridao = 1;
+    }
+  }
+  if (!r && modo.naRoda) modo.naRoda = false;
+  // O amarrado: sentado no banco da plataforma, sem andar, ate soltarem.
+  const amarrado = h.amarradoAte > t;
+  if (amarrado && !modo.amarrado) {
+    modo.amarrado = true;
+    const quem = caca.cacadores.filter((c) => c.amarradoAte > t).map((c) => c.id).sort();
+    const banco = BANCOS[Math.max(0, quem.indexOf(EU)) % BANCOS.length]!;
+    jogador.teleportar(banco.x, CHAO_DA_PLATAFORMA, banco.z);
+    jogador.giro = 0;
+    jogador.inclinacao = 0.05;
+    escuridao = 1;
+    modo.destino = null;
+    rodinha = null;
+  } else if (!amarrado && modo.amarrado) {
+    modo.amarrado = false;
+    hud.avisar('Soltaram você.', 'bom', 2400);
+  }
+  jogador.congelado = modo.naRoda || modo.amarrado;
+
+  // A fantasia: olhos mais altos, a corrida da Coisa e sem lampiao (a luz dele denunciaria o corpo); com o mundo um pouco mais claro.
+  const fantasiado = vis.fantasiado;
+  jogador.tetoDeCorrida = velocidadeMaximaDe(caca, EU);
+  jogador.alturaExtra += ((fantasiado ? 0.16 : 0) - jogador.alturaExtra) * Math.min(1, 5 * dt);
+  const dentroDoApagao = noApagao(caca, poseEu.x, poseEu.z);
+  if (fantasiado || dentroDoApagao) {
+    if (!modo.lampiaoForcado) {
+      modo.lampiaoForcado = true;
+      modo.lampiaoAntes = jogador.lampiao.visible;
+    }
+    jogador.lampiao.visible = false;
+    jogador.seco = true;
+  } else if (modo.lampiaoForcado) {
+    modo.lampiaoForcado = false;
+    jogador.seco = false;
+    jogador.lampiao.visible = modo.lampiaoAntes;
+  }
+  // O realce: quem esta vestido enxerga um pouco no escuro; num apagao, bastante.
+  const filtro = fantasiado ? (dentroDoApagao ? 'brightness(2.1) contrast(1.06) saturate(0.8)' : 'brightness(1.55) saturate(0.85)') : '';
+  if (filtro !== modo.filtro) {
+    modo.filtro = filtro;
+    canvas.style.filter = filtro;
+  }
+  // O resultado de conferir um posto: so quem conferiu fica sabendo.
+  for (const p of vis.postos) {
+    if (!p.conferido || modo.conferidos.has(p.id)) continue;
+    modo.conferidos.add(p.id);
+    hud.avisar(p.frouxo ? 'Nó frouxo! Esse não prende ninguém.' : 'Nó firme.', p.frouxo ? 'mau' : 'bom', 2800);
+  }
+}
+
+/** Antes de desenhar o mundo: quem esta sendo espantado treme, que porta esta sendo arrombada, e o barulho de madeira repetido. Tudo do estado. */
+function prepararOMundoDoTraidor(dt: number): void {
+  mundo.assustados.clear();
+  modo.arrombando.clear();
+  if (!caca.traidor) return;
+  const ativos = new Set<string>();
+  for (const c of caca.cacadores) {
+    const o = c.ocupado;
+    if (o?.com !== 'tarefa') continue;
+    const q = o.tarefa;
+    let som: 'madeira' | 'martelo' | null = null;
+    let x = 0;
+    let z = 0;
+    let y = 0;
+    if (q.qual === 'espantar') mundo.assustados.add(q.npc);
+    else if (q.qual === 'arrombar') {
+      modo.arrombando.add(q.lugar);
+      const porta = frenteDaPorta(q.lugar);
+      som = 'madeira';
+      x = porta.x;
+      z = porta.z;
+    } else if (q.qual === 'despregar' || q.qual === 'pregar') {
+      const toca = caca.tocas.find((k) => k.id === q.toca);
+      if (toca) {
+        som = q.qual === 'pregar' ? 'martelo' : 'madeira';
+        x = toca.x;
+        y = toca.y;
+        z = toca.z;
+      }
+    }
+    if (!som) continue;
+    const chave = `${c.id}:${q.qual}`;
+    ativos.add(chave);
+    const acumulado = (modo.ruido.get(chave) ?? 0) + dt;
+    if (acumulado >= 0.55) {
+      modo.ruido.set(chave, 0);
+      reacoes.barulhoDeTarefa(som, x, z, y);
+    } else modo.ruido.set(chave, acumulado);
+  }
+  for (const chave of modo.ruido.keys()) if (!ativos.has(chave)) modo.ruido.delete(chave);
 }
 
 /** Poe (ou esconde) um nome sobre um ponto do mundo. */
@@ -734,7 +1156,7 @@ function desenharNomesDosOutros(mostrar: boolean): void {
   for (const id of agora) nomesMostrados.add(id);
 }
 
-function atualizarInterface(h: NonNullable<ReturnType<typeof cacadorDe>>): void {
+function atualizarInterface(h: NonNullable<ReturnType<typeof cacadorDe>>, dt: number): void {
   hud.tempo(restante(caca));
   hud.vida(h);
   hud.mao(h, Math.min(escolhido, MAOS - 1));
@@ -752,7 +1174,7 @@ function atualizarInterface(h: NonNullable<ReturnType<typeof cacadorDe>>): void 
     barra = caca.coisa.mascara;
     tipo = 'mascara';
   } else if (h.ocupado?.com === 'reanimar') barra = h.progresso / SEGUNDOS_PARA_REANIMAR;
-  else if (h.ocupado?.com === 'tarefa') barra = h.progresso / GALERIAS_A_PE.segundos;
+  else if (h.ocupado?.com === 'tarefa') barra = h.progresso / SEGUNDOS_DA_TAREFA[h.ocupado.tarefa.qual];
   else if (recolhendo > 0) barra = recolhendo / 0.7;
   else if (segurandoR > 0.05) barra = segurandoR;
   hud.progresso(abertura || caca.fim ? null : barra, tipo);
@@ -769,6 +1191,12 @@ function atualizarInterface(h: NonNullable<ReturnType<typeof cacadorDe>>): void 
   hud.desmaiado(h.desmaiadoAte > caca.tempo ? h.desmaiadoAte - caca.tempo : null);
   hud.estrelas(h.caidoAte > caca.tempo);
   marcadorDoVigia();
+  // O que e do modo Traidor: so com o que a visao deste jogador deixa. A Coisa troca as maos pelos poderes.
+  hudT.atualizar(caca, modo.vis, h, dt);
+  hudT.destino(modo.destino ? modo.destino.opcoes.map((o) => o.nome) : null);
+  hudT.reuniao(caca, EU, candidatosDaReuniao(), !!caca.reuniao && caca.reuniao.ausente === EU);
+  hudT.amarrado(modo.amarrado ? Math.max(0, h.amarradoAte - caca.tempo) : null, caca.chamados);
+  elMaos.style.display = modo.vis?.fantasiado ? 'none' : '';
 
   // O nome de quem esta por perto, e o caderno aprende quem o jogador ja viu de perto.
   const embaixo = nasGalerias(poseEu);
@@ -784,15 +1212,17 @@ function atualizarInterface(h: NonNullable<ReturnType<typeof cacadorDe>>): void 
   // O caderno (Tab, segurando).
   const querCaderno = entrada.seg.has('Tab') && !abertura && !caca.fim;
   if (querCaderno) {
-    if (conhecidosNoCaderno !== conhecidos.size) {
-      conhecidosNoCaderno = conhecidos.size;
+    // O caderno do modo Traidor muda com o papel e com as pistas que se pegou.
+    const assinaturaDoCaderno = conhecidos.size + (modo.vis ? 1000 + modo.vis.pistas.length * 7 + modo.vis.tocas.length * 31 + (modo.vis.papel === 'traidor' ? 1 : 0) : 0);
+    if (conhecidosNoCaderno !== assinaturaDoCaderno) {
+      conhecidosNoCaderno = assinaturaDoCaderno;
       const lista: Conhecido[] = [];
       for (const mm of caca.moradores) {
         if (!conhecidos.has(mm.npc)) continue;
         const n = bib.npcs.find((x) => x.id === mm.npc);
         if (n) lista.push({ nome: n.nome, papel: n.papel, jeito: mm.jeito });
       }
-      elCaderno.innerHTML = htmlDoCaderno(lista);
+      elCaderno.innerHTML = htmlDoCaderno(lista, modo.vis ? { papel: modo.vis.papel, pistas: modo.vis.pistas, tocas: modo.vis.tocas.length } : undefined);
     }
     elCaderno.style.display = 'block';
   } else elCaderno.style.display = 'none';
@@ -801,8 +1231,32 @@ function atualizarInterface(h: NonNullable<ReturnType<typeof cacadorDe>>): void 
     const f = jogador.frente();
     const graus = (Math.atan2(-f.x, f.z) * 180) / Math.PI;
     elMapa.querySelector<SVGGElement>('#mapa-jogador')?.setAttribute('transform', `translate(${-jogador.posicao.x} ${-jogador.posicao.z}) rotate(${graus})`);
+    desenharTocasNoMapa();
   }
   hud.passar();
+}
+
+const elMaos = document.getElementById('maos')!;
+
+/** As tocas no mapa (M): as que o Traidor conhece (todas) ou que a turma ja viu de perto; pregada tem um X. */
+function desenharTocasNoMapa(): void {
+  const svg = elMapa.querySelector('svg');
+  if (!svg) return;
+  const lista = modo.vis?.tocas ?? [];
+  const assinatura = lista.map((t) => `${t.id}${t.pregada ? 'x' : ''}`).join(',');
+  let g = svg.querySelector('#mapa-tocas');
+  if (!g) {
+    g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    g.setAttribute('id', 'mapa-tocas');
+    svg.append(g);
+    modo.mapaAssinatura = '';
+  }
+  if (assinatura === modo.mapaAssinatura) return;
+  modo.mapaAssinatura = assinatura;
+  // O mapa e desenhado com o sul para cima: o ponto (x, z) vira (-x, -z).
+  g.innerHTML = lista
+    .map((t) => (t.pregada ? `<g stroke="#e2553f" stroke-width="1.2"><path d="M${-t.x - 2} ${-t.z - 2}l4 4m0 -4l-4 4"/></g>` : `<circle cx="${-t.x}" cy="${-t.z}" r="2.3" fill="#ffd9a0" stroke="#14100c" stroke-width="0.6"/>`))
+    .join('');
 }
 
 /** Manda a pose para os outros, umas 12 vezes por segundo, desde a plataforma de espera. */
@@ -834,7 +1288,8 @@ function atualizarAPose(): void {
 
 /** O boneco do jogador, so visto de fora (terceira pessoa e gestos). */
 function atualizarOCorpoDoJogador(dt: number): void {
-  corpoDoJogador.grupo.visible = jogador.vistoDeFora && jogador.distanciaDaCamera > 0.9;
+  // Fantasiado, quem se ve de fora e a Coisa (o corpo de caçador some).
+  corpoDoJogador.grupo.visible = jogador.vistoDeFora && jogador.distanciaDaCamera > 0.9 && !modo.vis?.fantasiado;
   if (corpoDoJogador.grupo.visible) {
     corpoDoJogador.grupo.position.copy(jogador.posicao);
     corpoDoJogador.grupo.rotation.y = jogador.giroDoCorpo + Math.PI;
@@ -857,6 +1312,9 @@ function quadro(): void {
     return;
   }
   const h = cacadorDe(caca, EU)!;
+  // A visao que ESTE jogador tem do modo Traidor (o papel, as tocas, o no frouxo): so ela alimenta a tela.
+  modo.vis = caca.traidor ? visaoDe(caca, EU) : null;
+  modoDoTraidor(h, dt);
   atualizarAbertura(dt);
   entrada.ativa = () => !abertura && !(cenaFinal !== null);
 
@@ -877,11 +1335,17 @@ function quadro(): void {
   const mult = velocidadeDoCacador(caca, EU, host.ambiente());
   jogador.multiplicador = mult;
   jogador.derrapar = mult > 0 && mult < 1;
-  const preso = h.presoAte > caca.tempo;
-  const caido = h.caidoAte > caca.tempo;
+  // A Coisa fantasiada presa ou caida tambem se ve na tela de quem a veste: de cabeca para baixo, ou tonto no chao.
+  const coisaPresa = !!modo.vis?.fantasiado && caca.coisa.modo === 'presa';
+  const coisaCaida = !!modo.vis?.fantasiado && (caca.coisa.modo === 'caida' || caca.coisa.modo === 'derrubada');
+  const preso = h.presoAte > caca.tempo || coisaPresa;
+  const caido = h.caidoAte > caca.tempo || coisaCaida;
   const desmaiado = h.desmaiadoAte > caca.tempo;
-  const alvoRolagem = preso ? Math.PI * 0.97 : caido ? 1.25 : desmaiado ? 1.45 : 0;
-  const alvoBaixar = preso ? -0.55 : caido ? 1.0 : desmaiado ? 1.15 : 0;
+  // Pernas bambas (uivo), o corpo sentado no banco (amarrado) e a respiracao de quem esta vestido.
+  const bambo = h.bamboAte > caca.tempo;
+  const respira = modo.vis?.fantasiado ? Math.sin(t * 2.4) * 0.012 * (1 + modo.vis.calor * 4) : 0;
+  const alvoRolagem = (preso ? Math.PI * 0.97 : caido ? 1.25 : desmaiado ? 1.45 : 0) + (bambo ? Math.sin(t * 5.3) * 0.06 : 0) + (modo.amarrado ? 0.1 : 0);
+  const alvoBaixar = (preso ? -0.55 : caido ? 1.0 : desmaiado ? 1.15 : 0) + respira + (bambo ? Math.sin(t * 7.1) * 0.07 : 0) + (modo.amarrado ? 0.5 : 0);
   const k = Math.min(1, (preso ? 5 : 7) * dt);
   jogador.rolagem += (alvoRolagem - jogador.rolagem) * k;
   jogador.baixar += (alvoBaixar - jogador.baixar) * k;
@@ -941,7 +1405,11 @@ function quadro(): void {
   }
 
   // O mundo, derivado do estado.
+  prepararOMundoDoTraidor(dt);
   mundo.atualizar(dt, t, caca, jogador.posicao);
+  mundo.extras?.atualizar(t, caca, modo.vis, camera.position, modo.arrombando);
+  // Fantasiado, ele nao ve o proprio corpo em primeira pessoa (a fantasia dele fica no centro da camera); de fora (P), sim.
+  if (modo.vis?.fantasiado && !jogador.vistoDeFora) mundo.vulto.grupo.visible = false;
   atualizarOSino(dt);
 
   // O que a partida faz sentir: coragem baixa fecha a vista, o susto treme a camera, a Coisa perto faz o lampiao tremer.
@@ -953,18 +1421,27 @@ function quadro(): void {
   const dela = embaixo ? 999 : Math.hypot(c.x - jogador.posicao.x, c.z - jogador.posicao.z);
   const perto = Math.max(0, 1 - dela / 16);
   const cacado = c.modo === 'caca' && c.alvo === EU;
-  jogador.tremor = fx.tremor + (cacado ? 0.005 * perto : 0);
+  jogador.tremor = fx.tremor + (cacado ? 0.005 * perto : 0) + (h.bamboAte > caca.tempo ? 0.004 : 0);
   jogador.brilhoDoLampiao(fx.lampiao * (1 - perto * 0.45 * (0.5 + 0.5 * Math.sin(t * 31) * Math.sin(t * 17.3))));
   // Embaixo da cidade nao ha ceu nem neblina de rua: a neblina fica fraca (o fundo de rocha e escuro).
   clima.neblina(fx.neblina * (embaixo ? 0.25 : 1));
   som.atualizar(dt, Math.max(medo, cacado ? 5 : 0), poseEu.dentro !== null || embaixo, !desmaiado);
 
   // As luzes da cidade falham perto da Coisa: de longe se ve onde ela esta.
-  brilhoGeral(0.06 + 0.94 * fx.luzes);
+  // O apagao: as luzes dentro do raio apagam de verdade (as janelas, que sao brilho e nao luz, escurecem se a camera esta perto).
+  const apagao = caca.apagao && caca.tempo < caca.apagao.ate ? caca.apagao : null;
+  if (apagao) modo.apagaoEm = { x: apagao.x, z: apagao.z };
+  modo.apagaoK += ((apagao ? 1 : 0) - modo.apagaoK) * Math.min(1, (apagao ? 7 : 2.5) * dt);
+  if (!apagao && modo.apagaoK < 0.004) {
+    modo.apagaoK = 0;
+    modo.apagaoEm = null;
+  }
+  const pertoDoApagao = modo.apagaoEm ? Math.max(0, Math.min(1, (PODERES.apagao.raio + 22 - Math.hypot(camera.position.x - modo.apagaoEm.x, camera.position.z - modo.apagaoEm.z)) / 22)) : 0;
+  brilhoGeral((0.06 + 0.94 * fx.luzes) * (1 - 0.97 * modo.apagaoK * pertoDoApagao));
   for (let i = 0; i < cidade.luzes.length; i++) {
     const l = cidade.luzes[i]!;
     const tremor = Math.sin(t * 11 + l.fase) * 0.06 + Math.sin(t * 23.7 + l.fase * 2.3) * 0.04 + Math.sin(t * 3.1 + l.fase) * 0.05;
-    l.luz.intensity = l.base * (0.9 + tremor) * fx.luzes * (caca.fim ? 1 : falhaDaLuz(i, t));
+    l.luz.intensity = l.base * (0.9 + tremor) * fx.luzes * (caca.fim ? 1 : falhaDaLuz(i, t)) * apagaoDaLuz(i);
   }
 
   atualizarOCorpoDoJogador(dt);
@@ -973,7 +1450,7 @@ function quadro(): void {
   // A previa do personagem so desenha com a tela de entrada a vista (mouse solto).
   criador.atualizar(dt);
 
-  if (!cam) atualizarInterface(h);
+  if (!cam) atualizarInterface(h, dt);
   else hud.passar();
   renderizador.render(cena, camera);
   quadros += 1;
@@ -1061,7 +1538,7 @@ function comecarACacada(semPerguntar: boolean): void {
   if (!emEspera || !souDono()) return;
   if (semPerguntar || performance.now() < confirmarComeco) {
     confirmarComeco = 0;
-    const opcoes: OpcoesDaSala = { ...(tipoDaUrl ? { tipo: tipoDaUrl } : {}), ...(duracaoPedida > 0 ? { duracao: duracaoPedida } : {}) };
+    const opcoes: OpcoesDaSala = { ...(tipoDaUrl ? { tipo: tipoDaUrl } : {}), ...(duracaoPedida > 0 ? { duracao: duracaoPedida } : {}), ...(modoDaUrl ? { modo: modoDaUrl } : {}) };
     rede.enviar({ t: 'comecar', semente: Number(parametros.get('seed')) || Math.floor(Math.random() * 99999) + 1, opcoes });
   } else {
     confirmarComeco = performance.now() + 8000;
@@ -1106,6 +1583,7 @@ function desmontarAPartida(): void {
   hud.estrelas(false);
   hud.desmaiado(null);
   rodinha = null;
+  limparOModo();
   escuridao = 0;
   elEscuro.style.opacity = '0';
   document.getElementById('pular')!.style.display = '';
@@ -1126,6 +1604,11 @@ async function iniciarPartida(novo: Caca, criarAnfitriao: (percepcao: Percepcao)
     const meu = cacadorDe(caca, EU);
     montadasAntes = meu?.montou ?? 0;
     saltoVisto = meu?.salto?.n ?? 0;
+    // O modo Traidor: o cartao de papel (5 s, so nesta tela) e o que ja foi visto do estado de agora.
+    limparOModo();
+    modo.saltoVisto = caca.traidor?.id === EU ? (caca.traidor.salto?.n ?? 0) : 0;
+    modo.reuniaoVista = caca.reuniao?.chamados ?? 0;
+    modo.cartaoPendente = caca.traidor !== null;
     escolhido = 0;
     rodinha = null;
     conhecidos.clear();
@@ -1139,7 +1622,8 @@ async function iniciarPartida(novo: Caca, criarAnfitriao: (percepcao: Percepcao)
     jogador.reiniciar();
     jogador.teleportar(NASCIMENTO.x + (i - (caca.cacadores.length - 1) / 2) * 1.3, 0, NASCIMENTO.z);
     jogador.giro = Math.PI;
-    hud.avisar(`O trem parte em ${Math.round(caca.duracao / 60)} minutos. Prendam a assombração.`, '', 4200);
+    // No modo Traidor todos leem a mesma frase (nao diz o que cada um faz: e o cartao de papel quem diz).
+    hud.avisar(caca.traidor ? `O trem parte em ${Math.round(caca.duracao / 60)} minutos.` : `O trem parte em ${Math.round(caca.duracao / 60)} minutos. Prendam a assombração.`, '', 4200);
   } finally {
     montando = false;
     elPreparando.classList.remove('sim');
@@ -1179,6 +1663,7 @@ function ligarOMundo(): void {
       coiceRestante += 0.07;
     },
     sinoDaEstacao: tocarOSinoDaEstacao,
+    golpeDaCoisa: () => mundo.vulto.golpear(),
   });
 }
 
@@ -1188,7 +1673,11 @@ function comecarComoDono(partida: { semente: number; opcoes: OpcoesDaSala }): vo
   // Traidor) libera o modo Traidor, que o `novaCaca` ja escolhe sozinho a partir de 3 jogadores. A aparencia
   // (chapeu e lenco) de cada um ja vai: o retalho do Traidor e a pista de quem esta por baixo da fantasia.
   const jogadores = presencas.map((p) => ({ id: p.id, nome: p.nome, aparencia: { chapeu: p.aparencia.chapeu, lenco: p.aparencia.lenco } }));
-  const novo = novaCaca(bib, partida.semente, jogadores, { tipo: partida.opcoes.tipo, duracao: partida.opcoes.duracao, modo: 'caca' });
+  // 3 ou mais na sala: Traidor; 1 ou 2: a cacada com a Coisa do jogo. `?modo=` e `?traidor=<id ou indice>` (na tela do dono) mandam, para testar.
+  const pedidoDeTraidor = parametros.get('traidor');
+  const indice = pedidoDeTraidor !== null && pedidoDeTraidor !== '' ? Number(pedidoDeTraidor) : NaN;
+  const quemEoTraidor = pedidoDeTraidor === null ? undefined : (presencas.find((p) => p.id === pedidoDeTraidor)?.id ?? (Number.isInteger(indice) ? presencas[indice]?.id : undefined));
+  const novo = novaCaca(bib, partida.semente, jogadores, { tipo: partida.opcoes.tipo, duracao: partida.opcoes.duracao, ...((partida.opcoes.modo ?? modoDaUrl) ? { modo: partida.opcoes.modo ?? modoDaUrl } : {}), ...(quemEoTraidor ? { traidor: quemEoTraidor } : {}) });
   void iniciarPartida(novo, (perc) => new AnfitriaoDeSala(novo, EU, perc, (e) => rede.enviar({ t: 'estado', estado: e })));
 }
 
@@ -1451,6 +1940,16 @@ function criarGanchos() {
         h.balas = BALAS;
       } else if (item !== 'retalho' && h.itens.length < MAOS) h.itens.push(item);
     },
+    /** So no dono (que simula): poe um item na mao de qualquer jogador, fora das regras (para os scripts). */
+    daA: (quem: string, item: Item) => {
+      const c = cacadorDe(caca, quem);
+      if (!c || !host.simula) return false;
+      if (item === 'revolver') {
+        c.revolver = true;
+        c.balas = BALAS;
+      } else if (item !== 'retalho' && c.itens.length < MAOS) c.itens.push(item as never);
+      return true;
+    },
     /** Onde ficar de pe para pegar uma coisa solta. */
     vagaDe: (id: string) => {
       const s = caca.soltos.find((x) => x.id === id);
@@ -1565,6 +2064,40 @@ function criarGanchos() {
     },
     lugarDoPonto: (x: number, z: number) => lugarEm(x, z),
     livre: (x: number, z: number, y = 0) => livreNaColisao(x, z, y, cidade.solidos),
+    /** O que o modo Traidor escreve nesta tela agora (o papel, os poderes, a reuniao...) e a visao que este jogador tem. */
+    traidor: () => ({ ...hudT.texto(), visao: modo.vis ? JSON.parse(JSON.stringify(modo.vis)) : null, naRoda: modo.naRoda, amarrado: modo.amarrado, filtro: modo.filtro, congelado: jogador.congelado, teto: jogador.tetoDeCorrida, olhosExtra: jogador.alturaExtra, lampiao: jogador.lampiao.visible, seco: jogador.seco, destino: modo.destino?.opcoes.map((o) => o.id) ?? null }),
+    /** As luzes da cidade: quantas, e quanto brilham dentro e fora de um raio (para conferir o apagao). */
+    luzesDaCidade: (x: number, z: number, raio: number) => {
+      falhaDaLuz(0, 0);
+      let dentro = 0;
+      let fora = 0;
+      let nDentro = 0;
+      let nFora = 0;
+      cidade.luzes.forEach((l, i) => {
+        const d = Math.hypot(luzesNoMundo![i * 2]! - x, luzesNoMundo![i * 2 + 1]! - z);
+        if (d <= raio) {
+          dentro += l.luz.intensity / l.base;
+          nDentro += 1;
+        } else {
+          fora += l.luz.intensity / l.base;
+          nFora += 1;
+        }
+      });
+      return { dentro: nDentro ? dentro / nDentro : 1, fora: nFora ? fora / nFora : 1, nDentro, nFora, janelas: modo.apagaoK };
+    },
+    /** O brilho (emissivo) das janelas acesas, a primeira que achar: cai a quase nada no apagao. */
+    janelasAcesas: () => {
+      let v = -1;
+      cidade.grupo.traverse((o) => {
+        const m = (o as THREE.Mesh).material as THREE.MeshStandardMaterial | undefined;
+        if (v < 0 && m && !Array.isArray(m) && m.emissive && m.emissive.getHex() === 0xffb85c) v = m.emissiveIntensity;
+      });
+      return v;
+    },
+    /** As pegadas e as marcas de no que estao no mundo, e o que o mundo desenha do modo. */
+    extras: () => ({ pegadas: mundo.extras?.pegadasNaCena ?? 0, marcas: mundo.extras?.marcasVisiveis() ?? [], vultoVisivel: mundo.vulto.grupo.visible, ...(mundo.extras?.info() ?? { tocas: [], trancas: [] }) }),
+    /** Onde esta o jogador desenhado em terceira pessoa e se o boneco dele esta a vista. */
+    meuCorpo: () => ({ visivel: corpoDoJogador.grupo.visible }),
     /** Registra um evento no estado, como se as regras o tivessem emitido (so para conferir o que a tela faz com ele). */
     evento: (tipo: TipoDeEvento, x = 0, z = 0, quem?: string, o?: string, y?: number) => {
       emitir(caca, tipo, x, z, quem, o, y);
@@ -1618,4 +2151,5 @@ host = new AnfitriaoLocal(caca, EU, percepcao);
 mundo = new MundoDaCaca(cena, caca, pontosPorLugar);
 mundo.desocuparMoveis(caca);
 ligarOMundo();
+modo.cartaoPendente = caca.traidor !== null;
 requestAnimationFrame(quadro);

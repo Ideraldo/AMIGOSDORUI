@@ -10,6 +10,7 @@ import * as THREE from 'three';
 import { animar, criarPersonagem, descartarPersonagem, type Personagem } from '../mundo/personagem.ts';
 import { limparAparencia } from '../rede/aparencia.ts';
 import { modeloDoItem } from './mundo/modelos.ts';
+import { noApagao } from './nucleo/papeis.ts';
 import type { PoseDeRede, Presenca } from './rede/protocolo.ts';
 import type { Caca, Item } from './nucleo/tipos.ts';
 
@@ -27,11 +28,17 @@ interface Outro {
   deitado: number;
   pendurado: number;
   sentado: number;
+  /** Quanto ja esta sentado num banco (amarrado), de 0 a 1: sobe 0,38 m e recua 0,4 m, para a figura sentar de fato. */
+  noBanco: number;
   jeito: Jeito;
   /** O que leva na mao (para os scripts), e os modelos ja montados, um por item. */
   naMao: Item | null;
   mao: THREE.Group;
   modelos: Map<Item, THREE.Group>;
+  /** As voltas de corda de quem esta amarrado no banco (o resto do tempo, escondidas). */
+  corda: THREE.Group;
+  /** Fantasiado (modo Traidor): o boneco some do mundo e quem aparece e a Coisa. A luz do lampiao fica na cena (vale zero): luz que some recompila os shaders. */
+  escondido: boolean;
 }
 
 /** O que a tela precisa saber para desenhar o nome de cada um sobre a cabeca. */
@@ -67,7 +74,19 @@ export class Outros {
       mao.rotation.set(Math.PI / 2, 0, 0);
       figura.partes.anteD.add(mao);
       this.cena.add(figura.grupo);
-      o = { id: presenca.id, nome: presenca.nome, figura, pose: null, velocidade: 0, deitado: 0, pendurado: 0, sentado: 0, jeito: 'de pe', naMao: null, mao, modelos: new Map() };
+      // Duas voltas de corda em volta do peito, que so aparecem quando ele esta amarrado.
+      const corda = new THREE.Group();
+      const materialDaCorda = new THREE.MeshStandardMaterial({ color: 0xcdb070, roughness: 1 });
+      for (const y of [0.17, 0.4]) {
+        const volta = new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.032, 6, 16), materialDaCorda);
+        volta.rotation.x = Math.PI / 2;
+        volta.scale.set(1.2, 0.95, 1);
+        volta.position.y = y;
+        corda.add(volta);
+      }
+      corda.visible = false;
+      figura.partes.tronco.add(corda);
+      o = { id: presenca.id, nome: presenca.nome, figura, pose: null, velocidade: 0, deitado: 0, pendurado: 0, sentado: 0, noBanco: 0, jeito: 'de pe', naMao: null, mao, modelos: new Map(), escondido: false, corda };
       this.lista.set(presenca.id, o);
     }
     o.pose = pose;
@@ -92,8 +111,9 @@ export class Outros {
   }
 
   /** O que cada um esta fazendo, para os scripts e as capturas. */
-  info(): { id: string; nome: string; x: number; y: number; z: number; jeito: Jeito; deitado: number; pendurado: number; sentado: number; naMao: Item | null; lampiao: boolean; luz: number; visivel: boolean; pernas: number; giroX: number }[] {
+  info(): { escondido: boolean; id: string; nome: string; x: number; y: number; z: number; jeito: Jeito; deitado: number; pendurado: number; sentado: number; naMao: Item | null; lampiao: boolean; luz: number; visivel: boolean; pernas: number; giroX: number }[] {
     return [...this.lista.values()].map((o) => ({
+      escondido: o.escondido,
       id: o.id,
       nome: o.nome,
       x: o.figura.grupo.position.x,
@@ -125,6 +145,16 @@ export class Outros {
       if (!p) continue;
       const h = caca?.cacadores.find((c) => c.id === o.id);
       const t = caca?.tempo ?? 0;
+      // Fantasiado: o corpo some (so as malhas; a luz do lampiao fica, apagada).
+      const escondido = !!caca?.traidor && caca.traidor.fantasiado && caca.traidor.id === o.id;
+      if (escondido !== o.escondido) {
+        o.escondido = escondido;
+        g.traverse((m) => {
+          if ((m as THREE.Mesh).isMesh || (m as THREE.Sprite).isSprite) m.visible = !escondido;
+        });
+      }
+      // Dentro de um apagao, o lampiao dele se apaga.
+      const semLuz = escondido || (!!caca && noApagao(caca, p.x, p.z));
       const desmaiado = !!h && h.desmaiadoAte > t;
       const preso = !!h && h.presoAte > t;
       const caido = !!h && h.caidoAte > t;
@@ -139,8 +169,10 @@ export class Outros {
         o.velocidade = 0;
       }
       const [x0, z0] = [g.position.x, g.position.z];
-      g.position.x += (p.x - g.position.x) * k;
-      g.position.z += (p.z - g.position.z) * k;
+      // No banco, a figura senta um pouco atras de onde o jogador esta (o corpo dele fica diante do banco).
+      const atras = 0.4 * o.noBanco;
+      g.position.x += (p.x + Math.sin(p.giro) * atras - g.position.x) * k;
+      g.position.z += (p.z + Math.cos(p.giro) * atras - g.position.z) * k;
       // A figura olha para +Z. O giro do jogador em zero olha para -Z.
       let giro = p.giro + Math.PI - g.rotation.y;
       giro = Math.atan2(Math.sin(giro), Math.cos(giro));
@@ -153,11 +185,13 @@ export class Outros {
       o.deitado += ((desmaiado ? 1 : 0) - o.deitado) * kc;
       o.pendurado += ((preso ? 1 : 0) - o.pendurado) * kc;
       o.sentado += ((caido || amarrado ? 1 : 0) - o.sentado) * kc;
+      o.noBanco += ((amarrado ? 1 : 0) - o.noBanco) * kc;
+      o.corda.visible = amarrado && !escondido;
       // Deitado de costas (a cabeca para tras); pendurado pelo pe, de cabeca para baixo; caido, meio reclinado.
-      g.rotation.x = -Math.PI / 2 * o.deitado + Math.PI * o.pendurado - 0.35 * o.sentado;
+      g.rotation.x = -Math.PI / 2 * o.deitado + Math.PI * o.pendurado - 0.35 * (o.sentado - o.noBanco);
       g.rotation.z = Math.sin(performance.now() / 380 + g.position.x) * 0.12 * o.pendurado;
       const alturaDaFigura = o.figura.altura;
-      const alvoY = p.y + 0.22 * o.deitado + (alturaDaFigura + 0.08) * o.pendurado;
+      const alvoY = p.y + 0.22 * o.deitado + (alturaDaFigura + 0.08) * o.pendurado + 0.38 * o.noBanco;
       g.position.y += (alvoY - g.position.y) * Math.min(1, 14 * dt);
       const deitadoOuPreso = o.deitado > 0.5 || o.pendurado > 0.5;
 
@@ -168,7 +202,7 @@ export class Outros {
           gesto: o.sentado > 0.5 ? 'sentar' : deitadoOuPreso ? null : p.gesto,
           agachado: !deitadoOuPreso && p.agachado && o.sentado < 0.5,
           espia: deitadoOuPreso ? 0 : p.espia,
-          lampiao: p.lampiao && !desmaiado,
+          lampiao: p.lampiao && !desmaiado && !semLuz,
         },
         dt,
       );
@@ -178,14 +212,14 @@ export class Outros {
         o.figura.partes.bracoD.rotation.z = Math.sin(f * 9) * 0.5;
         o.figura.partes.bracoE.rotation.z = Math.sin(f * 9 + 1.7) * 0.5;
       }
-      o.figura.luz.intensity = p.lampiao && !desmaiado ? 11 : 0;
+      o.figura.luz.intensity = p.lampiao && !desmaiado && !semLuz ? 11 : 0;
 
       // O que leva na mao: o primeiro item, ou o revolver.
       const item: Item | null = h ? (h.itens[0] ?? (h.revolver ? 'revolver' : null)) : null;
       this.poNaMao(o, item);
 
       const d = Math.hypot(p.x - jogador.x, p.z - jogador.z);
-      if (d < DISTANCIA_DO_NOME) nomes.push({ id: o.id, nome: o.nome, x: g.position.x, y: g.position.y + (o.pendurado > 0.5 ? 0.4 : o.deitado > 0.5 ? 0.7 : alturaDaFigura + 0.15), z: g.position.z });
+      if (d < DISTANCIA_DO_NOME && !escondido) nomes.push({ id: o.id, nome: o.nome, x: g.position.x, y: g.position.y + (o.pendurado > 0.5 ? 0.4 : o.deitado > 0.5 ? 0.7 : alturaDaFigura + 0.15), z: g.position.z });
     }
   }
 
