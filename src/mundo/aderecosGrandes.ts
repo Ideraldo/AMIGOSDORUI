@@ -21,7 +21,7 @@ const bancoDaIgreja: Montador = (fixo, _corpo, gestos, po) => {
   const sulco = material(0x0f0906);
   const farpa = material(0xb09a74);
   for (let i = 0; i < 4; i++) {
-    const g = grupoEm(fixo, -0.05 + (i % 2) * 0.07, 0.005, -0.13 + i * 0.085);
+    const g = grupoEm(fixo, -0.05 + (i % 2) * 0.07, 0.032, -0.13 + i * 0.085);
     g.rotation.y = 0.09 - i * 0.045;
     peca(g, caixa(0.95, 0.006, 0.032), sulco);
     peca(g, caixa(0.9, 0.007, 0.007), farpa, 0, 0, 0.02);
@@ -41,8 +41,9 @@ const bancoDaIgreja: Montador = (fixo, _corpo, gestos, po) => {
   vela.grupo.position.set(0.38, 0.475, 0.03);
   banco.add(vela.grupo);
   return {
-    centro: 0.5,
+    centro: 0.35,
     onde: 'chao',
+    distancia: 2,
     proprio: true,
     sustos: { arrastar: 0.8 },
     mover(gesto, k, t) {
@@ -87,8 +88,9 @@ const cova: Montador = (fixo) => {
   const claro = new THREE.Color(0x3a2c1c);
   const escuro = new THREE.Color(0x030302);
   return {
-    centro: 0.2,
+    centro: 0.3,
     onde: 'chao',
+    distancia: 2.5,
     proprio: true,
     sustos: { olhar: 0.5 },
     mover(gesto, k) {
@@ -162,6 +164,7 @@ const cavalo: Montador = (fixo, _corpo, _gestos, po) => {
   return {
     centro: 1.25,
     onde: 'chao',
+    distancia: 2.3,
     proprio: true,
     sustos: { espantar: 0.3 },
     mover(gesto, k, t) {
@@ -221,6 +224,7 @@ const rede: Montador = (fixo, _corpo, gestos) => {
   return {
     centro: 0.85,
     onde: 'chao',
+    distancia: 2.8,
     proprio: true,
     mover(gesto, k, t) {
       pano.rotation.x = Math.sin(t * 0.9) * 0.07;
@@ -234,7 +238,7 @@ const cachorro: Montador = (fixo) => {
   const pelo = material(0x7a6548);
   const grisalho = material(0xb5aa96);
   const escuro = material(0x1e1611);
-  const mancha = peca(fixo, new THREE.CircleGeometry(0.26, 18), material(0x3a0b08), -0.62, 0.005, 0.5);
+  const mancha = peca(fixo, new THREE.CircleGeometry(0.26, 18), material(0x3a0b08), -0.62, 0.032, 0.5);
   mancha.rotation.x = -Math.PI / 2;
   mancha.scale.set(1.35, 0.8, 1);
   const cao = grupoEm(fixo, 0.05, 0, -0.12);
@@ -264,6 +268,7 @@ const cachorro: Montador = (fixo) => {
   return {
     centro: 0.15,
     onde: 'chao',
+    distancia: 1.7,
     proprio: true,
     mover(gesto, k, t) {
       // Dorme: o lombo sobe e desce.
@@ -289,7 +294,7 @@ const pegadas: Montador = (fixo, _corpo, _gestos, po) => {
   for (const m of [sola, comprida, nova]) m.depthWrite = false;
   const disco = new THREE.CircleGeometry(0.5, 14);
   const marca = (mat: THREE.Material, x: number, z: number, giro: number, largura: number, comprimento: number): THREE.Group => {
-    const g = grupoEm(fixo, x, 0.006, z);
+    const g = grupoEm(fixo, x, 0.032, z);
     g.rotation.y = giro;
     const m = peca(g, disco, mat);
     m.rotation.x = -Math.PI / 2;
@@ -320,6 +325,7 @@ const pegadas: Montador = (fixo, _corpo, _gestos, po) => {
   return {
     centro: 0.02,
     onde: 'chao',
+    distancia: 1.9,
     proprio: true,
     sustos: { olhar: 0.82, apagar: 0.66 },
     mover(gesto, k) {
@@ -368,6 +374,7 @@ const armario: Montador = (fixo, _corpo, _gestos, po) => {
   return {
     centro: 1.2,
     onde: 'chao',
+    distancia: 2.2,
     proprio: true,
     sustos: { abrir: 0.5, fechar: 0.42 },
     mover(gesto, k) {
@@ -430,7 +437,7 @@ const janela: Montador = (fixo) => {
     caco(fixo, x, JANELA + y, 0.035, s, r);
   }
   for (let i = 0; i < 9; i++) {
-    const m = caco(fixo, -0.6 + ((i * 0.37) % 1.2), 0.008 + i * 0.0005, 0.25 + ((i * 0.23) % 0.6), 0.09 + (i % 3) * 0.035, i * 1.7);
+    const m = caco(fixo, -0.6 + ((i * 0.37) % 1.2), 0.075 + i * 0.0005, 0.25 + ((i * 0.23) % 0.6), 0.09 + (i % 3) * 0.035, i * 1.7);
     m.rotation.set(-Math.PI / 2, 0, i * 1.7);
   }
   const pano = grupoEm(fixo, 0.24, JANELA - 0.5, 0.07);

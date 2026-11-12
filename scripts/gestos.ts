@@ -18,14 +18,14 @@ const NO_MEIO = ['erguer', 'espantar', 'arrancar', 'correr', 'arrastar', 'derrub
 
 const servidor = await createServer({ server: { port: PORTA, strictPort: true }, logLevel: 'error' });
 await servidor.listen();
-const navegador = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ['--no-sandbox', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
+const navegador = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ['--no-sandbox', ...(process.env.SEM_PLACA ? ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] : process.platform === 'win32' ? ['--use-angle=d3d11', '--enable-gpu'] : ['--enable-gpu']), '--ignore-gpu-blocklist'] });
 
 let falhas = 0;
 const conferir = (ok: boolean, texto: string) => {
   console.log(`${ok ? 'ok  ' : 'FALHA'} ${texto}`);
   if (!ok) falhas += 1;
 };
-const espera = { timeout: 90000 };
+const espera = { timeout: 300000 };
 const pausa = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 try {
@@ -34,9 +34,12 @@ try {
   await pagina.setViewport({ width: 1280, height: 720 });
   const erros: string[] = [];
   pagina.on('pageerror', (e) => erros.push(String(e)));
-  await pagina.goto(`http://localhost:${PORTA}/?seed=3&som=0&abertura=0`, { waitUntil: 'load' });
-  await pagina.waitForFunction(() => window.__pronto === true, { timeout: 180000 });
-  await pagina.addStyleTag({ content: '#entrada{display:none!important}' });
+  const carregar = async (): Promise<void> => {
+    await pagina.goto(`http://localhost:${PORTA}/?seed=3&som=0&abertura=0`, { waitUntil: 'load' });
+    await pagina.waitForFunction(() => window.__pronto === true, { timeout: 180000 });
+    await pagina.addStyleTag({ content: '#entrada{display:none!important}' });
+  };
+  await carregar();
 
   const partida = () => pagina.evaluate(() => window.__depurar!.partida());
   const palco = () => pagina.evaluate(() => window.__depurar!.palco());
@@ -173,7 +176,26 @@ try {
 
   const cenas = EXEMPLO.fragmentos.filter((f) => f.adereco && (filtros.length === 0 || filtros.includes('cenas') || filtros.some((x) => f.id.includes(x) || f.adereco === x)));
   conferir(filtros.length > 0 || cenas.length === EXEMPLO.fragmentos.length, `${cenas.length} cenas da biblioteca tem adereco`);
+  /** Onde a cena e encenada: no proprio lugar dela, se estiver aberto nesta noite. Senao, no lugar de sempre. */
+  let ondeEstou = palcoDasCenas.lugar;
+  const irPara = async (lugar: string): Promise<void> => {
+    if (lugar === ondeEstou) return;
+    await pausa(300);
+    const ponto = await pagina.evaluate((l) => window.__depurar!.pontoDaCena(l as never), lugar);
+    if (!ponto) return;
+    await irOlhando(ponto.pe, ponto.pe[0] + 1, ponto.pe[1] + 1, 0);
+    await noLugar(lugar);
+    ondeEstou = lugar;
+  };
   for (const f of cenas) {
+    const proprio = f.lugares === 'qualquer' ? undefined : f.lugares.find((l) => estado.abertos.includes(l) && (f.lugares.length < 5 || l === 'igreja'));
+    // As cenas ferem e assustam de verdade: antes que o personagem morra, a noite recomeca (a mesma, pela semente).
+    const eu = (await partida()).estado.personagens[0]!;
+    if (eu.ferimento >= 1 || eu.medo >= 4) {
+      await carregar();
+      ondeEstou = '';
+    }
+    await irPara(proprio && f.lugares.length < 5 ? proprio : palcoDasCenas.lugar);
     for (const [indice, escolha] of f.escolhas.entries()) {
       if (!escolha.gesto) continue;
       const nome = `${f.id}-${indice + 1}-${escolha.gesto}`;
@@ -207,6 +229,7 @@ try {
       if (f.adereco === 'retrato' || NO_MEIO.includes(escolha.gesto)) {
         // O retrato no meio da volta, o gato no meio do salto: o que so se ve enquanto acontece.
         await pagina.waitForFunction((id) => (window.__depurar!.palco().cenas.find((c) => c.fragmento === id)?.k ?? 0) > 0.42, espera, f.id);
+        await pausa(250);
         await foto(`${nome}-meio`);
       }
       await pagina.waitForFunction((id, gesto) => window.__depurar!.palco().cenas.some((c) => c.fragmento === id && c.gesto === gesto && c.k >= 1), espera, f.id, escolha.gesto);

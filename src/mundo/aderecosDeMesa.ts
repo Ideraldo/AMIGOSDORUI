@@ -645,7 +645,7 @@ const ardosia: Montador = (fixo, _corpo, _gestos, po) => {
   const escrito = material(0xffffff, { mapa: giz, opacidade: 1 });
   escrito.depthWrite = false;
   peca(lousa, new THREE.PlaneGeometry(0.5, 0.38), escrito, 0, 0.22, 0.013);
-  peca(fixo, caixa(0.05, 0.4, 0.03), moldura, 0, 0.19, -0.13).rotation.x = 0.35;
+  peca(fixo, caixa(0.05, 0.3, 0.03), moldura, 0, 0.14, -0.15).rotation.x = 0.45;
   const apagador = peca(lousa, caixa(0.09, 0.035, 0.035), material(0x8a8478), 0.2, 0.02, 0.03);
   return {
     centro: 0.22,
@@ -763,17 +763,17 @@ const berco: Montador = (fixo) => {
 
 /** As marcas de quem foi arrastado pelos pes: dois riscos no assoalho, que acabam em unhadas. Fica no chao. */
 const rastro: Montador = (fixo) => {
-  const escuro = material(0x130b07);
+  const escuro = material(0x9a8464);
   const trechos: THREE.Mesh[] = [];
   for (let i = 0; i < 9; i++) {
     for (const x of [-0.12, 0.12]) {
-      const m = peca(fixo, caixa(0.05, 0.005, 0.2), escuro, x + Math.sin(i * 1.3) * 0.02, 0.004, 0.5 - i * 0.23);
+      const m = peca(fixo, caixa(0.06, 0.005, 0.2), escuro, x + Math.sin(i * 1.3) * 0.02, 0.032, 0.5 - i * 0.23);
       m.userData.i = i;
       trechos.push(m);
     }
   }
-  const unha = material(0xb09a74);
-  const unhadas = grupoEm(fixo, 0, 0.005, -1.62);
+  const unha = material(0xd8c8a0);
+  const unhadas = grupoEm(fixo, 0, 0.033, -1.62);
   for (const mao of [-1, 1]) for (let d = 0; d < 5; d++) peca(unhadas, caixa(0.012, 0.005, 0.17), unha, mao * (0.08 + d * 0.035), 0, 0).rotation.y = mao * (d - 2) * 0.09;
   return {
     centro: 0.02,

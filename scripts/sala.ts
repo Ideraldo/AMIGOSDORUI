@@ -22,8 +22,7 @@ const navegador = await puppeteer.launch({
   headless: true,
   args: [
     '--no-sandbox',
-    '--use-angle=swiftshader',
-    '--enable-unsafe-swiftshader',
+    ...(process.env.SEM_PLACA ? ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] : process.platform === 'win32' ? ['--use-angle=d3d11', '--enable-gpu'] : ['--enable-gpu']),
     '--ignore-gpu-blocklist',
     // Duas paginas ao mesmo tempo: nenhuma pode ser posta para dormir.
     '--disable-renderer-backgrounding',

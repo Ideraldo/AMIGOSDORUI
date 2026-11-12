@@ -237,6 +237,8 @@ export type Onde = 'movel' | 'chao' | 'janela';
 export interface Montado {
   centro: number;
   onde?: Onde;
+  /** A que distancia de quem investiga fica o que vai no chao (padrao: 1,3 m). Coisa grande pede mais. */
+  distancia?: number;
   /** Uma parte que fica no chao, perto do movel (o berco, o rastro). */
   extra?: THREE.Group;
   /** Gestos que acontecem na parte do chao: a camera vira para la. */
@@ -254,6 +256,8 @@ export type Montador = (fixo: THREE.Group, corpo: THREE.Group, gestos: readonly 
 export interface Peca {
   grupo: THREE.Group;
   onde: Onde;
+  /** A que distancia de quem investiga fica o que vai no chao. */
+  distancia: number;
   /** A parte que fica no chao, se houver. */
   extra: THREE.Group | null;
   /** Altura do meio do adereco, para a camera mirar. */
@@ -275,6 +279,7 @@ export function montarPeca(montar: Montador, gestos: readonly Gesto[], alto: num
   return {
     grupo,
     onde: montado.onde ?? 'movel',
+    distancia: montado.distancia ?? 1.3,
     extra: montado.extra ?? null,
     centro: montado.centro,
     noExtra: (gesto) => !!gesto && !!montado.gestosDoExtra?.includes(gesto),
@@ -355,6 +360,7 @@ export function conjunto(centro: number, partes: readonly Parte[], sustos?: Part
     return {
       centro,
       extra,
+      distancia: 1.7,
       gestosDoExtra,
       proprio: true,
       sustos: todos,

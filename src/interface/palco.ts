@@ -94,6 +94,8 @@ interface EmCena {
   /** O gesto esta sendo visto acontecer (e nao so mostrado como ficou), e ja deu o susto dele. */
   aoVivo: boolean;
   sustou: boolean;
+  /** Adereco de janela: onde ficar de pe para ve-lo de frente. */
+  deFrente: [number, number] | null;
 }
 
 export class Palco {
@@ -116,6 +118,8 @@ export class Palco {
   private anotando = new Set<number>();
   /** Para onde a camera esta sendo levada, e por quanto tempo ainda. */
   private mira: { x: number; y: number; z: number; resta: number } | null = null;
+  /** Para onde o jogador esta sendo levado (a frente da janela da cena), e por quanto tempo ainda. */
+  private passo: { x: number; z: number; resta: number } | null = null;
   /** A camera ainda esta virando para o adereco ou para o cofre. */
   mirando = false;
   /** Da para por as maos no cofre agora (perto e na mira). */
@@ -181,10 +185,10 @@ export class Palco {
    * aparecer na frente de quem investiga, e nao debaixo dos pes. Sai so do lugar e da colisao:
    * e o mesmo para todos os jogadores.
    */
-  private chaoPerto(ponto: Ponto): [number, number] {
+  private chaoPerto(ponto: Ponto, distancia = 1.3): [number, number] {
     const r = pegada(LUGARES.find((l) => l.id === ponto.lugar)!);
     const base = Math.atan2(ponto.pe[0] - ponto.x, ponto.pe[1] - ponto.z);
-    for (const d of [1.3, 1.05, 1.6]) {
+    for (const d of [distancia, distancia - 0.3, distancia + 0.4, 1.3, 1.05]) {
       for (const a of [0, 0.6, -0.6, 1.2, -1.2, 1.9, -1.9, Math.PI]) {
         const x = ponto.pe[0] + Math.sin(base + a) * d;
         const z = ponto.pe[1] + Math.cos(base + a) * d;
@@ -198,22 +202,23 @@ export class Palco {
    * Uma janela lateral do lugar para os aderecos de janela: a mais perto de quem investiga,
    * de preferencia com chao livre na frente. Devolve o pe da parede e para onde a janela olha.
    */
-  private janelaPerto(ponto: Ponto): { x: number; z: number; giro: number } | null {
+  private janelaPerto(ponto: Ponto): { x: number; z: number; giro: number; deFrente: [number, number] | null } | null {
     const l = LUGARES.find((x) => x.id === ponto.lugar)!;
     if (SEM_PAREDE.includes(l.id)) return null;
     const { dx, dz } = direcao(l.frente);
-    let melhor: { x: number; z: number; giro: number } | null = null;
+    let melhor: { x: number; z: number; giro: number; deFrente: [number, number] | null } | null = null;
     let menor = Infinity;
     for (const lado of [-1, 1]) {
       for (const lz of zDasJanelasLaterais(l.profundidade)) {
         // Do referencial do predio (porta na origem, corpo em -Z) para o mundo.
         const noMundo = (lx: number): [number, number] => [l.x + lx * dz + lz * dx, l.z - lx * dx + lz * dz];
         const [x, z] = noMundo(lado * (l.largura / 2 - PAREDE - 0.07));
-        const [fx, fz] = noMundo(lado * (l.largura / 2 - PAREDE - 1.1));
-        const d = Math.hypot(x - ponto.pe[0], z - ponto.pe[1]) + (this.m.livre(fx, fz) ? 0 : 100);
+        // Onde ficar de pe para ver a janela de frente: a dois passos dela, se houver chao livre.
+        const deFrente = [2.1, 1.7, 2.6].map((recuo) => noMundo(lado * (l.largura / 2 - PAREDE - recuo))).find(([fx, fz]) => this.m.livre(fx, fz)) ?? null;
+        const d = Math.hypot(x - ponto.pe[0], z - ponto.pe[1]) + (deFrente ? 0 : 100);
         if (d < menor) {
           menor = d;
-          melhor = { x, z, giro: Math.atan2(-lado * dz, lado * dx) };
+          melhor = { x, z, giro: Math.atan2(-lado * dz, lado * dx), deFrente };
         }
       }
     }
@@ -250,11 +255,21 @@ export class Palco {
       const alvo = lugar ? [...this.emCena.values()].find((c) => c.vista.lugar === lugar) : undefined;
       if (alvo && ((modo === 'cena' && cena) || (modo === 'resultado' && this.modoAntes === 'cena'))) {
         this.mira = { ...this.foco(alvo), resta: 2.5 };
+        // A cena e numa janela: quem investiga vai ate a frente dela.
+        if (modo === 'cena' && alvo.deFrente) this.passo = { x: alvo.deFrente[0], z: alvo.deFrente[1], resta: 0.9 };
       } else if (modo === 'cofre' && this.cofre) {
         const p = this.cofre.grupo.position;
         this.mira = { x: p.x, y: p.y + 0.3, z: p.z, resta: 2.5 };
       }
       this.modoAntes = modo;
+    }
+    if (this.passo && this.passo.resta > 0 && jogador.congelado) {
+      const p = jogador.posicao;
+      const k = Math.min(1, 6 * dt);
+      jogador.teleportar(p.x + (this.passo.x - p.x) * k, p.y, p.z + (this.passo.z - p.z) * k);
+      this.passo.resta -= dt;
+    } else {
+      this.passo = null;
     }
     if (this.mira && this.mira.resta > 0 && jogador.congelado) {
       const dx = this.mira.x - camera.position.x;
@@ -267,7 +282,7 @@ export class Palco {
       jogador.inclinacao += (inclinacao - jogador.inclinacao) * k;
       this.mira.resta -= dt;
       // Chegou: dai em diante o mouse e do jogador de novo.
-      if (Math.abs(falta) < 0.015 && Math.abs(inclinacao - jogador.inclinacao) < 0.015) this.mira = null;
+      if (!this.passo && Math.abs(falta) < 0.015 && Math.abs(inclinacao - jogador.inclinacao) < 0.015) this.mira = null;
     } else {
       this.mira = null;
     }
@@ -283,6 +298,7 @@ export class Palco {
     this.tabuas.clear();
     this.anotando.clear();
     this.mira = null;
+    this.passo = null;
   }
 
   private tirar(c: EmCena): void {
@@ -323,8 +339,9 @@ export class Palco {
         const janela = peca.onde === 'janela' ? this.janelaPerto(ponto) : null;
         // No chao: um passo adiante de quem investiga, virado para ele.
         const noChao = (grupo: THREE.Group): void => {
-          const chao = this.chaoPerto(ponto);
-          grupo.position.set(chao[0], 0, chao[1]);
+          const chao = this.chaoPerto(ponto, peca.distancia);
+          // Dentro das casas o assoalho fica 4 cm acima do chao de terra.
+          grupo.position.set(chao[0], SEM_PAREDE.includes(ponto.lugar) ? 0 : 0.04, chao[1]);
           const de = chao === ponto.pe ? [2 * ponto.pe[0] - ponto.x, 2 * ponto.pe[1] - ponto.z] : ponto.pe;
           grupo.rotation.y = Math.atan2(de[0]! - chao[0], de[1]! - chao[1]);
         };
@@ -351,7 +368,7 @@ export class Palco {
         }
         this.m.cena.add(peca.grupo);
         // Cena que abriu agora aparece crescendo. A que ja estava la quando se chegou, nao.
-        c = { vista, peca, gesto: null, k: 1, surgiu: outraNoite || vista.gesto ? 1 : 0, luz: 0, aoVivo: false, sustou: false };
+        c = { vista, peca, gesto: null, k: 1, surgiu: outraNoite || vista.gesto ? 1 : 0, luz: 0, aoVivo: false, sustou: false, deFrente: janela?.deFrente ?? null };
         this.emCena.set(chave, c);
       }
       c.vista = vista;

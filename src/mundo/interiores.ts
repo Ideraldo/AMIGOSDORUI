@@ -646,7 +646,7 @@ function estacao({ g, W, D, R, F, teto, aberto }: Sala): void {
 
   // Bagagem esquecida.
   caixote(g, W / 2 - 1.6, -2, 0.8);
-  caixa(g, 0.9, 0.45, 0.55, fosco(0x4a2f22), W / 2 - 1.5, 0.22, -3.4, { ry: 0.3 });
+  caixa(g, 0.9, 0.45, 0.55, fosco(0x4a2f22), W / 2 - 1.5, 0.22, -3.4, { ry: 0.3, solido: true });
   caixa(g, 0.7, 0.35, 0.45, fosco(0x3a3530), W / 2 - 1.5, 0.62, -3.4, { ry: -0.2 });
   const carrinho = movel(g, -3.2, -3.4, 0.3);
   caixa(carrinho, 1.0, 0.08, 1.7, m, 0, 0.36, 0);
