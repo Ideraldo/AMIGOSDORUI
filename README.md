@@ -51,8 +51,12 @@ Na sala o relógio é de todos e não para durante as cenas. Quem aperta E chama
 | No cofre: A / D, W / S, Espaço, E | escolher o disco, girar, puxar a alavanca, largar |
 | Q | usar a atadura da bolsa |
 | T | beber o tônico da bolsa |
-| F | acender ou apagar o lampião |
-| V | mostrar a carta a quem está na sua frente (uma chance por jogador) |
+| F | acender ou apagar o lampião (apagado e agachado, a Coisa não te vê no escuro) |
+| V | mostrar a carta a quem está na sua frente (pede 2 provas achadas pelo grupo; uma chance por jogador, duas sozinho) |
+| Tab (segurando) | objetivos, a sua parte, suspeitos, traços da Coisa e a armadilha |
+| K | acusar quem é a Coisa |
+| L | puxar a corda da armadilha, no poço da praça, na última hora |
+| H | mostrar as teclas |
 | G | mostrar ou esconder o nome de quem está por perto |
 | 1, 2, 3 | escolher numa cena |
 | Espaço | pular. Com um painel aberto, continuar |

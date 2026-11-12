@@ -22,6 +22,8 @@ npm run simular    # bots jogam centenas de noites: sobrevivencia, descoberta e 
 npm run partida    # joga uma noite inteira pelo teclado num Chrome sem janela (leva minutos)
 npm run sala       # poe dois navegadores na mesma sala e confere o jogo em grupo
 npm run abertura   # confere a abertura narrada da noite e a conversa com um NPC
+npm run vilao      # joga os vestigios, a armadilha e o desmascarar, com nome certo e com nome errado
+npm run coisa      # confere a Coisa que anda: ronda, visao, perseguicao, esconderijo, cerco e a mesma posicao para dois numa sala
 npm run gestos     # confere aderecos e gestos das cenas, o cofre de ferro e o favor (uns 12 minutos; aceita filtro: npm run gestos -- retrato cofre)
 npm run dev:rede   # como o dev, mas aberto para quem esta na mesma rede
 npm run planta     # regenera docs/planta.*
@@ -213,9 +215,29 @@ No fim de `construirCidade`, `fundir` troca as milhares de caixas e cilindros de
 - Os modelos são montados em `main.ts` (`modeloDoAchado`), fora da cidade fundida.
 - Tipo novo de coisa: `TipoDeAchado`, `ACHADOS_POR_NOITE`, `pegar`, `modeloDoAchado` e `NOME_DO_ACHADO`.
 
-## O vulto e os segredos
+## A Coisa que anda, e os segredos
 
-- `src/mundo/vulto.ts` é a ameaça vista de longe: aparece na rua, na direção em que o jogador olha, quando o painel da virada fecha (longe no presságio e na ronda, perto depois do ataque) e de tempos em tempos para quem tem medo 4 ou 5. Não tem colisão e não muda regra nenhuma. Ainda não anda.
+- A Coisa anda desde 11/11/2026 (pedido do Ideraldo, que também quis um tom "meio Scooby Doo"). Ela é um morador fantasiado, e a noite tem duas perguntas: quem escreveu a carta e quem está por baixo da fantasia.
+- A ronda está no núcleo (`src/nucleo/coisa.ts`, puro): `posicaoDaCoisa(estado, bib, restante)` é função do estado e do relógio, então todos numa sala a veem no mesmo lugar. Quem tem o relógio chama `rondar` a cada trecho de 30 s (o servidor em `Sala.avancar`, a tela quando se joga sozinho). As ruas são um grafo escrito à mão (`NOS`, `ARESTAS`), e o `npm run coisa` confere os pontos contra a colisão. A regra da noite se vê na ronda: em chão bento ela para na beira, na regra do sozinho rodeia grupo, na do medo vai a quem tem mais medo.
+- A caçada é da tela de cada jogador (`src/interface/cacada.ts`): ver, ouvir, perseguir, perder de vista. Escondido é agachado, de lampião apagado e sem linha de visão até o CORPO (por isso espiar deixa ver sem ser visto). Quando ela alcança, a tela manda `apanhado` e o servidor valida. Enquanto persegue alguém, a pose desse jogador leva `cx`, `cz`, `cv` e os outros a desenham ali.
+- Números decididos sem o Ideraldo (tabela no topo de `coisa.ts`): ronda 2,2 m/s, perseguição 5,4 m/s (o jogador corre a 7,2), vê lampião aceso a 30 m, golpe a 1,3 m, medo +1 e, do ato 2 em diante, ferimento +1 com teto em 2. A Coisa que anda não mata: quem mata é o sino, cuja chance caiu para [0, 0,2, 0,5] por ato. Quem segue a regra continua 100% a salvo, e isso não muda.
+- Cerco: quem fica 90 s no mesmo lugar sem ter entendido a regra chama a Coisa para a porta, e o medo sobe. O indicador é um olho no rodapé (fechado: perto e não percebe; âmbar: ouviu; vermelho: vê). O jogador de teste achou o olho pouco legível, está na lista do plano.
+- O boneco (`src/mundo/vulto.ts`) tem a cabeça no grupo `cabeca`, com `mascara` e `chapeu` separados. `__depurar.coisa()`, `forcarCoisa()`, `tempo()` e `?coisa=x,z,rumo` servem aos scripts.
+
+## O vilão, os vestígios e a armadilha
+
+- `src/nucleo/vilao.ts`: `Estado.vilao` é um suspeito que não escreveu a carta, com sorteio próprio. Nunca a criança (`Npc.disfarce.podeSerVilao: false`: a revisão de história reprovou uma criança que fere adultos) e, se der, não quem pede o favor. Noite sem carta ou com menos de 3 suspeitos fica sem vilão, e tudo tem de funcionar assim.
+- Três vestígios (achados `vestigio`: bota em perna de pau, luva de garras, retalho da capa), cada um com um traço de `Biblioteca.disfarce.tracos`. Cada traço é de exatamente 2 NPCs e dois NPCs nunca dividem mais de um, então dois vestígios quaisquer já apontam um nome só. `validarDisfarces` confere. Traço não diz nome, e não pode contradizer a regra da noite (o barro vermelho é do CAMINHO do cemitério, não do chão bento).
+- A armadilha: da 6ª hora em diante (`RODADA_DA_ARMADILHA`) aparecem corda, sino de vaca e lampião de sinal (achados `peca`). E monta no poço da praça, K acusa (em grupo é voto, empate vai a sorteio), L puxa. Puxar pede `VESTIGIOS_PARA_PUXAR` (2) vestígios do grupo, senão seria chute. A Coisa só vem ver o lampião de sinal na ÚLTIMA hora (em `rondar`, a isca), para a corda ser o clímax e o meio da noite não esvaziar, e nessa hora ela não caça ninguém. Nome certo: `Estado.desmascarado`, medo -2, nenhum ataque até o fim. Nome errado: armadilha perdida, medo +2 e ferimento +1 em quem puxou, e ataque certo naquele sino.
+- O desmascarar é desenhado pelo palco (`src/mundo/armadilha.ts`): a Coisa laçada, a máscara voando, o morador por baixo, que diz `disfarce.pego`. No fim: o motivo dele, a `explicacao` da regra da noite (por que quem vestia a fantasia seguia a regra), o que houve com os sumidos e uma ponta sobrenatural deixada de propósito (`disfarce.depois`). A tela do fim dá o placar "Casos resolvidos: n de 3" (carta, Coisa, regra).
+- Motivo de fundo da história de exemplo, um só para todos: a ferrovia vai abrir um ramal pelo vale e pagar por lote, e terra de cidade vazia sai barata.
+- A tela não dá endereço de prova, vestígio nem peça: `src/nucleo/indicacoes.ts` tem uma frase vaga por lugar, e o nome só aparece depois que o jogador pisou lá. Cofre e favor ainda dão endereço, dentro do Tab.
+- O servidor confere, pela última posição mandada, que quem monta ou puxa está ao lado do poço.
+
+## Tela enxuta
+
+- Pedido dos revisores e do Ideraldo (texto demais). Andando, a tela mostra medidores, a linha "Agora" e até 3 pendências (`pendencias()` em `partidaNaTela.ts`). Objetivos, "Sua parte", suspeitos, traços da Coisa, armadilha, missões extras e lugares abertos ficam em `#completo`, atrás do Tab (segurar). A linha de teclas some depois de 60 s e o H traz de volta. Um aviso por vez, com fundo. Não volte a encher a tela: informação nova entra em `pendencias()` ou no Tab.
+- Os scripts leem `#completo` mesmo fechado.
 - `src/interface/segredos.ts` guarda os segredos, que não estão no README de propósito. Hoje são três, cada um uma vez por noite: pular 5 vezes dentro do cemitério (as luzes falham), acender e apagar o lampião 6 vezes em 3 segundos (a chama fica verde por 30 segundos) e encarar a lua por 8 segundos na rua.
 - O que falta e o plano do multiplayer estão em `docs/plano.md`. Atualize lá quando uma etapa fechar.
 

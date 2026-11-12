@@ -96,7 +96,20 @@ Escritas em 11/11/2026, quando o Ideraldo pediu ideias novas e liberdade para cr
 - O último sino, a tela do fim e o jogo em grupo não foram jogados pelo jogador de teste.
 - Menores: mapa com rótulos pequenos, diário abrindo no fim, lista de teclas da entrada sem V e G, tela de entrada transbordando em 720p, falas de NPC com "trinta anos" contra "desde o inverno".
 
-**Próxima leva, aprovada pelo Ideraldo em 11/11/2026** ("gostei bastante", e pediu algo "meio Scooby Doo, de tentar desmascarar o vilão, caso encaixe"). Encaixa, e vira a espinha da noite:
+**Feito em 12/11/2026: desmascarar a Coisa e a Coisa que anda.** A Coisa é um morador fantasiado, com três vestígios, dedução por traços, armadilha no poço e a máscara caindo na última hora. Ela ronda as ruas, persegue, e dá para se esconder agachado no escuro. A tela ficou enxuta, com o resto atrás do Tab. Passou por jogador de teste (jogou até o epílogo), revisor de história e revisor de código. Ficou por fazer, do que eles acharam:
+
+- **O olho não avisa direito.** O jogador de teste levou um golpe sem ver o olho ficar vermelho, e achou o indicador pequeno. Falta um estado intermediário claro e um tamanho maior.
+- **Morre-se fácil no ato 2 sem entender.** Dois golpes na rua e o sino matam. Já há aviso a um golpe da morte. Falta avisar que o sino está chegando para quem está fora do abrigo.
+- **A investigação anda depressa.** Provas e vestígios saíram em duas horas, e o painel faz a dedução pelo jogador ("só um suspeito bate").
+- **Traços que não se veem.** Avental, casimira e cheiro só existem como texto no painel. Falta aparecer no boneco ou numa fala do morador.
+- **Indicações vagas que enganam** quando o lugar óbvio está fechado ("onde se guarda o que vale dinheiro" com o banco fechado).
+- Traços da Coisa aparecem riscados junto de quem foi inocentado da carta, o que confunde. Cofre e favor ainda dão endereço exato.
+- Do código: `puxar` usa a posição da ronda, não a da Coisa que outro jogador arrastou; a Coisa some na troca de trecho no meio de uma perseguição; voto de quem saiu da sala ainda conta; alocação por quadro no painel do Tab.
+- Os bots do `simular` não usam vestígio, armadilha nem esconderijo, então o equilíbrio da parte nova não está medido.
+- Não testado por ninguém: o cerco no navegador, espiar com a Coisa por perto, o jogo em grupo com a Coisa.
+- Ainda da lista aprovada: reunião no sino da estação, provas que só fecham comparadas, máquina de retrato.
+
+**Leva anterior, aprovada pelo Ideraldo em 11/11/2026** ("gostei bastante", e pediu algo "meio Scooby Doo, de tentar desmascarar o vilão, caso encaixe"). Encaixa, e vira a espinha da noite:
 
 - **Desmascarar a Coisa.** A Coisa é gente da cidade fantasiada, um dos suspeitos que não escreveu a carta. Quem escreveu a carta desconfia, e por isso pediu socorro. A noite passa a ter duas perguntas: quem pediu ajuda (a carta, que já existe) e quem está por baixo da fantasia. As pistas do disfarce são coisas vistas no mundo: um pedaço da fantasia preso numa cerca, a bota que deixou a pegada, o material guardado na casa de alguém. O fim deixa de ser só esperar o sol: o grupo monta uma armadilha (corda, sino, lampiões) no ato 3, atrai a Coisa e arranca a máscara. Errar o nome na hora de desmascarar custa caro. Isso responde o que a revisão de história apontou (o fim não dizia o que era a Coisa, o meio da noite esvaziava e dava para vencer parado).
 - **A Coisa anda** (item 1 abaixo), porque só dá para desmascarar o que se vê.
