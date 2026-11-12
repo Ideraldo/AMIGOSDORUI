@@ -21,7 +21,7 @@
 import { FIGURANTES, LUGARES, PRACA, contem, direcao, pegada, type LugarId, type Retangulo } from '../mundo/planta.ts';
 import { regraDe, sabeARegra } from './partida.ts';
 import { inteiro, type ComRng } from './rng.ts';
-import { FERIMENTO_FATAL, MEDO_MAXIMO, SEGUNDOS_POR_RODADA, atoDaRodada, type Biblioteca, type Coisa, type Estado, type Personagem, type RegraSecreta } from './tipos.ts';
+import { FERIMENTO_FATAL, MEDO_MAXIMO, SEGUNDOS_POR_RODADA, atoDaRodada, type Biblioteca, type Coisa, type Estado, type Personagem, type RegraSecreta, RODADAS } from './tipos.ts';
 
 /** A rota da Coisa e refeita a cada trecho da hora, em segundos. */
 export const SEGUNDOS_DO_TRECHO = 30;
@@ -429,7 +429,8 @@ export function rondar(estado: Estado, bib: Biblioteca, restante: number, onde?:
   const dado: ComRng = { rng: (Math.imul(e.semente, 2246822519) ^ Math.imul(e.rodada, 3266489917) ^ Math.imul(trecho + 1, 668265263)) >>> 0 };
   const vivos = e.personagens.filter((p) => p.vivo);
   // A armadilha montada, com o lampiao de sinal aceso, e isca: ela vem ver, em qualquer parte da hora.
-  const isca = !!e.armadilha?.armadaEm && !e.armadilha.perdida;
+  // So na ultima hora: a corda e o fim da noite, e ate la a ronda segue cacando como sempre.
+  const isca = !!e.armadilha?.armadaEm && !e.armadilha.perdida && e.rodada >= RODADAS;
   const ativa = (ativaNoTrecho(e, trecho) || isca) && vivos.length > 0 && !e.desmascarado;
 
   // Quem esta entocado. No primeiro trecho nao se conta: as regras acabaram de por todos na rua.
@@ -441,7 +442,7 @@ export function rondar(estado: Estado, bib: Biblioteca, restante: number, onde?:
   }
   // O cerco: o lugar de quem esta ha mais tempo parado sem ter entendido a regra.
   let cerco: LugarId | null = null;
-  if (ativa) {
+  if (ativa && !isca) {
     let maior = TRECHOS_PARA_CERCAR - 1;
     for (const p of vivos) {
       if (p.lugar === null || (p.parado ?? 0) <= maior || !e.abertos.includes(p.lugar) || sabeARegra(e, bib, p.id)) continue;

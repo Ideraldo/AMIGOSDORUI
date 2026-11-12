@@ -96,7 +96,10 @@ export function prepararVilao(e: Estado, bib: Biblioteca): void {
   const dado: ComRng = { rng: (Math.imul(e.semente, 104729) + 15485863) >>> 0 };
   const suspeitos = e.carta.suspeitos;
   if (e.carta.autor === '' || suspeitos.length < SUSPEITOS_PARA_O_VILAO || e.abertos.length === 0) return;
-  const podem = suspeitos.filter((n) => n !== e.carta.autor && tracosDe(bib, n).length >= 3);
+  const serve = (n: string) => n !== e.carta.autor && tracosDe(bib, n).length >= 3 && bib.npcs.find((x) => x.id === n)?.disfarce.podeSerVilao !== false;
+  // De preferencia nao e quem pede o favor: amarrado na praca, ele nao teria como receber a caixa.
+  const semFavor = suspeitos.filter((n) => serve(n) && n !== e.favor?.npc);
+  const podem = semFavor.length ? semFavor : suspeitos.filter(serve);
   if (podem.length === 0) return;
   // De preferencia quem divide mais tracos com outro suspeito desta noite: assim um vestigio so nao entrega o nome.
   const divididos = (n: string) => tracosDe(bib, n).filter((t) => quemTem(bib, suspeitos, [t.id]).length > 1).length;
@@ -198,11 +201,22 @@ export function acusar(estado: Estado, quem: string, npc: string): Estado {
 
 /** Os nomes mais votados entre os vivos. Vazio: ninguem acusou. Mais de um: empate. */
 export function maisAcusados(e: Estado): string[] {
-  const votos = e.personagens.filter((p) => p.vivo).flatMap((p) => (e.armadilha?.acusacoes[p.id] ? [e.armadilha.acusacoes[p.id]!] : []));
+  // Voto em quem ja confessou a carta deixou de valer: essa pessoa saiu da lista de acusar.
+  const valem = acusaveis(e);
+  const votos = e.personagens.filter((p) => p.vivo).flatMap((p) => (e.armadilha?.acusacoes[p.id] && valem.includes(e.armadilha.acusacoes[p.id]!) ? [e.armadilha.acusacoes[p.id]!] : []));
   const nomes = [...new Set(votos)];
   const conta = (n: string) => votos.filter((v) => v === n).length;
   const maior = Math.max(0, ...nomes.map(conta));
   return nomes.filter((n) => conta(n) === maior);
+}
+
+/** Quantos vestigios o grupo precisa ter achado antes de puxar a corda. Dois bastam sempre para sobrar um nome so. */
+export const VESTIGIOS_PARA_PUXAR = 2;
+
+/** Quantos vestigios ainda faltam ao grupo para poder puxar a corda. */
+export function vestigiosQueFaltam(e: Estado): number {
+  const todos = e.achados.filter((a) => a.tipo === 'vestigio');
+  return Math.max(0, Math.min(VESTIGIOS_PARA_PUXAR, todos.length) - todos.filter((a) => a.pego).length);
 }
 
 /** A Coisa esta ao alcance da corda agora? */
@@ -219,6 +233,8 @@ export function oQueImpedePuxar(e: Estado, bib: Biblioteca, quem: string, restan
   if (cenaDe(e, quem)) return 'Não dá para largar o que está nas mãos agora.';
   if (p.lugar !== null) return 'A corda fica na praça, ao lado do poço.';
   if (maisAcusados(e).length === 0) return 'Antes de puxar, alguém precisa acusar um nome.';
+  const faltam = vestigiosQueFaltam(e);
+  if (faltam > 0) return `Acusar sem vestígio é chute: ${faltam === 1 ? 'falta 1 vestígio' : `faltam ${faltam} vestígios`} ao grupo.`;
   if (!coisaNoAlcance(e, bib, restante)) return 'A Coisa ainda não chegou perto do poço.';
   return null;
 }
@@ -295,7 +311,7 @@ export function passosDaArmadilha(e: Estado, bib: Biblioteca, quem: string, sabi
   }
   const meu = a.acusacoes[quem];
   lista.push({ texto: meu ? `Você acusa ${bib.npcs.find((n) => n.id === meu)?.nome ?? meu} (K troca)` : 'Acusar quem é a Coisa (K)', feita: !!meu });
-  lista.push({ texto: 'Puxar a corda (L) quando a Coisa chegar perto do poço', feita: false });
+  lista.push({ texto: 'Puxar a corda (L) na última hora, quando a Coisa vier ver o lampião de sinal', feita: false });
   return lista;
 }
 

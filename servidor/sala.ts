@@ -4,7 +4,8 @@
 
 import { apurar, cenaDe, chegar, contar, entrar, mostrarCarta, novaPartida, passarRodada, pegar, sair, usar, votar, ouvirDica } from '../src/nucleo/partida.ts';
 import { anotarNumero, entregar, girarDisco, puxarAlavanca, largarCaixa } from '../src/nucleo/missoes.ts';
-import { acusar, largarPecas, montar, puxar } from '../src/nucleo/vilao.ts';
+import { ALCANCE_DO_POCO, acusar, largarPecas, montar, puxar } from '../src/nucleo/vilao.ts';
+import { PRACA } from '../src/mundo/planta.ts';
 import { SEGUNDOS_ENTRE_ATAQUES, apanhar, emChaoBento, posicaoDaCoisa, precisaRondar, rondar, temCompanhia } from '../src/nucleo/coisa.ts';
 import { regraDe } from '../src/nucleo/partida.ts';
 import { SEGUNDOS_POR_RODADA, type Biblioteca, type Cena, type Estado } from '../src/nucleo/tipos.ts';
@@ -56,6 +57,8 @@ export class Sala {
   sair(id: string): void {
     const i = this.jogadores.findIndex((j) => j.id === id);
     if (i >= 0) this.jogadores.splice(i, 1);
+    // Quem saiu nao faz mais companhia a ninguem.
+    delete this.posicoes[id];
     // Quem sai levando a caixa do favor larga a caixa onde a achou, para outro poder levar.
     // O mesmo com as pecas da armadilha.
     if (this.estado) this.mudar(largarPecas(largarCaixa(this.estado, id), id));
@@ -141,14 +144,14 @@ export class Sala {
           break;
         // A armadilha: as regras conferem vivo, lugar (na rua), hora e nome. Aqui, que nao esteja em cena.
         case 'montar':
-          if (!cenaDe(e, id)) this.mudar(montar(e, id, this.restante));
+          if (!cenaDe(e, id) && this.noPoco(id)) this.mudar(montar(e, id, this.restante));
           break;
         case 'acusar':
           if (typeof m.npc === 'string') this.mudar(acusar(e, id, m.npc));
           break;
         case 'puxar':
           // Onde a Coisa esta sai do relogio da sala, nao do que a tela de quem puxou diz.
-          if (!cenaDe(e, id)) this.mudar(puxar(e, this.bib, id, this.restante));
+          if (!cenaDe(e, id) && this.noPoco(id)) this.mudar(puxar(e, this.bib, id, this.restante));
           break;
         case 'apanhado':
           this.apanhado(id);
@@ -169,6 +172,12 @@ export class Sala {
   }
 
   /** Onde este jogador esta (a ultima posicao que ele mandou). Nao e regra: so serve a ronda e ao encontro. */
+  /** Este jogador esta ao lado do poco, pela ultima posicao que mandou? Sem posicao nenhuma (testes, quem acabou de chegar), vale a regra do nucleo. */
+  private noPoco(id: string): boolean {
+    const p = this.posicoes[id];
+    return !p || Math.hypot(p.x - PRACA.x, p.z - PRACA.z) <= ALCANCE_DO_POCO + 3;
+  }
+
   posicionar(id: string, x: number, z: number): void {
     const p = this.posicoes[id];
     if (p) {

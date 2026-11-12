@@ -37,7 +37,7 @@ import { regraDe } from './nucleo/partida.ts';
 import { figura } from './mundo/gente.ts';
 import { casaDoNpc, falasDoNpc } from './nucleo/partida.ts';
 import { EXEMPLO } from './nucleo/historias/exemplo.ts';
-import type { Achado, Estado } from './nucleo/tipos.ts';
+import { RODADAS, type Achado, type Estado } from './nucleo/tipos.ts';
 import type { Solido } from './jogador/colisao.ts';
 import { Criador } from './interface/criador.ts';
 import { desenharEspera, desenharFolego, desenharRoda, gestoDaTecla, listaDaEspera, viajantes, type TelaDeEspera } from './interface/turma.ts';
@@ -1334,7 +1334,8 @@ function atualizarCoisa(dt: number, t: number): number {
   c.correndo = jogador.velocidade > 5.5;
   c.andando = jogador.velocidade > 1 && !jogador.agachado && Math.abs(jogador.espia) < 0.15;
   // Com painel aberto, na abertura ou morto, ela nao percebe o jogador.
-  c.exposto = !cam && partida.personagem.vivo && partida.modo === 'andando' && !abertura && !estado.fim;
+  // Mexer no cofre ou abrir a lista de acusar nao esconde ninguem: so cena e painel de leitura param o jogo.
+  c.exposto = !cam && partida.personagem.vivo && ['andando', 'acusar', 'cofre'].includes(partida.modo) && !abertura && !estado.fim;
   // Na sala: quem esta por perto (companhia) e se ela esta atras de outro jogador.
   let acompanhado: boolean | undefined;
   c.alheia = null;
@@ -1356,7 +1357,9 @@ function atualizarCoisa(dt: number, t: number): number {
       c.alheia = coisaDeOutro;
     }
   }
-  c.quer = !c.exposto || emChaoBento(regraDaCacada, p.x, p.z) ? null : oQueElaQuer(estado, EXEMPLO, partida.eu, acompanhado);
+  // Na ultima hora, com o lampiao de sinal aceso, ela vai ver a armadilha e nao caca ninguem: quem espera ao lado do poco nao apanha por seguir a instrucao.
+  const naIsca = !!estado.armadilha?.armadaEm && !estado.armadilha.perdida && estado.rodada >= RODADAS;
+  c.quer = !c.exposto || naIsca || emChaoBento(regraDaCacada, p.x, p.z) ? null : oQueElaQuer(estado, EXEMPLO, partida.eu, acompanhado);
   // Sozinho, com o relogio parado (painel, abertura, mouse solto), ela tambem para.
   const parada = !partida.sala && !coisaForcada && !((jogador.travado || tempoForcado) && !abertura && partida.modo === 'andando');
   cacada.atualizar(parada ? 0 : dt, c);

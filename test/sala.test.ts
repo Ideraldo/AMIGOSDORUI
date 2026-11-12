@@ -240,9 +240,15 @@ test('a armadilha pela sala: o servidor confere hora, lugar, cena e nome, e usa 
   sala.receber(a, { t: 'acusar', npc: 'ninguem' });
   sala.receber(a, { t: 'acusar' } as never);
   assert.equal(sala.estado, antes);
-  // Vira ate o ato 3. Quem morrer pelo caminho volta, que o teste e da armadilha.
-  while (sala.estado!.rodada < 6) sala.receber(a, { t: 'virar' });
+  // Vira ate a ultima hora, que e quando a Coisa vem a armadilha. Quem morrer pelo caminho volta, que o teste e da armadilha.
+  while (sala.estado!.rodada < 8) sala.receber(a, { t: 'virar' });
   for (const p of sala.estado!.personagens) Object.assign(p, { vivo: true, ferimento: 0, medo: 0 });
+  // Dois vestigios achados: sem eles a corda nao se puxa.
+  for (const v of sala.estado!.achados.filter((x) => x.tipo === 'vestigio').slice(0, 2)) {
+    sala.receber(a, { t: 'chegar', lugar: v.lugar });
+    sala.receber(a, { t: 'pegar', id: v.id });
+    sala.receber(a, { t: 'sair' });
+  }
   for (const peca of ['corda', 'sino', 'lampiao']) {
     const achado = sala.estado!.achados.find((x) => x.peca === peca)!;
     sala.receber(a, { t: 'chegar', lugar: achado.lugar });

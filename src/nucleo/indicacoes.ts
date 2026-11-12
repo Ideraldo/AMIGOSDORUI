@@ -22,8 +22,8 @@ export const INDICACAO: Record<LugarId, string> = {
   estabulo: 'num lugar com cheiro de bicho e de palha',
   celeiro: 'num lugar com cheiro de bicho e de palha',
   sitio: 'num lugar com cheiro de bicho e de palha',
-  botica: 'onde há frascos ou cadernos',
-  escola: 'onde há frascos ou cadernos',
+  botica: 'onde se aprende ou se cura',
+  escola: 'onde se aprende ou se cura',
 };
 
 /** Onde procurar: o nome do lugar para quem ja esteve la, a indicacao vaga para quem nao esteve. */

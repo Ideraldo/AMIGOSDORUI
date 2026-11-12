@@ -54,6 +54,8 @@ function puxar(e: Estado, bib: typeof EXEMPLO, quem: string, restante: number): 
   return depois === veio ? e : depois;
 }
 
+const ULTIMA_HORA = 8;
+
 function ateARodada(inicio: Estado, rodada: number): Estado {
   let e = inicio;
   while (e.rodada < rodada && !e.fim) e = passarRodada(e, EXEMPLO).estado;
@@ -68,9 +70,17 @@ function buscar(e: Estado, quem: string, id: string): Estado {
 
 /** A noite ja no ato 3, com as tres pecas montadas por `quem`. O relogio da montagem e o que for dado. */
 function armada(inicio: Estado, quem: string, restante = SEGUNDOS_POR_RODADA): Estado {
-  let e = ateARodada(inicio, RODADA_DA_ARMADILHA);
-  // Quem morreu na rua pelo caminho nao serve para o teste: volta a viver.
+  // A Coisa so vem ver o lampiao de sinal na ultima hora, e a corda so se puxa com dois vestigios achados.
+  // Quem se fere pelo caminho e curado a cada hora: o teste e da armadilha, e sem ninguem vivo a noite acabaria antes.
+  let e = inicio;
+  while (e.rodada < ULTIMA_HORA) {
+    e = structuredClone(e);
+    for (const p of e.personagens) Object.assign(p, { vivo: true, ferimento: 0, medo: 0 });
+    e = passarRodada(e, EXEMPLO).estado;
+  }
+  e = structuredClone(e);
   for (const p of e.personagens) Object.assign(p, { vivo: true, ferimento: 0, medo: 0 });
+  for (const v of e.achados.filter((a) => a.tipo === 'vestigio').slice(0, 2)) e = buscar(e, quem, v.id);
   for (const peca of PECAS) e = buscar(e, quem, `peca-${peca}`);
   return montar(e, quem, restante);
 }
@@ -220,8 +230,13 @@ test('a Coisa vem ver o lampiao de sinal e fica ao alcance da corda', () => {
   assert.ok(coisaNoAlcance(veio, EXEMPLO, 0));
   const c = posicaoDaCoisa(veio, EXEMPLO, 0)!;
   assert.ok(Math.hypot(c.x - PRACA.x, c.z - PRACA.z) <= ALCANCE_DA_ARMADILHA && c.ativa);
-  // A hora virou com a armadilha armada: ela continua rodando o poco.
-  assert.ok(coisaNoAlcance(trazer(passarRodada(veio, EXEMPLO).estado, 60), EXEMPLO, 60));
+  // Antes da ultima hora a armadilha armada nao muda a ronda: ela segue cacando.
+  let cedo = ateARodada(inicio, RODADA_DA_ARMADILHA);
+  for (const p of cedo.personagens) Object.assign(p, { vivo: true, ferimento: 0, medo: 0 });
+  for (const peca of PECAS) cedo = buscar(cedo, 'a', `peca-${peca}`);
+  cedo = montar(cedo, 'a', 140);
+  assert.ok(cedo.armadilha!.armadaEm);
+  assert.ok(!coisaNoAlcance(trazer(cedo, 0), EXEMPLO, 0) || !oQueImpedePuxar(trazer(acusar(cedo, 'a', cedo.vilao), 0), EXEMPLO, 'a', 0) === false, 'sem vestigio a corda nao se puxa');
 });
 
 test('acusar: cada vivo escolhe um nome, vale o mais votado e empate vai a sorteio', () => {

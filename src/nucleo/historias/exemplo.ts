@@ -58,7 +58,7 @@ export const EXEMPLO: Biblioteca = {
         { texto: 'Falta pouco para clarear. É a hora em que ela tem mais pressa.', atos: [3] },
         { texto: 'Não gosto de quem mexe no que é dos mortos. Vá andando.', para: 'mal' },
         { texto: 'Pode ficar por perto, se quiser. Companhia de vivo anda rara.', para: 'bem' },
-        { texto: 'Repare numa coisa. Em trinta anos, nunca achei rastro dela do lado de dentro desta cerca.', para: 'bem', regras: ['chao-consagrado'] },
+        { texto: 'Repare numa coisa. Desde o inverno, nunca achei rastro dela do lado de dentro desta cerca.', para: 'bem', regras: ['chao-consagrado'] },
         { texto: 'Os que eu enterrei morreram de olho arregalado. Os que não se assustaram, eu nunca precisei enterrar.', para: 'bem', regras: ['fareja-o-medo'] },
         { texto: 'Toda cova que eu abri este mês foi de gente que saiu sozinha. Toda.', para: 'bem', regras: ['caca-o-sozinho'] },
       ],
@@ -124,7 +124,7 @@ export const EXEMPLO: Biblioteca = {
       },
       falas: [
         { texto: 'Forasteiro em noite ruim. Fique onde eu possa ver.', atos: [1] },
-        { texto: 'Bala não resolve. Já tentei. Seis tiros e ela nem virou a cabeça.' },
+        { texto: 'Bala não resolve. Atirei seis vezes, e ela sumiu no beco antes de a fumaça baixar.' },
         { texto: 'Perdi dois ajudantes esta semana. Não vou perder mais ninguém hoje.', atos: [2, 3] },
         { texto: 'Última hora é a pior. Ela sabe que o tempo dela acaba.', atos: [3] },
         { texto: 'Mais uma dessas e passa a noite na cela. Lá, pelo menos, eu sei onde está.', para: 'mal' },
@@ -149,7 +149,7 @@ export const EXEMPLO: Biblioteca = {
           'O Dr. Amâncio só escreve com tinta roxa, feita na própria botica. A carta é de tinta preta.',
         ],
         confessa: 'Fui eu, e caprichei na letra para alguém conseguir ler. Ainda bem que vieram. Ouça o que eu observei.',
-        nega: 'Não é minha letra. E lá se foi a única pergunta que você tinha.',
+        nega: 'Não é minha letra. Gaste melhor a próxima pergunta.',
         desconfia: 'E mais uma observação. Aquilo respira, e o que respira é gente. Anotei um detalhe, repare.',
       },
       disfarce: {
@@ -191,6 +191,8 @@ export const EXEMPLO: Biblioteca = {
       },
       disfarce: {
         tracos: ['po-de-giz', 'canhota', 'estopa'],
+        // Crianca nao veste a fantasia: os tracos dela so servem de par aos dos outros.
+        podeSerVilao: false,
         pego: 'A professora disse que, se todo mundo fosse embora, a cidade ficava para a gente. Ela fez a roupa. Eu só andava.',
         motivo: 'Lia andava em pernas de pau, dentro da fantasia que a professora costurou antes de ir embora. A professora tinha comprado a dívida da cidade e esperava, na cidade vizinha, o leilão das terras por onde a ferrovia vai passar. A menina subiu no trem de mão dada com a turma de socorro e contou tudo no caminho.',
       },
@@ -248,15 +250,19 @@ export const EXEMPLO: Biblioteca = {
   // vazia vai a leilao por quase nada. Quem espantasse os vizinhos arrematava tudo.
   // Cada traco e de dois NPCs e cada NPC tem um traco de cada objeto: so os tres juntos dao um nome.
   disfarce: {
+    depois: [
+      'Dos sumidos, uns foram achados no fundo da mina, amarrados e vivos. Os outros o coveiro já tinha enterrado.',
+      'Só uma coisa ninguém explicou: quem chamava de dentro dos armários, com a voz de quem estava longe.',
+    ],
     solto: 'Ninguém viu o rosto da Coisa. Meses depois a ferrovia abriu um ramal pelo vale e pagou em ouro por cada lote, e todas as escrituras da cidade vazia tinham o mesmo dono. O nome está no cartório, para quem tiver coragem de voltar e ler.',
     tracos: [
       // A bota, pregada numa perna de pau: o que ficou na sola.
-      { id: 'barro-vermelho', objeto: 'bota', sinal: 'barro vermelho na barra da roupa', achado: 'Uma bota de cano alto pregada numa perna de pau. É assim que a Coisa fica tão alta. A sola está grossa de barro vermelho, do que só existe no chão do cemitério.', dica: 'Onde aquilo pisa fica barro vermelho, do que só tem no cemitério.' },
+      { id: 'barro-vermelho', objeto: 'bota', sinal: 'barro vermelho na barra da roupa', achado: 'Uma bota de cano alto pregada numa perna de pau. É assim que a Coisa fica tão alta. A sola está grossa de barro vermelho, do caminho que desce para o cemitério.', dica: 'Onde aquilo pisa fica barro vermelho, do caminho do cemitério.' },
       { id: 'tachas-de-latao', objeto: 'bota', sinal: 'botas novas, de tachas de latão', achado: 'Uma bota de cano alto pregada numa perna de pau. É assim que a Coisa fica tão alta. A sola é nova, cravada de tachas de latão, coisa cara, de encomenda.', dica: 'A pegada daquilo tem tachas de latão. É bota cara, de encomenda.' },
       { id: 'po-de-giz', objeto: 'bota', sinal: 'pó de giz nos dedos e na roupa', achado: 'Uma bota velha pregada numa perna de pau. É assim que a Coisa fica tão alta. A sola está branca de pó de giz e deixa um risco claro onde encosta.', dica: 'Onde aquilo pisa fica um risco branco, de pó de giz.' },
       // A luva, com garras de arame.
       { id: 'formol', objeto: 'luva', sinal: 'cheiro de formol', achado: 'Uma luva comprida de couro, com garras de arame costuradas nas pontas dos dedos. Cheira a formol, forte, de arder o nariz.', dica: 'Quando aquilo passa, fica no ar um cheiro de formol.' },
-      { id: 'canhota', objeto: 'luva', sinal: 'faz tudo com a mão esquerda', achado: 'Um par de luvas de couro com garras de arame. A da mão direita está quase nova. A da esquerda está gasta e rasgada: quem veste isto é canhoto.', dica: 'Aquilo arranha as portas com a mão esquerda. Sempre a esquerda.' },
+      { id: 'canhota', objeto: 'luva', sinal: 'faz tudo com a mão esquerda', achado: 'Uma luva de couro da mão direita, com garras de arame, quase sem uso. Quem veste isto arranha com a outra: é canhoto.', dica: 'Aquilo arranha as portas com a mão esquerda. Sempre a esquerda.' },
       { id: 'licor', objeto: 'luva', sinal: 'cheiro doce de licor de jenipapo', achado: 'Uma luva comprida de couro, com garras de arame costuradas nas pontas dos dedos. Está manchada e cheira a licor de jenipapo, doce e enjoado.', dica: 'Quando aquilo passa, fica um cheiro doce, de licor de jenipapo.' },
       // O retalho da capa.
       { id: 'estopa', objeto: 'retalho', sinal: 'roupa remendada com estopa de saco', achado: 'Um retalho da capa preta, rasgado num prego. Por dentro, o pano foi remendado com estopa de saco, em ponto grosso.', dica: 'A capa daquilo tem remendo de estopa de saco.' },
@@ -290,8 +296,9 @@ export const EXEMPLO: Biblioteca = {
         'Uma mancha de geada aparece no meio da rua e avança devagar. Na beira do adro, ela derrete.',
         'Alguém raspa o ferro do portão do cemitério com alguma coisa dura, pelo lado de fora, e desiste.',
       ],
-      ataque: 'Ela veio no escuro, sem barulho de passo. Quando foi embora, deixou um corte fundo e o frio.',
+      ataque: 'Ela veio pelo escuro, de passo pesado. Quando foi embora, ficou um corte fundo.',
       ronda: 'Ela rondou a noite inteira e não entrou. Ficou parada do lado de fora, esperando.',
+      explicacao: 'A lenda dizia que ela não pisava em chão bento. Quem vestia a fantasia seguia a lenda à risca: uma pegada no adro desmentia a assombração.',
       revelacao: 'A coisa não pisa em chão consagrado. Quem passou as horas ruins na igreja ou no cemitério ficou fora do alcance dela.',
     },
     {
@@ -311,6 +318,7 @@ export const EXEMPLO: Biblioteca = {
       ],
       ataque: 'Ela achou quem estava tremendo. Veio direto, como quem segue um cheiro, e deixou a marca.',
       ronda: 'Ela passou perto, farejando, e seguiu adiante. Não achou o que procurava.',
+      explicacao: 'Quem vestia a fantasia ia atrás de quem gritava e corria. Gente calma olha de perto, e de perto se vê a costura.',
       revelacao: 'A coisa segue o medo. Quem manteve a cabeça no lugar passou a noite invisível para ela.',
     },
     {
@@ -331,6 +339,7 @@ export const EXEMPLO: Biblioteca = {
       ],
       ataque: 'Ela esperou alguém ficar só. Ninguém ouviu grito nenhum, só acharam o sangue depois.',
       ronda: 'Ela rodeou o grupo a noite inteira, de longe. Ninguém se afastou, e ela não veio.',
+      explicacao: 'Debaixo da capa havia uma pessoa só. Contra dois, ela perdia.',
       revelacao: 'A coisa só ataca quem está sozinho. Enquanto havia alguém ao lado, ela ficou de longe.',
     },
   ],

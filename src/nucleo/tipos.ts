@@ -130,6 +130,8 @@ export interface RegraSecreta {
   /** Quando a ameaca ronda e nao acha ninguem. */
   ronda: string;
   /** Explicacao mostrada no fim da partida. */
+  /** Com a mascara no chao: por que quem vestia a fantasia seguia esta regra. */
+  explicacao?: string;
   revelacao: string;
 }
 
@@ -188,6 +190,8 @@ export interface Npc {
     pego: string;
     /** O motivo dele, para o fim da noite em que foi desmascarado. */
     motivo: string;
+    /** false: nunca e sorteado para vestir a fantasia (a crianca). Continua tendo tracos, que servem de par aos outros. */
+    podeSerVilao?: boolean;
   };
 }
 
@@ -232,6 +236,8 @@ export interface Biblioteca {
     tracos: Traco[];
     /** O fim da noite em que a Coisa nao foi desmascarada. */
     solto: string;
+    /** O que o fim acrescenta quando a mascara cai: o que houve com os sumidos e o que ninguem explicou. */
+    depois?: string[];
   };
 }
 

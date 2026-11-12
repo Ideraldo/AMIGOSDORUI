@@ -153,6 +153,11 @@ async function ateAArmadilha(j: ReturnType<typeof jogo>, abrigo: LugarId, fotos:
   while ((await j.estado()).rodada < RODADA_DA_ARMADILHA) await j.passarAHora(abrigo);
   const e = await j.estado();
   conferir(e.rodada === RODADA_DA_ARMADILHA && e.personagens[0]!.vivo, `a noite chega a hora da armadilha (${e.rodada}ª hora) com o jogador vivo`);
+  // A corda so se puxa com dois vestigios achados: quem ainda nao os tem pega agora.
+  for (const v of (await j.achados()).filter((a) => a.tipo === 'vestigio' && !a.pego).slice(0, Math.max(0, 2 - (await j.achados()).filter((a) => a.tipo === 'vestigio' && a.pego).length))) {
+    await j.pegar(v.id);
+    if ((await j.partida()).modo !== 'andando') await j.apertarAte('Space', async () => (await j.partida()).modo === 'andando', 'fechar o painel do vestigio');
+  }
   const pecas = (await j.achados()).filter((a) => a.tipo === 'peca');
   conferir(pecas.length === 3 && pecas.every((a) => a.aVista), 'na 6a hora as tres pecas da armadilha aparecem pela cidade');
   for (const [i, peca] of pecas.entries()) {
@@ -264,11 +269,12 @@ try {
     // A Coisa vem ver o lampiao. Sem o mouse preso o relogio nao anda: passa uma hora no abrigo e volta.
     await j.irAoPoco();
     await pausa(300);
-    conferir(/quando a Coisa chegar/.test(await j.agir()), `enquanto ela nao chega, a tela diz "${await j.agir()}"`);
+    conferir(/última hora|quando a Coisa chegar/.test(await j.agir()), `enquanto ela nao chega, a tela diz "${await j.agir()}"`);
     await pagina.keyboard.press('KeyL');
     await pausa(400);
     conferir((await j.estado()).desmascarado === null && !(await j.estado()).armadilha!.perdida, 'puxar a corda sem a Coisa no laço nao faz nada');
-    await j.passarAHora(abrigo);
+    // Ela so vem ver o lampiao de sinal na ultima hora.
+    while ((await j.estado()).rodada < 8) await j.passarAHora(abrigo);
     await j.irAoPoco();
     // A Coisa de verdade vem andando pelas ruas: o relogio precisa correr ate ela chegar ao poco.
     await pagina.evaluate(() => window.__depurar!.tempo(true));
@@ -339,7 +345,8 @@ try {
     await j.apertarAte('KeyK', async () => (await j.partida()).modo === 'acusar', 'abrir a lista de suspeitos');
     await j.apertarAte(`Digit${inicio.carta.suspeitos.indexOf(errado) + 1}` as 'Digit1', async () => (await j.estado()).armadilha!.acusacoes['voce'] === errado, 'acusar');
     await j.modo('andando');
-    await j.passarAHora(abrigo);
+    // Ela so vem ver o lampiao de sinal na ultima hora.
+    while ((await j.estado()).rodada < 8) await j.passarAHora(abrigo);
     await j.irAoPoco();
     // A Coisa de verdade vem andando pelas ruas: o relogio precisa correr ate ela chegar ao poco.
     await pagina.evaluate(() => window.__depurar!.tempo(true));

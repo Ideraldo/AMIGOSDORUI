@@ -37,6 +37,7 @@ import { chancesRestantes, oQueImpedeMostrar, ouvirDica, temChance } from '../nu
 import { ondeProcurar } from '../nucleo/indicacoes.ts';
 import {
   ALCANCE_DO_POCO,
+  vestigiosQueFaltam,
   FERIMENTO_DO_ERRO,
   MEDO_DO_ERRO,
   NOME_DA_PECA,
@@ -356,14 +357,14 @@ export class PartidaNaTela {
       if (solta?.peca) lista.push({ curto: `Armadilha, ${NOME_DA_PECA[solta.peca].replace(/^[ao] /, '')}: ${this.onde(solta.lugar)}`, agora: `Para a armadilha falta ${NOME_DA_PECA[solta.peca]}. Procure ${this.onde(solta.lugar)}.` });
       if (armadilhaArmada(e)) {
         if (!a.acusacoes[this.eu]) lista.push({ curto: 'Acusar quem é a Coisa (K)', agora: 'A armadilha está armada. Diga quem é a Coisa (K) antes de puxar a corda.' });
-        else lista.push({ curto: 'Puxar a corda no poço (L)', agora: 'Fique ao lado do poço e puxe a corda (L) quando a Coisa chegar perto.' });
+        else lista.push({ curto: 'Puxar a corda no poço (L)', agora: e.rodada < RODADAS ? 'A armadilha está armada. A Coisa só vem ver o lampião de sinal na última hora: até lá, cuidado com ela.' : 'Fique ao lado do poço, escondido, e puxe a corda (L) quando a Coisa chegar perto.' });
       }
     }
     // A carta: a parte de cada um, depois juntar tudo.
     if (!achouOAutor(e) && e.carta.autor !== '') {
       const prova = e.achados.find((x) => x.tipo === 'prova' && x.dono === this.eu && !x.pego);
       if (prova) lista.push({ curto: `Prova: ${this.onde(prova.lugar)}`, agora: `Sua parte: procurar uma prova ${this.onde(prova.lugar)}.` });
-      if (this.podeMostrarCarta) lista.push({ curto: 'Mostrar a carta a quem a escreveu (V)', agora: e.personagens.length > 1 ? 'Junte as provas com o grupo e mostre a carta (V) a quem a escreveu.' : 'Mostre a carta (V) ao suspeito que sobrou.' });
+      if (this.podeMostrarCarta) lista.push({ curto: 'Mostrar a carta a quem a escreveu (V)', agora: e.personagens.length > 1 ? 'Junte as provas com o grupo e mostre a carta (V) a quem a escreveu.' : 'Mostre a carta (V) a quem as provas não inocentaram.' });
     }
     const vestigio = e.achados.find((x) => x.tipo === 'vestigio' && x.dono === this.eu && !x.pego);
     if (vestigio) lista.push({ curto: `Vestígio da Coisa: ${this.onde(vestigio.lugar)}`, agora: `Sua parte: procurar um vestígio da Coisa ${this.onde(vestigio.lugar)}.` });
@@ -372,6 +373,12 @@ export class PartidaNaTela {
       lista.push({ curto: `Pistas do que ronda a cidade: ${achadas} de ${PISTAS_PARA_DESCOBRIR}`, agora: 'Procure pistas do que ronda a cidade: investigue o que brilha nos lugares abertos.' });
     } else if (!ultima) {
       lista.push(escapar);
+    }
+    // A Coisa por desmascarar nunca some da lista: antes da 6a hora, o que falta e esperar as pecas.
+    if (a && !a.perdida && e.vilao) {
+      const faltam = vestigiosQueFaltam(e);
+      if (faltam > 0 && !vestigio) lista.push({ curto: `Vestígios da Coisa: ${faltam === 1 ? 'falta 1' : `faltam ${faltam}`} ao grupo`, agora: 'Para acusar a Coisa o grupo precisa de dois vestígios do disfarce.' });
+      if (e.rodada < RODADA_DA_ARMADILHA) lista.push({ curto: 'Desmascarar a Coisa: a armadilha, da 6ª hora em diante', agora: 'Da 6ª hora em diante aparecem as peças da armadilha. Até lá, fuja da Coisa: agachar (C) no escuro, de lampião apagado (F), esconde.' });
     }
     return lista;
   }
@@ -400,7 +407,7 @@ export class PartidaNaTela {
     if (naMao.length) return { tecla: 'E', texto: `montar a armadilha: ${enumerar(naMao.map((p) => NOME_DA_PECA[p]))}` };
     if (!armadilhaArmada(e)) return null;
     if (!a.acusacoes[this.eu]) return { tecla: 'K', texto: 'acusar quem é a Coisa' };
-    return { tecla: 'L', texto: coisaNoAlcance(e, this.bib, this.restante) ? 'puxar a corda: a Coisa está no laço' : 'puxar a corda, quando a Coisa chegar' };
+    return { tecla: 'L', texto: coisaNoAlcance(e, this.bib, this.restante) ? 'puxar a corda: a Coisa está no laço' : e.rodada < RODADAS ? 'puxar a corda: só na última hora ela vem' : 'puxar a corda, quando a Coisa chegar' };
   }
 
   /** O jogador poe no poco as pecas que carrega. */
@@ -717,6 +724,10 @@ export class PartidaNaTela {
         this.mundo.sinal(souEu.ferimento > eraEu.ferimento ? 'ataque' : 'medo');
         this.legendar(r.texto, souEu.ferimento > eraEu.ferimento ? 'ataque' : 'pressagio');
       }
+    }
+    // A um golpe da morte, a tela avisa: quem mata e o sino, e da para chegar a ele inteiro.
+    if (souEu.vivo && souEu.ferimento >= FERIMENTO_FATAL - 1 && eraEu.ferimento < FERIMENTO_FATAL - 1) {
+      this.avisar(souEu.bolsa.atadura > 0 ? 'Mais um golpe e você não se levanta. Use a atadura (Q).' : 'Mais um golpe e você não se levanta. Ache um abrigo antes do sino.', 7000);
     }
     // O que ele usou da bolsa.
     if (souEu.bolsa.atadura < eraEu.bolsa.atadura) {
@@ -1373,12 +1384,18 @@ export class PartidaNaTela {
     this.mundo.sinal(meu.vivo ? 'amanhecer' : 'morte');
     const autor = fim.carta.autor ? (this.bib.npcs.find((n) => n.id === fim.carta.autor)?.nome ?? '') : '';
     const coisa = fim.vilao.npc ? (this.bib.npcs.find((n) => n.id === fim.vilao.npc)?.nome ?? '') : '';
+    // O placar da noite: a carta, a Coisa e a regra. Sobreviver parado resolve zero.
+    const casos = [...(autor ? [fim.carta.achou] : []), ...(coisa ? [fim.vilao.desmascarado] : []), meu.sabia];
     this.modo = 'fim';
     this.completoAberto = false;
     this.painel(
       `<h3>${meu.vivo ? (fim.vilao.desmascarado ? 'Amanheceu, e a Coisa tinha nome' : fim.carta.autor && !fim.carta.achou ? 'Amanheceu, e o socorro não chegou' : 'Amanheceu') : fim.amanheceu ? 'O sol nasceu sem você' : 'Ninguém viu o sol nascer'}</h3>` +
         `<p>${escapar(meu.texto)}</p>` +
-        (coisa ? `<h4>A Coisa</h4><p class="${fim.vilao.desmascarado ? 'bom' : 'ruim'}">${escapar(fim.vilao.texto)}</p>` : '') +
+        `<p class="placar">Casos resolvidos: ${casos.filter(Boolean).length} de ${casos.length}</p>` +
+        (coisa
+          ? `<h4>A Coisa</h4><p class="${fim.vilao.desmascarado ? 'bom' : 'ruim'}">${escapar(fim.vilao.texto)}</p>` +
+            (fim.vilao.desmascarado ? [regra.explicacao, ...(this.bib.disfarce.depois ?? [])].filter(Boolean).map((t) => `<p>${escapar(t!)}</p>`).join('') : '')
+          : '') +
         (autor
           ? `<h4>A carta</h4><p class="${fim.carta.achou ? 'bom' : 'ruim'}">${escapar(
               fim.carta.achou
