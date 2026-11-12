@@ -298,23 +298,23 @@ try {
     }
 
     // Espiar pelo canto: dentro do bar, colado na parede ao lado da porta, com ela na rua.
-    await p.evaluate(() => window.__depurar!.forcarCoisa({ x: -3, z: -14.5, rumo: Math.atan2(-6, 1.5) }));
+    await p.evaluate(() => window.__depurar!.forcarCoisa({ x: -3, z: -13, rumo: -Math.PI / 2 }));
     await por(p, -80, 0, 0, 0);
     await dormir(21000);
     await lampiao(p, false);
-    await por(p, -9.75, -11.6, -3, -14.5);
+    await por(p, -11.5, -14.4, -3, -13);
     await dormir(800);
     const atrasDaParede = await coisa(p);
     conferir(atrasDaParede.percebe === null && atrasDaParede.modo === 'ronda', `de pe atras da parede, ao lado da porta, a ${atrasDaParede.distancia.toFixed(1)} m dela, ela nao ve (${atrasDaParede.percebe}, ${atrasDaParede.modo})`);
-    await p.keyboard.down('KeyX');
+    await p.keyboard.down('KeyZ');
     await p.waitForFunction(() => Math.abs(window.__depurar!.eu().espia) > 0.9, espera);
     await dormir(1200);
     const espiando = await coisa(p);
-    conferir(espiando.percebe === null && espiando.modo === 'ronda', 'espiando pelo canto (X), ele ve a rua e ela continua sem ver');
+    conferir(espiando.percebe === null && espiando.modo === 'ronda', 'espiando pelo canto (Z), ele ve a rua e ela continua sem ver');
     await p.screenshot({ path: 'capturas/coisa-7-espiando-pela-porta.png' });
-    await p.keyboard.up('KeyX');
+    await p.keyboard.up('KeyZ');
     // Um passo para dentro do vao da porta: agora ela ve.
-    await por(p, -9.75, -13, -3, -14.5);
+    await por(p, -9.75, -13, -3, -13);
     await modoDela(p, ['caca'], 8000).then(() => conferir(true, 'no vao da porta, de frente para ela, ela ve')).catch(() => conferir(false, 'no vao da porta ela nao viu'));
 
     // Chao bento: ela persegue ate a beira do adro e para.
@@ -460,11 +460,18 @@ try {
       conferir(ferida.medo > medoDaAna || ferida.ferimento > feridaDaAna, `Ana, parada, e alcancada, e o servidor aceita (medo ${medoDaAna} > ${ferida.medo}, ferimento ${feridaDaAna} > ${ferida.ferimento})`);
       const vistaPorBento = await bento.evaluate(() => window.__depurar!.partida().estado.personagens.find((x) => x.nome === 'Ana')!);
       conferir(vistaPorBento.medo === ferida.medo && vistaPorBento.ferimento === ferida.ferimento, 'o estado de Ana chega igual ao navegador de Bento');
-      // Bento olha para onde ela esta.
+      // Bento aparece na mesma rua, uns passos atras de Ana, e olha para as duas.
       const c = await coisa(bento);
+      const a = await ana.evaluate(() => window.__depurar!.jogador());
+      const n = Math.hypot(a.x - c.x, a.z - c.z) || 1;
       await agachar(bento, false);
-      await por(bento, c.x + 7, c.z + 0.5, c.x, c.z).catch(() => {});
-      await dormir(500);
+      for (const longe of [9, 7, 5, 11]) {
+        const [x, z] = [a.x + ((a.x - c.x) / n) * longe, a.z + ((a.z - c.z) / n) * longe];
+        if (!(await bento.evaluate((x, z) => window.__depurar!.livre(x, z, 0), x, z))) continue;
+        await por(bento, x, z, a.x, a.z);
+        break;
+      }
+      await dormir(300);
       await bento.screenshot({ path: 'capturas/coisa-10-sala-vista-pelo-outro.png' });
     }
     await ana.close();

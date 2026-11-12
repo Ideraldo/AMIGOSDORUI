@@ -350,8 +350,9 @@ const limitar = (v: number, max: number) => Math.max(0, Math.min(max, v));
  * A Coisa alcancou este personagem no meio da hora. Medo +1 e, do ato 2 em diante, ferimento +1,
  * ate `FERIMENTO_MAXIMO_DA_RONDA`: ela deixa a um passo da morte, mas quem mata e o sino.
  * Na regra do medo, quem ainda esta calmo so leva o susto, e o susto nunca o poe sozinho na mira.
- * Nao vale para quem a regra protege, nem com a Coisa fora de cena. Sem mudanca, devolve o mesmo estado.
- * (O intervalo entre um ataque e outro e de quem tem relogio: o servidor da sala e a tela.)
+ * Nao vale para quem a regra protege. Sem mudanca, devolve o mesmo estado.
+ * (Conferir se ela esta na rua nesta parte da hora e o intervalo entre um ataque e outro e de
+ * quem tem relogio: o servidor da sala, em `Sala.apanhado`, e a tela, em cacada.ts.)
  */
 export function apanhar(estado: Estado, bib: Biblioteca, quem: string, acompanhado?: boolean): Estado {
   const quer = oQueElaQuer(estado, bib, quem, acompanhado);
