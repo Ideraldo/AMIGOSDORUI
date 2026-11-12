@@ -270,7 +270,10 @@ try {
     conferir((await j.estado()).desmascarado === null && !(await j.estado()).armadilha!.perdida, 'puxar a corda sem a Coisa no laço nao faz nada');
     await j.passarAHora(abrigo);
     await j.irAoPoco();
-    await pagina.waitForFunction(() => document.querySelector('#agir')!.textContent!.includes('a Coisa está no laço'), espera);
+    // A Coisa de verdade vem andando pelas ruas: o relogio precisa correr ate ela chegar ao poco.
+    await pagina.evaluate(() => window.__depurar!.tempo(true));
+    await pagina.waitForFunction(() => document.querySelector('#agir')!.textContent!.includes('a Coisa está no laço'), { timeout: 140000 });
+    await pagina.evaluate(() => window.__depurar!.tempo(false));
     conferir(true, `quando ela chega, a tela diz "${await j.agir()}"`);
     await pausa(2500);
     await j.foto('8-antes-de-puxar');
@@ -338,7 +341,10 @@ try {
     await j.modo('andando');
     await j.passarAHora(abrigo);
     await j.irAoPoco();
-    await pagina.waitForFunction(() => document.querySelector('#agir')!.textContent!.includes('a Coisa está no laço'), espera);
+    // A Coisa de verdade vem andando pelas ruas: o relogio precisa correr ate ela chegar ao poco.
+    await pagina.evaluate(() => window.__depurar!.tempo(true));
+    await pagina.waitForFunction(() => document.querySelector('#agir')!.textContent!.includes('a Coisa está no laço'), { timeout: 140000 });
+    await pagina.evaluate(() => window.__depurar!.tempo(false));
     const antes = (await j.estado()).personagens[0]!;
     await j.apertarAte('KeyL', async () => (await j.estado()).armadilha!.perdida, 'puxar a corda');
     const depois = await j.estado();
