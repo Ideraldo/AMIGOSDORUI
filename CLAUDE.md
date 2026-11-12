@@ -39,7 +39,7 @@ Você não enxerga a cena enquanto escreve. Depois de qualquer mudança visual:
 3. Todo lugar de `LUGARES` ganha sozinho as vistas `dentro-<id>-a` (da porta) e `dentro-<id>-b` (do fundo). Para coisas de rua, acrescente uma vista em `scripts/capturas.ts`. Andares de cima têm as vistas `cima-<id>-<nome>` (lista `SOBRADOS`) e o vale tem as `sitio-NN`.
 4. Rode um `capturas` por vez. Dois ao mesmo tempo estouram o tempo de carregamento.
 
-Use `--dia` (ou `?dia=1`) para conferir geometria e a noite normal para conferir o clima. Sem placa de vídeo, cada captura leva uns 30 segundos, então filtre. Defeitos que só apareceram assim: uma pedra solta dentro da igreja, um amarradouro bloqueando a porta da delegacia, um vagonete fechando a boca da mina e caixões que pareciam mesas.
+Use `--dia` (ou `?dia=1`) para conferir geometria e a noite normal para conferir o clima. Desde 11/11/2026 os scripts de Chrome usam a placa de vídeo da máquina (o Ideraldo perguntou por que não usavam): 51 quadros por segundo em vez de 0,6, captura em meio segundo, `partida` em 11 s, `gestos` inteiro em uns 7 minutos. `SEM_PLACA=1` volta ao desenho por processador. Em velocidade real aparecem corridas que a lentidão escondia: script que aperta tecla logo depois de teleportar deve esperar o estado mudar e tentar de novo. Defeitos que só apareceram assim: uma pedra solta dentro da igreja, um amarradouro bloqueando a porta da delegacia, um vagonete fechando a boca da mina e caixões que pareciam mesas.
 
 Não edite arquivos de `src/` enquanto `capturas` ou `colisao` estiverem rodando: o servidor recarrega a página no meio da captura.
 
@@ -115,6 +115,7 @@ No fim de `construirCidade`, `fundir` troca as milhares de caixas e cilindros de
 
 - `servidor/sala.ts` é a sala sem rede nenhuma: jogadores, estado da noite, relógio e prazo de voto, aplicando as regras de `src/nucleo/`. É o que `test/sala.test.ts` testa. `servidor/ligar.ts` liga as salas ao WebSocket, e o `vite.config.ts` pendura isso no servidor de desenvolvimento, no caminho `/sala`. Ainda não existe servidor para hospedar fora do Vite.
 - `src/rede/protocolo.ts` tem tudo o que os dois lados dizem: `Intencao` (do jogo para o servidor) e `Aviso` (do servidor para o jogo). Mensagem nova entra ali primeiro.
+- O que chega pelo fio é de qualquer um: `ligar.ts` só aceita objeto com tipo e trata cada mensagem dentro de try (uma mensagem `null` derrubava todas as salas). O servidor confere lugar antes de `pegar` e tipo antes de `usar`. Intenção nova: valide no servidor, não confie no que a tela já bloqueia.
 - O servidor manda no estado. O jogo manda intenções e recebe o estado inteiro a cada mudança. Posição não passa pelas regras: é só repassada aos outros, 12 vezes por segundo.
 - `partidaNaTela.ts` não aplica regra direto: pede a um `Condutor` (o local, com as regras ali mesmo, ou o da sala, que manda pela rede) e depois **reage** ao estado novo em `reagir(antes, novo)`, comparando os dois. Efeito novo de tela entra em `reagir`, nunca no ponto em que o jogador pediu, senão não acontece para quem está na sala.
 - Numa sala o relógio é do servidor e não para em painel. Sozinho, continua parando.
@@ -123,6 +124,7 @@ No fim de `construirCidade`, `fundir` troca as milhares de caixas e cilindros de
 - `Presenca.aparencia` é a aparência criada na tela de entrada (`src/interface/criador.ts`, guardada em `sessionStorage` e `localStorage`). `Pose` leva também `gesto` e `espia`, e `giro` é o do corpo. O servidor limpa o que recebe com `limparAparencia` e `limparPose` (`src/rede/aparencia.ts`). Opção nova de aparência entra nas listas de `aparencia.ts` e em `criarPersonagem`. Gesto novo de jogador entra em `GESTOS`, `NOME_DO_GESTO` e `poseDoGesto`.
 - Sala de espera (pedido do Ideraldo em 11/11/2026): antes de a noite começar, todos ficam na plataforma, ao lado do trem (`src/mundo/espera.ts`). É um cenário à parte, que só existe durante a espera: fica fora da fusão e do `npm run colisao`, com sólidos escritos à mão. Durante a espera (`emEspera`) `partida.atualizar` não roda e a posição já é repassada. O dono começa com Enter duas vezes. Mexeu ali: `npm run sala` e olhar as capturas.
 - `npm run sala` roda com `?abertura=0` e aceita `PORTA=` no ambiente. Dois scripts de Chrome ao mesmo tempo derrubam um ao outro.
+- Toda leva grande passa por três revisores antes de ser dada como pronta (pedido do Ideraldo em 11/11/2026): um jogador de teste que joga uma noite inteira, um revisor de história e design e um revisor de código. Eles só relatam.
 - O `npm run sala` depende de tempo. Não confira coisa que some sozinha da tela (legenda, aviso): confira o estado ou o texto que fica.
 - No Windows os scripts que abrem o Chrome precisam de `CHROME` apontando para o `chrome.exe`.
 
@@ -136,7 +138,11 @@ No fim de `construirCidade`, `fundir` troca as milhares de caixas e cilindros de
 
 - O Ideraldo reclamou, em 11/11/2026, que escolhia "virar o retrato" e não via retrato nenhum virando. Toda escolha que mexe numa coisa tem de mostrar a coisa se mexendo.
 - `Fragmento.adereco` diz que objeto aparece no ponto de investigação e `Escolha.gesto` diz o que acontece com ele. São dado da biblioteca. `GESTOS_DO_ADERECO` (`src/nucleo/gestos.ts`) diz o que cada adereço sabe fazer, e `validarBiblioteca` reprova gesto sem adereço, gesto que o adereço não sabe e adereço sem escolha com gesto.
-- Adereço novo: `Adereco`, `GESTOS_DO_ADERECO` e `MONTAR` (`src/mundo/aderecos.ts`). Gesto novo: `Gesto`, `SOM_DO_GESTO` (`palco.ts`) e `posar`.
+- Desde 11/11/2026 as 38 cenas têm adereço e toda escolha tem gesto, e `validarBiblioteca` reprova cena sem adereço e escolha sem gesto. O Ideraldo reclamou da cena do gato sem gato e do banco da igreja que se arrastava sem nada acontecer: a cena mostra aquilo de que fala, e o resultado diz o que a ação revelou.
+- Adereço novo: `Adereco`, `GESTOS_DO_ADERECO` e a tabela de `src/mundo/aderecos.ts`. Os modelos ficam em `aderecosDeMesa.ts` (em cima do móvel) e `aderecosGrandes.ts` (de chão e de janela), com os ajudantes de `pecas.ts`. Um adereço pode ser `conjunto` (várias partes, uma delas no chão) e declarar `sustos`. Gesto novo: `Gesto`, `SOM_DO_GESTO` (`palco.ts`) e `posar`.
+- Sinal `susto` (`efeitos.ts`): só tranco de câmera e lampião tremendo, disparado pelo palco no ponto do gesto, para quem está a até 8 m.
+- Nas cenas de janela o palco leva o jogador até dois passos da janela. Marca no chão vai 3 cm acima do grupo (assoalho a 4 cm, tapete a 6,5 cm).
+- Cena que cita um lugar ou uma pessoa só vale nesse lugar (`CASAS` é tudo menos cemitério e mina). Bichos e alguns adereços são toscos, de blocos.
 - Regra do palco: `src/interface/palco.ts` não recebe evento. Lê o estado a cada quadro (`cenasNoMundo`, `estado.cofre`, `estado.favor`) e só anima o que é novo. Coisa nova que precise ser vista no mundo entra ali, derivada do estado, senão não aparece para os outros na sala nem para quem chega depois.
 - O adereço fica no ponto de investigação da hora (`palco.pontoDaCena`) e continua lá, como ficou, até a hora virar. Com gesto, o painel de resultado é curto (`.painel.cena.curta`) e espera 1,1 s.
 - `npm run gestos` confere tudo isso e guarda `capturas/gestos-*.png`. `__depurar`: `palco()`, `pontoDaCena(lugar)`, `encenar(fragmento)` (só sozinho), `mexerNoCofre()`, `entregar()`.
@@ -144,10 +150,11 @@ No fim de `construirCidade`, `fundir` troca as milhares de caixas e cilindros de
 ## Missões extras: o cofre de ferro e o favor
 
 - Regras em `src/nucleo/missoes.ts`, estado em `Estado.cofre` e `Estado.favor`, intenções `anotar`, `disco`, `alavanca` e `entregar`. Aparecem no bloco "Missões extras", no canto direito.
-- Cofre: num lugar aberto, com segredo de 3 números, cada um riscado numa tábua em outro lugar. Chegar perto da tábua anota o número só para aquele jogador, de propósito, para o grupo conversar. Os discos são estado da sala. Segredo errado dá medo +1 a quem puxou. Certo: pista da regra para o grupo e uma atadura.
+- Cofre: num lugar aberto, com segredo de 3 números, cada um riscado numa tábua em outro lugar. Chegar perto da tábua anota o número só para aquele jogador, de propósito, para o grupo conversar. Os discos são estado da sala. Segredo errado dá medo +1 a quem puxou, e no terceiro erro a alavanca emperra até o sino (`ERROS_PARA_EMPERRAR`). Certo: pista da regra para o grupo e uma atadura.
 - Favor: um NPC do elenco perdeu uma caixa (`Npc.pedido`), que é o achado `encomenda`. Devolver dá confiança +2 (destrava as falas `para: 'bem'`, inclusive a dica da regra), um tônico e medo -1.
 - Esses números foram decididos sem o Ideraldo. Se ele pedir, mude ali.
 - `POUCO_MOVEL` (`banco`, `mina`) lista os lugares com um móvel só, que não recebem cofre nem tábua. Se um interior mudar, reveja a lista. O ponto de investigar pula os móveis do cofre e das tábuas (`palco.pontosDeInvestigar`).
+- Quem morre ou sai da sala levando a caixa do favor larga a caixa onde a achou (`largarCaixa`).
 - Os bots do `simular` não usam cofre nem favor.
 
 ## Investigar (tecla E)
@@ -173,6 +180,9 @@ No fim de `construirCidade`, `fundir` troca as milhares de caixas e cilindros de
 - Há um gancho só: os jogadores são a turma de socorro da ferrovia, que veio atender uma carta sem assinatura. Não volte a sortear ganchos sem falar com ele.
 - O mistério (`Estado.carta`, tipo `Carta`): um NPC do elenco escreveu a carta (`autor`). Os quatro do elenco são os suspeitos, e `novaPartida` abre a casa de cada um para dar para chegar neles.
 - Provas: achados do tipo `prova`, uma por suspeito inocente (três) ou uma por jogador, o que for maior. Cada uma tem um `dono` (o jogador encarregado, que vê o lugar dela em "Sua parte") e inocenta um NPC, com o texto de `Npc.carta.alibis`. Qualquer um pode pegar, mas só quem pegou lê: o grupo junta as provas conversando. Isso é de propósito, é a parte social.
+- Mostrar a carta só vale depois que o grupo achou `PROVAS_PARA_MOSTRAR` (2) provas, senão era melhor chutar que investigar (`oQueImpedeMostrar` dá o motivo que a tela mostra). Com medo no máximo a carta não sai do bolso, nem a alavanca do cofre se puxa: é o que faz o medo pesar em toda noite. Sozinho são duas chances.
+- Quem confessa diz em seguida, na própria voz, a dica da regra da noite (a fala com `regras`). E ouvir essa dica de qualquer NPC que confie no jogador vale pista só dele (`ouvirDica`, intenção `ouvir`, uma por NPC).
+- O fim fala da carta: quem escreveu e o que foi feito dessa pessoa. Sobreviver sem achá-la é "Amanheceu, e o socorro não chegou".
 - Mostrar a carta (`mostrarCarta`, tecla V perto do NPC, com confirmação): cada jogador só mostra uma vez. Acertou: o NPC confessa (`carta.confessa`), o grupo ganha uma pista da regra e o objetivo se cumpre. Errou: medo, perda de confiança, e todos ficam sabendo que não foi aquele.
 - Objetivos agora: achar quem escreveu a carta, juntar 2 pistas da regra, ver o sol nascer. O de investigar 3 lugares saiu. Noite montada à mão (`abertos` forçados) com menos de 2 suspeitos em casa fica sem carta, e tudo tem de funcionar assim.
 - Alibi tem de dizer o nome do NPC e não pode depender de ele não saber fazer algo que a confissão dele desminta. `validarBiblioteca` confere o nome.

@@ -86,6 +86,16 @@ Confere-se com `npm test` (regras da sala, sem rede) e `npm run sala` (dois nave
 
 Escritas em 11/11/2026, quando o Ideraldo pediu ideias novas e liberdade para criar. Na ordem em que eu faria, com o jogo de onde vem a ideia.
 
+**Revisão de 11/11/2026 (jogador de teste, história, código).** Consertado: chute da carta (pede 2 provas), confissão que não contava nada, dica falada que não valia pista, fim que não citava a carta, cofre aberto no chute, pista do sino que contradizia o jogo, morador pulando para cima do jogador, servidor que caía com mensagem inválida, e as 38 cenas passaram a mostrar o que dizem. Ficou por fazer, e entra na próxima leva:
+
+- **Texto demais na tela.** A coluna da esquerda tem umas 22 linhas e cobre o cenário, e avisos se empilham no centro. Mostrar só o objetivo atual e os medidores, o resto atrás de uma tecla.
+- **A noite se resolve cedo.** A tela entrega o endereço de cada prova, tábua e caixa, então vira lista de busca. Depois só resta esperar o sino.
+- **A ameaça quase não aparece.** Parado na rua, o jogador de teste só foi atacado na sexta virada. Presságios repetem.
+- **Dá para vencer parado** num abrigo, em grupo, sem investigar.
+- 26 das 28 marcas não têm consequência, e a tela diz "Isso muda alguma coisa nesta noite" mesmo assim.
+- O último sino, a tela do fim e o jogo em grupo não foram jogados pelo jogador de teste.
+- Menores: mapa com rótulos pequenos, diário abrindo no fim, lista de teclas da entrada sem V e G, tela de entrada transbordando em 720p, falas de NPC com "trinta anos" contra "desde o inverno".
+
 **Próxima leva, aprovada pelo Ideraldo em 11/11/2026** ("gostei bastante", e pediu algo "meio Scooby Doo, de tentar desmascarar o vilão, caso encaixe"). Encaixa, e vira a espinha da noite:
 
 - **Desmascarar a Coisa.** A Coisa é gente da cidade fantasiada, um dos suspeitos que não escreveu a carta. Quem escreveu a carta desconfia, e por isso pediu socorro. A noite passa a ter duas perguntas: quem pediu ajuda (a carta, que já existe) e quem está por baixo da fantasia. As pistas do disfarce são coisas vistas no mundo: um pedaço da fantasia preso numa cerca, a bota que deixou a pegada, o material guardado na casa de alguém. O fim deixa de ser só esperar o sol: o grupo monta uma armadilha (corda, sino, lampiões) no ato 3, atrai a Coisa e arranca a máscara. Errar o nome na hora de desmascarar custa caro. Isso responde o que a revisão de história apontou (o fim não dizia o que era a Coisa, o meio da noite esvaziava e dava para vencer parado).
