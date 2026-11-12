@@ -5,7 +5,7 @@ import type { Npc } from '../nucleo/tipos.ts';
 import { icone } from './icones.ts';
 import { formatarTempo } from './hud.ts';
 import { resumoDoFim } from './nucleo/caca.ts';
-import type { Caca, Item, Jeito, TipoDeCoisa } from './nucleo/tipos.ts';
+import type { Caca, Fim, Item, Jeito, TipoDeCoisa } from './nucleo/tipos.ts';
 
 // ---------- humor ----------
 
@@ -69,27 +69,43 @@ const QUEM_E: Record<TipoDeCoisa, string> = {
   orelhuda: 'Uma Orelhuda: cega, mas ouve tudo. Quem fica quieto some.',
 };
 
-const TITULO: Record<'desmascarada' | 'derrubada' | 'trem', string> = {
+const TITULO: Record<Fim['tipo'], string> = {
   desmascarada: 'A máscara caiu!',
   derrubada: 'Derrubada a sal grosso',
   trem: 'O trem partiu sem vocês',
+  traidor: 'A cidade esvaziou',
+  votado: 'O Traidor foi descoberto',
 };
 
-export function htmlDoFim(caca: Caca, quem: Npc | undefined, eu: string): string {
+const escapar = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`;
+
+/** A linha de cada jogador no placar: o que fez na caçada. */
+function linhaDoJogador(r: ReturnType<typeof resumoDoFim>[number], eu: string, por: string | undefined, traidor: string | undefined): string {
+  const feitos = [plural(r.sustos, 'susto', 'sustos'), plural(r.montou, 'armadilha montada', 'armadilhas montadas'), `${plural(r.atirou, 'tiro', 'tiros')} (${plural(r.acertou, 'acerto', 'acertos')})`].join(' · ');
+  const marcas = [r.id === por ? '<b>arrancou a máscara</b>' : '', r.id === traidor ? '<b class="traidor">era o Traidor</b>' : ''].filter(Boolean).join(' ');
+  return `<li class="${r.id === eu ? 'eu' : ''}"><i class="nome">${escapar(r.nome)}${r.id === eu ? ' <small>(você)</small>' : ''}</i> ${marcas}<span>${feitos}</span></li>`;
+}
+
+/** `podeRecomecar`: quem ve o placar escolhe a proxima caçada (sozinho, ou o dono da sala). */
+export function htmlDoFim(caca: Caca, quem: Npc | undefined, eu: string, podeRecomecar = true): string {
   const fim = caca.fim!;
-  const trem = fim.tipo === 'trem';
-  const bom = [!trem && fim.tipo === 'desmascarada', !trem && !caca.houveDesmaio, !trem && fim.tempo <= caca.duracao / 2];
+  const estrelasValem = fim.tipo === 'desmascarada' || fim.tipo === 'derrubada' || fim.tipo === 'votado';
+  const bom = [fim.tipo === 'desmascarada', estrelasValem && !caca.houveDesmaio, estrelasValem && fim.tempo <= caca.duracao / 2];
   const estrelas = [0, 1, 2].map((i) => `<span class="${i < fim.estrelas ? '' : 'apagada'}">★</span>`).join('');
   const criterios = ['desmascarou sem derrubar', 'ninguém desmaiou', 'acabou na metade do tempo'].map((t, i) => `<li class="${bom[i] ? '' : 'nao'}">${t}</li>`).join('');
-  const meu = resumoDoFim(caca).find((r) => r.id === eu);
-  const voce = meu ? `Você: ${meu.sustos} ${meu.sustos === 1 ? 'susto' : 'sustos'}, ${meu.montou} ${meu.montou === 1 ? 'armadilha montada' : 'armadilhas montadas'}, ${meu.atirou} ${meu.atirou === 1 ? 'tiro' : 'tiros'} (${meu.acertou} ${meu.acertou === 1 ? 'acerto' : 'acertos'}).` : '';
-  const era = quem ? `Era ${quem.nome}, ${quem.papel}.` : '';
+  const placar = resumoDoFim(caca)
+    .map((r) => linhaDoJogador(r, eu, fim.por, fim.traidor))
+    .join('');
+  const nomeDoTraidor = fim.traidor ? caca.cacadores.find((c) => c.id === fim.traidor)?.nome : undefined;
+  const era = nomeDoTraidor ? `O Traidor era ${escapar(nomeDoTraidor)}.` : quem ? `Era ${quem.nome}, ${quem.papel}.` : '';
+  const dica = fim.traidor ? '' : `<small>${QUEM_E[caca.coisa.tipo]}</small>`;
   return `
     <h3>${TITULO[fim.tipo]}</h3>
-    <div class="tempo">${trem ? 'o tempo acabou' : formatarTempo(fim.tempo)}</div>
+    <div class="tempo">${fim.tipo === 'trem' ? 'o tempo acabou' : formatarTempo(fim.tempo)}</div>
     <div class="estrelas">${estrelas}</div>
     <ul>${criterios}</ul>
-    <p class="quem">${era}<small>${QUEM_E[caca.coisa.tipo]}</small></p>
-    <p class="voce">${voce}</p>
-    <div class="de-novo"><kbd>R</kbd>outra caçada</div>`;
+    <p class="quem">${era}${dica}</p>
+    <ul class="placar">${placar}</ul>
+    <div class="de-novo">${podeRecomecar ? '<kbd>R</kbd>outra caçada' : 'quem criou a sala escolhe a próxima'}</div>`;
 }

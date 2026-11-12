@@ -1,7 +1,9 @@
 // Perguntas simples do modo Traidor, que todas as regras novas fazem. Nada aqui muda o estado.
 
 import { LUGARES, type LugarId } from '../../mundo/planta.ts';
-import { ALCAPOES } from './lugares.ts';
+import type { Alcapao } from '../../mundo/planta.ts';
+import { SUBSOLO } from '../../mundo/planta.ts';
+import { ALCAPOES, LUGAR_DO_ALCAPAO } from './lugares.ts';
 import { PODERES, type Caca, type Toca } from './tipos.ts';
 
 /** Onde a Coisa fica quando a fantasia esta guardada: fora do mundo (alem de `LIMITES`). */
@@ -18,7 +20,25 @@ export const coisaNoChao = (caca: Caca): boolean => caca.coisa.modo === 'presa' 
 
 export const tocaDe = (caca: Caca, id: string): Toca | undefined => caca.tocas.find((t) => t.id === id);
 
-export const alcapaoDe = (id: string) => ALCAPOES.find((a) => a.id === id);
+export const alcapaoDe = (id: string): Alcapao | undefined => ALCAPOES.find((a) => a.id === id);
+
+/** O alcapao existe e vale nesta partida (o do bar so com o bar aberto). */
+export function alcapaoAberto(caca: Caca, id: unknown): Alcapao | undefined {
+  if (typeof id !== 'string') return undefined;
+  const a = alcapaoDe(id);
+  if (!a) return undefined;
+  const lugar = LUGAR_DO_ALCAPAO[a.id];
+  return lugar === undefined || caca.abertos.includes(lugar) ? a : undefined;
+}
+
+/**
+ * A que distancia, no plano, a pose esta da boca do alcapao que lhe serve: na superficie, a `cima`; nas galerias,
+ * ao pe da escada (`baixo`). Quem esta de um lado nunca alcanca o outro.
+ */
+export function distanciaDaBoca(p: { x: number; y: number; z: number }, a: Alcapao): number {
+  const ponto = p.y < SUBSOLO ? a.baixo : a.cima;
+  return Math.hypot(p.x - ponto.x, p.z - ponto.z);
+}
 
 export const lugarExiste = (id: string): id is LugarId => LUGARES.some((l) => l.id === id);
 

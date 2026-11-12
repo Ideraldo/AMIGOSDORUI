@@ -9,7 +9,8 @@ import * as THREE from 'three';
 import { anel, caixa, cilindro, esfera, fosco, metal, movel } from '../../mundo/base.ts';
 import { modeloDaPeca } from '../../mundo/armadilha.ts';
 import { texturaDoHalo } from '../../mundo/pecas.ts';
-import { LACO, PICHE, type Item, type TipoDePosto } from '../nucleo/tipos.ts';
+import { LENCOS } from '../../rede/aparencia.ts';
+import { LACO, PICHE, type Item, type Pista, type TipoDePosto } from '../nucleo/tipos.ts';
 
 export { vestirCoisa } from './vestirCoisa.ts';
 
@@ -121,11 +122,69 @@ function dePeca(g: THREE.Group, tipo: 'sino' | 'lampiao', escala: number): void 
   g.add(m);
 }
 
+/** Tres tabuas empilhadas, de comprimentos diferentes, com pregos a mostra: para pregar uma toca. */
+function tabuasComPregos(g: THREE.Group): void {
+  const madeira = fosco(0x7a5a38);
+  const velha = fosco(0x5a4430);
+  const prego = metal(0xb8b8b0);
+  // comprimento, altura do centro, giro, deslocamento em z
+  const tabuas: [number, number, number, number][] = [
+    [0.42, 0.015, 0.0, 0.0],
+    [0.38, 0.045, 0.12, 0.012],
+    [0.4, 0.075, -0.09, -0.01],
+  ];
+  tabuas.forEach(([c, y, giro, dz], i) => {
+    const t = caixa(g, c, 0.026, 0.085, i === 1 ? velha : madeira, 0, y, dz);
+    t.rotation.y = giro;
+  });
+  // Pregos enferrujados: dois cravados na tabua de cima, e um solto ao lado.
+  for (const x of [-0.14, 0.14]) {
+    cilindro(g, 0.006, 0.006, 0.05, prego, x, 0.1, -0.01, { lados: 5, sombra: false });
+    cilindro(g, 0.014, 0.014, 0.008, prego, x, 0.126, -0.01, { lados: 6, sombra: false });
+  }
+  cilindro(g, 0.005, 0.005, 0.07, prego, 0.2, 0.006, 0.12, { rz: Math.PI / 2, lados: 5, sombra: false });
+  // Um martelo pequeno sobre elas.
+  const martelo = new THREE.Group();
+  cilindro(martelo, 0.012, 0.012, 0.22, fosco(0x8e6a3c), 0, 0, 0, { rz: Math.PI / 2, lados: 6, sombra: false });
+  caixa(martelo, 0.05, 0.05, 0.035, metal(0x6a6e78), 0.1, 0, 0, { sombra: false });
+  martelo.position.set(-0.04, 0.12, 0.05);
+  martelo.rotation.y = 0.5;
+  g.add(martelo);
+}
+
+/** Cores do retalho de chapeu, na ordem de `CHAPEUS` (a ultima e o cabelo de quem nao usa chapeu). */
+const COR_DO_CHAPEU = [0x1c1714, 0x0e0d10, 0x2a211b, 0xc9b06a, 0x241a14] as const;
+
+/** Um retalho de pano rasgado: na cor do lenco ou do chapeu do Traidor, que e a pista. */
+function retalhoDePano(g: THREE.Group, pista: Pista | undefined): void {
+  const cor = pista?.de === 'chapeu' ? (COR_DO_CHAPEU[pista.valor] ?? COR_DO_CHAPEU[0]) : (LENCOS[pista?.valor ?? 0] ?? LENCOS[0]);
+  const pano = fosco(cor);
+  // Um pano amassado: pedacos chatos sobrepostos e torcidos, com a borda rasgada em ponta.
+  const pedacos: [number, number, number, number, number][] = [
+    [0.2, 0.15, 0.0, 0.0, 0.0],
+    [0.14, 0.12, 0.06, 0.04, 0.7],
+    [0.16, 0.08, -0.05, -0.05, -0.5],
+  ];
+  pedacos.forEach(([w, d, x, z, giro], i) => {
+    const m = caixa(g, w, 0.012, d, pano, x, 0.008 + i * 0.008, z);
+    m.rotation.y = giro;
+    m.rotation.z = (i - 1) * 0.08;
+  });
+  for (const [x, z, a] of [[0.12, 0.07, 0.5], [-0.11, -0.04, 2.2], [0.02, -0.11, 4.0]] as const) {
+    const ponta = new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.07, 3), pano);
+    ponta.rotation.set(Math.PI / 2, 0, a);
+    ponta.position.set(x, 0.022, z);
+    g.add(ponta);
+  }
+  // Uma linha de costura puxada para fora.
+  cilindro(g, 0.003, 0.003, 0.12, fosco(0xd9d2c0), 0.0, 0.022, 0.1, { rz: Math.PI / 2, lados: 4, sombra: false });
+}
+
 /**
  * A coisa de pegar, pousada num movel: pequena (uns 15 a 35 cm), mas legivel a 3 m.
- * A origem e o chao do movel, no meio da coisa.
+ * A origem e o chao do movel, no meio da coisa. `pista` so vale no retalho (a cor dele).
  */
-export function modeloDoItem(item: Item): THREE.Group {
+export function modeloDoItem(item: Item, pista?: Pista): THREE.Group {
   const g = new THREE.Group();
   g.name = `item-${item}`;
   if (item === 'corda') roloDeCorda(g);
@@ -133,6 +192,8 @@ export function modeloDoItem(item: Item): THREE.Group {
   else if (item === 'latas') aramesComLatas(g);
   else if (item === 'sino') dePeca(g, 'sino', 1.6);
   else if (item === 'sinal') dePeca(g, 'lampiao', 1.5);
+  else if (item === 'tabuas') tabuasComPregos(g);
+  else if (item === 'retalho') retalhoDePano(g, pista);
   else revolver(g);
   return dinamico(g);
 }

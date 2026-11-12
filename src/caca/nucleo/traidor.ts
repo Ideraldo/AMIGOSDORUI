@@ -6,19 +6,20 @@
 // pose do jogador a cada `avancar`, e a IA de bicho.ts nao roda. O cacador dele deixa de existir
 // para armadilha e para alvo enquanto isso.
 
-import { NASCIMENTO } from '../../mundo/planta.ts';
+import { NASCIMENTO, SUBSOLO } from '../../mundo/planta.ts';
 import { frenteDaPorta } from '../../nucleo/coisa.ts';
 import { embaralhar, escolher, inteiro, proximo } from '../../nucleo/rng.ts';
 import { irPara } from './andar.ts';
-import { cacadorDe, desmaiado, distancia, emitir, novoId } from './base.ts';
+import { cacadorDe, desmaiado, distancia, emitir, mesmoAndar, nasGalerias, novoId } from './base.ts';
 import { largarOQueLevava } from './bicho.ts';
 import { TOCAS_POSSIVEIS } from './lugares.ts';
-import { alcapaoDe, coisaNoChao, eOTraidor, fantasiado, FORA_DO_MUNDO, lugarExiste, tocaDe } from './papeis.ts';
+import { alcapaoAberto, coisaNoChao, distanciaDaBoca, eOTraidor, fantasiado, FORA_DO_MUNDO, lugarExiste, tocaDe } from './papeis.ts';
 import { passoDaReuniao } from './reuniao.ts';
 import {
   CONFERIR,
   DESCER,
   ESPANTAR,
+  GALERIAS_A_PE,
   FANTASIA,
   GOLPE,
   PEGADAS,
@@ -39,8 +40,8 @@ import {
 // ---------- montagem ----------
 
 /** Os campos novos de cada cacador (zeros: na cacada comum nada disto muda). */
-export function camposDoCacador(): Pick<Cacador, 'amarradoAte' | 'bamboAte' | 'tocouSino' | 'pistas' | 'tocasVistas' | 'salto' | 'espantou' | 'sabotou' | 'golpes' | 'votosCertos'> {
-  return { amarradoAte: 0, bamboAte: 0, tocouSino: false, pistas: [], tocasVistas: [], salto: null, espantou: 0, sabotou: 0, golpes: 0, votosCertos: 0 };
+export function camposDoCacador(): Pick<Cacador, 'amarradoAte' | 'ausente' | 'bamboAte' | 'tocouSino' | 'pistas' | 'tocasVistas' | 'salto' | 'espantou' | 'sabotou' | 'golpes' | 'votosCertos'> {
+  return { amarradoAte: 0, ausente: false, bamboAte: 0, tocouSino: false, pistas: [], tocasVistas: [], salto: null, espantou: 0, sabotou: 0, golpes: 0, votosCertos: 0 };
 }
 
 /** Os campos novos da partida (cacada comum: `traidor` nulo e o resto vazio). */
@@ -51,6 +52,11 @@ export function camposDaPartida(): Pick<Caca, 'traidor' | 'tocas' | 'pegadas' | 
 export interface OpcoesDeTraidor {
   modo?: ModoDeJogo;
   traidor?: string;
+}
+
+/** Em que modo a partida sai: o pedido, ou o Traidor a partir de `TRAIDOR.minimoDeJogadores` jogadores. */
+export function modoDaPartida(op: OpcoesDeTraidor, jogadores: number): ModoDeJogo {
+  return op.modo ?? (jogadores >= TRAIDOR.minimoDeJogadores ? 'traidor' : 'caca');
 }
 
 /**
@@ -64,8 +70,7 @@ export function iniciarTraidor(caca: Caca, jogadores: { id: string; aparencia?: 
     const a = j.aparencia;
     if (a && Number.isFinite(a.chapeu) && Number.isFinite(a.lenco)) cacadorDe(caca, j.id)!.aparencia = { chapeu: a.chapeu, lenco: a.lenco };
   }
-  const modo = op.modo ?? (jogadores.length >= TRAIDOR.minimoDeJogadores ? 'traidor' : 'caca');
-  if (modo !== 'traidor' || jogadores.length === 0) return;
+  if (modoDaPartida(op, jogadores.length) !== 'traidor' || jogadores.length === 0) return;
 
   const forcado = op.traidor !== undefined && jogadores.some((j) => j.id === op.traidor) ? op.traidor : undefined;
   const id = forcado ?? escolher(caca, jogadores).id;
@@ -85,9 +90,13 @@ export function iniciarTraidor(caca: Caca, jogadores: { id: string; aparencia?: 
   caca.coisa.modo = 'guardada';
   caca.coisa.x = FORA_DO_MUNDO.x;
   caca.coisa.z = FORA_DO_MUNDO.z;
-  caca.tocas = embaralhar(caca, TOCAS_POSSIVEIS)
+  // So as tocas de lugares abertos (o bar, que tem tres, e sempre aberto no modo Traidor: `novaCaca` garante).
+  caca.tocas = embaralhar(
+    caca,
+    TOCAS_POSSIVEIS.filter((t) => caca.abertos.includes(t.lugar)),
+  )
     .slice(0, TRAIDOR.tocas)
-    .map((t) => ({ id: t.id, x: t.x, z: t.z, pregada: false }));
+    .map((t) => ({ id: t.id, lugar: t.lugar, x: t.x, y: t.y, z: t.z, pregada: false }));
   espalharTabuas(caca);
 }
 
@@ -124,6 +133,7 @@ export function passoDoTraidor(caca: Caca, dt: number, amb: Ambiente): void {
   if (tr.fantasiado && p) {
     c.x = p.x;
     c.z = p.z;
+    c.y = p.y;
     c.rumo = aoRedor(p.giro + Math.PI);
   }
 
@@ -168,7 +178,8 @@ export function passoDoTraidor(caca: Caca, dt: number, amb: Ambiente): void {
   for (const h of caca.cacadores) {
     const ph = amb.poses[h.id];
     if (!ph) continue;
-    for (const toca of caca.tocas) if (!h.tocasVistas.includes(toca.id) && distancia(ph.x, ph.z, toca.x, toca.z) <= FANTASIA.alcanceParaVerToca) h.tocasVistas.push(toca.id);
+    // Pelo andar: quem esta no terreo nao ve o bau do andar de cima, nem quem esta nas galerias o de cima delas.
+    for (const toca of caca.tocas) if (!h.tocasVistas.includes(toca.id) && distancia(ph.x, ph.z, toca.x, toca.z) <= FANTASIA.alcanceParaVerToca && mesmoAndar(ph.y, toca.y)) h.tocasVistas.push(toca.id);
   }
 
   // Os espantados andam ate a estacao e ficam la.
@@ -183,32 +194,38 @@ const mesma = (a: Tarefa, b: Tarefa): boolean => JSON.stringify(a) === JSON.stri
 
 /** A tarefa ainda vale? `folga` deixa a pessoa balancar um pouco enquanto segura. */
 export function tarefaVale(caca: Caca, h: Cacador, p: Pose, tarefa: Tarefa, folga: number): boolean {
+  // Entrar e sair das galerias a pe vale em qualquer partida (so a reuniao as interrompe).
+  if (tarefa.qual === 'entrar' || tarefa.qual === 'sair') {
+    const boca = alcapaoAberto(caca, tarefa.de);
+    if (!boca || caca.reuniao || (fantasiado(caca, h.id) && coisaNoChao(caca))) return false;
+    return (tarefa.qual === 'sair') === (p.y < SUBSOLO) && distanciaDaBoca(p, boca) <= GALERIAS_A_PE.alcance + folga;
+  }
   const tr = caca.traidor;
   if (!tr || caca.reuniao) return false;
   const eu = fantasiado(caca, h.id);
-  const perto = (x: number, z: number, alcance: number) => distancia(p.x, p.z, x, z) <= alcance + folga;
+  const perto = (x: number, z: number, alcance: number, y = 0) => distancia(p.x, p.z, x, z) <= alcance + folga && mesmoAndar(p.y, y);
   switch (tarefa.qual) {
     case 'vestir': {
       const toca = tocaDe(caca, tarefa.toca);
-      return !!toca && eOTraidor(caca, h.id) && !tr.fantasiado && !toca.pregada && perto(toca.x, toca.z, FANTASIA.alcanceDaToca);
+      return !!toca && eOTraidor(caca, h.id) && !tr.fantasiado && !toca.pregada && perto(toca.x, toca.z, FANTASIA.alcanceDaToca, toca.y);
     }
     case 'despir': {
       const toca = tocaDe(caca, tarefa.toca);
-      return !!toca && eu && !coisaNoChao(caca) && !toca.pregada && perto(toca.x, toca.z, FANTASIA.alcanceDaToca);
+      return !!toca && eu && !coisaNoChao(caca) && !toca.pregada && perto(toca.x, toca.z, FANTASIA.alcanceDaToca, toca.y);
     }
     case 'pregar': {
       const toca = tocaDe(caca, tarefa.toca);
-      return !!toca && !eu && h.itens.includes('tabuas') && !toca.pregada && caca.tocas.filter((x) => !x.pregada).length >= 2 && perto(toca.x, toca.z, FANTASIA.alcanceDaToca);
+      return !!toca && !eu && h.itens.includes('tabuas') && !toca.pregada && caca.tocas.filter((x) => !x.pregada).length >= 2 && perto(toca.x, toca.z, FANTASIA.alcanceDaToca, toca.y);
     }
     case 'despregar': {
       const toca = tocaDe(caca, tarefa.toca);
-      return !!toca && eu && !coisaNoChao(caca) && toca.pregada && perto(toca.x, toca.z, FANTASIA.alcanceDaToca);
+      return !!toca && eu && !coisaNoChao(caca) && toca.pregada && perto(toca.x, toca.z, FANTASIA.alcanceDaToca, toca.y);
     }
     case 'espantar': {
       const m = caca.moradores.find((x) => x.npc === tarefa.npc);
       if (!m || !eu || coisaNoChao(caca) || m.modo === 'espantado') return false;
       if (m.modo === 'casa' && caca.trancados.includes(m.casa)) return false;
-      return perto(m.x, m.z, ESPANTAR.alcance);
+      return !nasGalerias(p) && perto(m.x, m.z, ESPANTAR.alcance);
     }
     case 'trancar':
       return !eu && lugarExiste(tarefa.lugar) && p.dentro === tarefa.lugar && !caca.trancados.includes(tarefa.lugar);
@@ -221,11 +238,12 @@ export function tarefaVale(caca: Caca, h: Cacador, p: Pose, tarefa: Tarefa, folg
     }
     case 'conferir': {
       const posto = caca.postos.find((x) => x.id === tarefa.id);
-      return !!posto && !eu && perto(posto.x, posto.z, CONFERIR.alcance);
+      return !!posto && !eu && perto(posto.x, posto.z, CONFERIR.alcance, posto.y);
     }
     case 'descer': {
-      const de = alcapaoDe(tarefa.de);
-      return !!de && !!alcapaoDe(tarefa.para) && tarefa.de !== tarefa.para && !eu && perto(de.x, de.z, DESCER.alcance);
+      // O salto entre alcapoes e da superficie: quem esta nas galerias sobe antes.
+      const de = alcapaoAberto(caca, tarefa.de);
+      return !!de && !!alcapaoAberto(caca, tarefa.para) && tarefa.de !== tarefa.para && !eu && !nasGalerias(p) && distanciaDaBoca(p, de) <= DESCER.alcance + folga;
     }
   }
 }
@@ -278,6 +296,7 @@ function concluir(caca: Caca, h: Cacador, p: Pose, tarefa: Tarefa): void {
       c.mascara = 0;
       c.x = p.x;
       c.z = p.z;
+      c.y = p.y;
       c.rumo = aoRedor(p.giro + Math.PI);
       break;
     case 'despir':
@@ -290,6 +309,7 @@ function concluir(caca: Caca, h: Cacador, p: Pose, tarefa: Tarefa): void {
       c.mascara = 0;
       c.x = FORA_DO_MUNDO.x;
       c.z = FORA_DO_MUNDO.z;
+      c.y = 0;
       break;
     case 'pregar': {
       const i = h.itens.indexOf('tabuas');
@@ -344,11 +364,21 @@ function concluir(caca: Caca, h: Cacador, p: Pose, tarefa: Tarefa): void {
       break;
     }
     case 'descer': {
-      const para = alcapaoDe(tarefa.para)!;
-      const de = alcapaoDe(tarefa.de)!;
-      h.salto = { n: (h.salto?.n ?? 0) + 1, x: para.x, z: para.z };
-      emitir(caca, 'tunel', de.x, de.z, h.id, de.id);
-      emitir(caca, 'tunel', para.x, para.z, h.id, para.id);
+      const para = alcapaoAberto(caca, tarefa.para)!;
+      const de = alcapaoAberto(caca, tarefa.de)!;
+      h.salto = { n: (h.salto?.n ?? 0) + 1, x: para.cima.x, y: 0, z: para.cima.z };
+      emitir(caca, 'tunel', de.cima.x, de.cima.z, h.id, de.id);
+      emitir(caca, 'tunel', para.cima.x, para.cima.z, h.id, para.id);
+      break;
+    }
+    case 'entrar':
+    case 'sair': {
+      // A pe, pelo mesmo alcapao: desce ao pe da escada, ou sobe para a superficie dele.
+      const boca = alcapaoAberto(caca, tarefa.de)!;
+      const ate = tarefa.qual === 'entrar' ? boca.baixo : { ...boca.cima, y: 0 };
+      h.salto = { n: (h.salto?.n ?? 0) + 1, x: ate.x, y: ate.y, z: ate.z };
+      emitir(caca, 'tunel', boca.cima.x, boca.cima.z, h.id, boca.id);
+      emitir(caca, 'tunel', boca.baixo.x, boca.baixo.z, h.id, boca.id, boca.baixo.y);
       break;
     }
   }
@@ -378,7 +408,7 @@ export function golpear(caca: Caca, h: Cacador, p: Pose, amb: Ambiente): void {
   let menor = Infinity;
   for (const o of caca.cacadores) {
     const po = amb.poses[o.id];
-    if (o === h || !po || desmaiado(o, t) || po.dentro !== p.dentro) continue;
+    if (o === h || !po || o.ausente || desmaiado(o, t) || po.dentro !== p.dentro || !mesmoAndar(p.y, po.y)) continue;
     const d = distancia(p.x, p.z, po.x, po.z);
     if (d > GOLPE.alcance || d >= menor) continue;
     const cos = d < 1e-6 ? 1 : ((po.x - p.x) * fx + (po.z - p.z) * fz) / d;

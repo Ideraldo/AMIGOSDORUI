@@ -6,6 +6,7 @@
 // grade de celulas de 6 m, e cada pergunta so olha as celulas por onde passa. Nada aloca por chamada.
 
 import { ALTURA, DEGRAU, RAIO, type Solido } from '../../jogador/colisao.ts';
+import { PISO_DAS_GALERIAS } from '../../mundo/planta.ts';
 
 const CELULA = 6;
 const DESLOCA = 64;
@@ -16,10 +17,10 @@ export const ALTURA_DA_VISAO = 1.3;
 const PASSO_DA_VISAO = 1.5;
 
 export interface Percepcao {
-  /** Cabe um corpo em pe em (x, z), no chao? */
-  livre(x: number, z: number): boolean;
-  /** Ha linha de visao entre dois pontos, na altura dos olhos? */
-  visao(ax: number, az: number, bx: number, bz: number): boolean;
+  /** Cabe um corpo em pe em (x, z), com os pes em `y` (sem valor: no chao do mundo, 0)? Igual a `livre` da colisao do jogador. */
+  livre(x: number, z: number, y?: number): boolean;
+  /** Ha linha de visao entre dois pontos, na altura dos olhos de quem esta com os pes em `y` (sem valor: 0)? */
+  visao(ax: number, az: number, bx: number, bz: number, y?: number): boolean;
 }
 
 type Grade = Map<number, number[]>;
@@ -46,19 +47,24 @@ export function montarPercepcao(solidos: readonly Solido[]): Percepcao {
   const corpo: Grade = new Map();
   const olhos: Grade = new Map();
   solidos.forEach((s, i) => {
-    // Obstaculo para quem anda: cruza o corpo e passa de um degrau.
-    if (s.maxY > DEGRAU + 1e-3 && s.minY < ALTURA) inserir(corpo, i, s, RAIO);
-    // Esconde de quem enxerga: atravessa a altura dos olhos.
-    if (s.minY < ALTURA_DA_VISAO && s.maxY > ALTURA_DA_VISAO) inserir(olhos, i, s, 0.1);
+    // Entram todos os solidos que algum corpo, no chao do mundo ou no piso das galerias, pode encontrar. Quem
+    // pergunta diz a altura dos pes (`y`) e so conta o que cruza o corpo dele: o predio nao barra quem anda por
+    // baixo dele, e a rocha das galerias nao barra quem esta na rua.
+    if (s.maxY > PISO_DAS_GALERIAS + DEGRAU + 1e-3) {
+      inserir(corpo, i, s, RAIO);
+      inserir(olhos, i, s, 0.1);
+    }
   });
   const marcas = new Uint32Array(solidos.length);
   let rodada = 0;
 
-  const livre = (x: number, z: number): boolean => {
+  const livre = (x: number, z: number, y = 0): boolean => {
     const lista = corpo.get(chave(Math.floor(x / CELULA), Math.floor(z / CELULA)));
     if (!lista) return true;
     for (let k = 0; k < lista.length; k++) {
       const s = solidos[lista[k]!]!;
+      // Obstaculo para quem anda: cruza o corpo e passa de um degrau (a mesma conta da colisao do jogador).
+      if (!(s.maxY > y + DEGRAU + 1e-3 && s.minY < y + ALTURA)) continue;
       const dx = x - s.cx;
       const dz = z - s.cz;
       const lx = dx * s.cos - dz * s.sin;
@@ -98,7 +104,9 @@ export function montarPercepcao(solidos: readonly Solido[]): Percepcao {
     return true;
   };
 
-  const visao = (ax: number, az: number, bx: number, bz: number): boolean => {
+  const visao = (ax: number, az: number, bx: number, bz: number, y = 0): boolean => {
+    // Esconde de quem enxerga: atravessa a altura dos olhos de quem esta com os pes em y.
+    const olho = y + ALTURA_DA_VISAO;
     const dx = bx - ax;
     const dz = bz - az;
     const d = Math.hypot(dx, dz);
@@ -113,7 +121,8 @@ export function montarPercepcao(solidos: readonly Solido[]): Percepcao {
         const j = lista[k]!;
         if (marcas[j] === rodada) continue;
         marcas[j] = rodada;
-        if (corta(solidos[j]!, ax, az, bx, bz)) return false;
+        const s = solidos[j]!;
+        if (s.minY < olho && s.maxY > olho && corta(s, ax, az, bx, bz)) return false;
       }
     }
     return true;

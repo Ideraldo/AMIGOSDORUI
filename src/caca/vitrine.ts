@@ -9,7 +9,7 @@
 import * as THREE from 'three';
 import { Vulto } from '../mundo/vulto.ts';
 import { modeloDaMaca, modeloDaPanela, modeloDoItem, modeloDoPosto, vestirCoisa, type PostoNoMundo } from './mundo/modelos.ts';
-import type { Item, TipoDePosto } from './nucleo/tipos.ts';
+import type { Item, Pista, TipoDePosto } from './nucleo/tipos.ts';
 
 declare global {
   interface Window {
@@ -74,17 +74,23 @@ function etiqueta(texto: string, x: number, y: number, z: number, escala = 1): v
 // Fileira de tras: os itens, pousados numa mesa de 85 cm.
 const MESA_Z = -9;
 const ALTURA_DA_MESA = 0.85;
-const mesa = new THREE.Mesh(new THREE.BoxGeometry(5.4, ALTURA_DA_MESA, 1.1), new THREE.MeshStandardMaterial({ color: 0x6b4f36, roughness: 1 }));
-mesa.position.set(0, ALTURA_DA_MESA / 2, MESA_Z);
+const mesa = new THREE.Mesh(new THREE.BoxGeometry(7.6, ALTURA_DA_MESA, 1.1), new THREE.MeshStandardMaterial({ color: 0x6b4f36, roughness: 1 }));
+mesa.position.set(1.1, ALTURA_DA_MESA / 2, MESA_Z);
 mesa.castShadow = mesa.receiveShadow = true;
 cena.add(mesa);
-const ITENS: Item[] = ['corda', 'piche', 'latas', 'sino', 'sinal', 'revolver'];
-ITENS.forEach((item, i) => {
+const ITENS: { item: Item; pista?: Pista; nome: string }[] = [
+  ...(['corda', 'piche', 'latas', 'sino', 'sinal', 'revolver'] as const).map((item) => ({ item, nome: item as string })),
+  // O modo Traidor: as tabuas de pregar a toca e os retalhos que o tiro de sal arranca (do lenco e do chapeu).
+  { item: 'tabuas', nome: 'tabuas' },
+  { item: 'retalho', pista: { de: 'lenco', valor: 2 }, nome: 'retalho lenco' },
+  { item: 'retalho', pista: { de: 'chapeu', valor: 3 }, nome: 'retalho chapeu' },
+];
+ITENS.forEach(({ item, pista, nome }, i) => {
   const x = -2.1 + i * 0.84;
-  const m = modeloDoItem(item);
+  const m = modeloDoItem(item, pista);
   m.position.set(x, ALTURA_DA_MESA, MESA_Z);
   cena.add(m);
-  etiqueta(item, x, ALTURA_DA_MESA + 0.62, MESA_Z, 0.28);
+  etiqueta(nome, x, ALTURA_DA_MESA + 0.62, MESA_Z, 0.28);
 });
 
 // Fileira do meio: os postos montados no chao.

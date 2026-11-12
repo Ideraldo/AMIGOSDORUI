@@ -4,7 +4,7 @@
 
 import { ALCANCE_DAS_MAOS, POSTO_DO_ITEM, SEGUNDOS_PARA_DESMASCARAR, SEGUNDOS_PARA_MONTAR, SEGUNDOS_PARA_REANIMAR, type Ambiente, type Caca, type Cacador } from './tipos.ts';
 import { frouxar, passoDaTarefa } from './traidor.ts';
-import { cacadorDe, desmaiado, distancia, emitir, fora, novoId, podeDesmascarar } from './base.ts';
+import { cacadorDe, desmaiado, distancia, emitir, fora, mesmoAndar, novoId, podeDesmascarar } from './base.ts';
 
 /** Mais rapido que isto (m/s) o cacador nao esta "parado": o que fazia com as maos se perde. */
 export const VELOCIDADE_MAXIMA_COM_AS_MAOS = 0.6;
@@ -61,16 +61,16 @@ export function passoDasMaos(caca: Caca, dt: number, amb: Ambiente): void {
       h.progresso += dt;
       if (h.progresso >= SEGUNDOS_PARA_MONTAR) {
         h.itens.splice(o.indice, 1);
-        caca.postos.push({ id: novoId(caca, 'posto'), tipo: POSTO_DO_ITEM[item], x: o.x, z: o.z, dono: h.id, desde: t, gasto: false });
+        caca.postos.push({ id: novoId(caca, 'posto'), tipo: POSTO_DO_ITEM[item], x: o.x, z: o.z, ...(o.y !== undefined ? { y: o.y } : {}), dono: h.id, desde: t, gasto: false });
         if (o.frouxo) frouxar(caca, h);
         h.montou += 1;
-        emitir(caca, 'montou', o.x, o.z, h.id, POSTO_DO_ITEM[item]);
+        emitir(caca, 'montou', o.x, o.z, h.id, POSTO_DO_ITEM[item], o.y);
         cancelar(h);
       }
     } else if (o.com === 'reanimar') {
       const amigo = cacadorDe(caca, o.quem);
       const pa = amigo ? amb.poses[amigo.id] : undefined;
-      if (!amigo || !pa || !desmaiado(amigo, t) || distancia(p.x, p.z, pa.x, pa.z) > ALCANCE_DAS_MAOS + FOLGA_DAS_MAOS) {
+      if (!amigo || !pa || amigo.ausente || !desmaiado(amigo, t) || distancia(p.x, p.z, pa.x, pa.z) > ALCANCE_DAS_MAOS + FOLGA_DAS_MAOS || !mesmoAndar(p.y, pa.y)) {
         cancelar(h);
         continue;
       }
@@ -78,12 +78,12 @@ export function passoDasMaos(caca: Caca, dt: number, amb: Ambiente): void {
       if (h.progresso >= SEGUNDOS_PARA_REANIMAR) {
         amigo.desmaiadoAte = 0;
         amigo.coragem = 1;
-        emitir(caca, 'acordou', pa.x, pa.z, amigo.id);
+        emitir(caca, 'acordou', pa.x, pa.z, amigo.id, undefined, pa.y);
         cancelar(h);
       }
     } else {
       // Mascara: so vale com ela no chao e ao alcance.
-      if (!podeDesmascarar(caca) || distancia(p.x, p.z, caca.coisa.x, caca.coisa.z) > ALCANCE_DAS_MAOS + FOLGA_DAS_MAOS) {
+      if (!podeDesmascarar(caca) || distancia(p.x, p.z, caca.coisa.x, caca.coisa.z) > ALCANCE_DAS_MAOS + FOLGA_DAS_MAOS || !mesmoAndar(p.y, caca.coisa.y)) {
         cancelar(h);
         continue;
       }

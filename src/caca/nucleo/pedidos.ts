@@ -12,6 +12,11 @@ import type { Acao, Ambiente, Caca, Cacador, Pose } from './tipos.ts';
 const SO_DE_CACADOR = new Set<Acao['t']>(['pegar', 'largar', 'montar', 'recolher', 'atirar', 'pedir', 'dispensar', 'reanimar', 'ocupar']);
 
 export function agirTraidor(caca: Caca, h: Cacador, p: Pose, acao: Acao, amb: Ambiente): boolean {
+  // Entrar e sair das galerias a pe valem em qualquer partida, e com a fantasia vestida tambem.
+  if (acao.t === 'subir' || (acao.t === 'descer' && acao.para === undefined)) {
+    if (typeof acao.de === 'string') comecarTarefa(caca, h, p, { qual: acao.t === 'subir' ? 'sair' : 'entrar', de: acao.de });
+    return true;
+  }
   if (!caca.traidor) return false;
 
   // Vestido, ele nao pega, nao monta, nao atira... (so solta o botao).
@@ -49,6 +54,7 @@ export function agirTraidor(caca: Caca, h: Cacador, p: Pose, acao: Acao, amb: Am
       if (typeof acao.id === 'string') comecarTarefa(caca, h, p, { qual: 'conferir', id: acao.id });
       return true;
     case 'descer':
+      // (O `descer` com `para` e o salto entre alcapoes.)
       if (typeof acao.de === 'string' && typeof acao.para === 'string') comecarTarefa(caca, h, p, { qual: 'descer', de: acao.de, para: acao.para });
       return true;
 

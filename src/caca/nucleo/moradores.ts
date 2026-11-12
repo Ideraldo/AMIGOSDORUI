@@ -3,7 +3,7 @@
 // quando a Coisa chega perto.
 
 import { frenteDaPorta } from '../../nucleo/coisa.ts';
-import { distancia, emitir } from './base.ts';
+import { distancia, emitir, nasGalerias } from './base.ts';
 import { irPara } from './andar.ts';
 import { VELOCIDADE, type Ambiente, type Caca, type Morador, type Ordem } from './tipos.ts';
 
@@ -122,7 +122,8 @@ export function passoDosMoradores(caca: Caca, dt: number, amb: Ambiente): void {
       }
       case 'seguindo': {
         const pose = m.de ? amb.poses[m.de] : undefined;
-        if (!pose) break;
+        // Quem pediu desceu as galerias: o morador espera onde esta.
+        if (!pose || nasGalerias(pose)) break;
         // Se o cacador entrou num predio, espera na porta dele.
         if (pose.dentro) {
           const porta = frenteDaPorta(pose.dentro);

@@ -738,6 +738,44 @@
         font-size: 15px;
         opacity: 0.9;
       }
+      #fim ul.placar {
+        display: block;
+        width: 100%;
+        margin: 6px 0 14px;
+        padding-top: 10px;
+        border-top: 1px solid #3a3024;
+        font-size: 16px;
+      }
+      #fim ul.placar li {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        gap: 0 12px;
+        padding: 3px 0;
+      }
+      #fim ul.placar li::before {
+        content: none;
+      }
+      #fim ul.placar li i.nome {
+        font-style: normal;
+      }
+      #fim ul.placar li.eu {
+        color: #fff1d2;
+      }
+      #fim ul.placar li b {
+        font-weight: normal;
+        color: var(--brasa);
+        font-size: 13px;
+      }
+      #fim ul.placar li b.traidor {
+        color: var(--perigo);
+      }
+      #fim ul.placar li span {
+        flex-basis: 100%;
+        text-align: left;
+        font-size: 13px;
+        opacity: 0.75;
+      }
       #fim .de-novo {
         font-size: 17px;
         color: var(--brasa);
@@ -801,6 +839,247 @@
       #rodape a {
         color: var(--papel);
       }
+      /* ---------- a sala (jogar em grupo): criar o personagem, criar ou entrar numa sala, a espera na plataforma ---------- */
+      #sala {
+        margin: 16px auto 0;
+        width: fit-content;
+        cursor: default;
+        font-size: 14px;
+      }
+      #sala input,
+      #sala button {
+        padding: 7px 10px;
+        border: 1px solid #5a4a36;
+        background: rgba(8, 6, 5, 0.7);
+        color: var(--papel);
+        font: inherit;
+      }
+      #sala input {
+        width: 130px;
+      }
+      #sala .linha {
+        display: block;
+        margin-top: 10px;
+      }
+      #sala .titulo-da-sala,
+      #criador .titulo-da-sala {
+        letter-spacing: 0.25em;
+        text-transform: uppercase;
+        font-size: 12px;
+        opacity: 0.7;
+      }
+      #sala #sala-codigo {
+        width: 84px;
+        text-transform: uppercase;
+        letter-spacing: 0.2em;
+        text-align: center;
+      }
+      #sala button {
+        cursor: pointer;
+        border-color: var(--brasa);
+        color: var(--brasa);
+      }
+      #sala button:hover {
+        background: rgba(255, 166, 77, 0.14);
+      }
+      #sala .ou {
+        margin: 0 8px;
+        opacity: 0.6;
+      }
+      #sala-codigo-da-sala {
+        margin: 6px 0 2px;
+        font-size: 46px;
+        letter-spacing: 0.3em;
+        color: var(--brasa);
+      }
+      #sala ul {
+        margin: 10px 0 14px;
+        padding: 0;
+        list-style: none;
+        font-size: 17px;
+      }
+      #sala-erro {
+        min-height: 1.2em;
+        color: #e2553f;
+      }
+      #criador {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 18px;
+        margin: 14px auto 0;
+        width: fit-content;
+        padding: 8px 18px;
+        border: 1px solid #5a4a36;
+        background: rgba(8, 6, 5, 0.55);
+        cursor: default;
+        font-size: 14px;
+        text-align: left;
+      }
+      #criador canvas {
+        width: 190px;
+        height: 250px;
+        display: block;
+      }
+      #criador .titulo-da-sala {
+        margin-bottom: 4px;
+      }
+      #criador .opcao {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-top: 6px;
+      }
+      #criador .opcao > span {
+        width: 104px;
+        opacity: 0.8;
+      }
+      #criador .opcao b {
+        min-width: 92px;
+        text-align: center;
+        font-weight: normal;
+        color: var(--brasa);
+      }
+      #criador input,
+      #criador button {
+        padding: 5px 10px;
+        border: 1px solid #5a4a36;
+        background: rgba(8, 6, 5, 0.7);
+        color: var(--papel);
+        font: inherit;
+      }
+      #criador button {
+        cursor: pointer;
+      }
+      #criador button:hover {
+        border-color: var(--brasa);
+      }
+      #criador #sala-nome {
+        width: 168px;
+      }
+      #criador #sala-nome.falta {
+        border-color: #e2553f;
+      }
+      #criador .cores {
+        display: flex;
+        gap: 4px;
+      }
+      #criador .cores button {
+        width: 21px;
+        height: 21px;
+        padding: 0;
+        border-radius: 50%;
+        border: 2px solid rgba(0, 0, 0, 0.6);
+      }
+      #criador .cores button.escolhida {
+        border-color: var(--papel);
+        box-shadow: 0 0 0 2px var(--brasa);
+      }
+      #espera-hud {
+        display: none;
+        top: 14px;
+        left: 0;
+        right: 0;
+        text-align: center;
+        font-size: 15px;
+      }
+      .em-espera #espera-hud {
+        display: block;
+      }
+      #espera-hud .rotulo {
+        font-size: 11px;
+        letter-spacing: 0.3em;
+        text-transform: uppercase;
+        opacity: 0.8;
+      }
+      #espera-hud .codigo {
+        font-size: 54px;
+        line-height: 1.05;
+        letter-spacing: 0.3em;
+        margin-right: -0.3em;
+        color: var(--brasa);
+      }
+      #espera-hud ul {
+        margin: 6px 0;
+        padding: 0;
+        list-style: none;
+        font-size: 16px;
+      }
+      #espera-hud li {
+        display: inline-block;
+        margin: 0 8px;
+      }
+      #espera-hud li i {
+        display: inline-block;
+        width: 10px;
+        height: 10px;
+        margin-right: 6px;
+        border-radius: 50%;
+      }
+      #espera-hud .comecar {
+        color: var(--brasa);
+        font-size: 17px;
+      }
+      #espera-hud .teclas-da-espera {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 16px;
+        font-size: 13px;
+        opacity: 0.8;
+      }
+      .em-espera #relogio,
+      .em-espera #coragem,
+      .em-espera #mira,
+      .em-espera #maos,
+      .em-espera #agir,
+      .em-espera #barra,
+      .em-espera #aviso,
+      .em-espera #legenda,
+      .em-espera #vigia,
+      .em-espera #roda,
+      .em-espera #teclas,
+      .em-espera #mapa,
+      .em-espera #caderno {
+        display: none !important;
+      }
+      #gestos {
+        display: none;
+        left: 50%;
+        bottom: 17%;
+        transform: translateX(-50%);
+        padding: 10px 16px;
+        background: rgba(6, 5, 4, 0.72);
+        border: 1px solid #5a4a36;
+        font-size: 15px;
+        white-space: nowrap;
+      }
+      #gestos span {
+        margin: 0 8px;
+      }
+      /* O escurecer rapido de quem desce ou sobe pelo alcapao, e o aviso de que a cidade esta sendo montada. */
+      #escuro {
+        position: fixed;
+        inset: 0;
+        z-index: 6;
+        pointer-events: none;
+        background: #000;
+        opacity: 0;
+      }
+      #preparando {
+        position: fixed;
+        inset: 0;
+        z-index: 9;
+        display: none;
+        place-items: center;
+        background: rgba(3, 3, 5, 0.94);
+        font-size: 26px;
+        font-style: italic;
+        letter-spacing: 0.06em;
+      }
+      #preparando.sim {
+        display: grid;
+      }
       .sem-hud .hud,
       .sem-hud #entrada,
       .sem-hud #rodape,
@@ -825,6 +1104,10 @@
     <div class="hud" id="roda"></div>
     <div class="hud" id="guias"></div>
     <div class="hud" id="teclas"></div>
+    <div class="hud" id="espera-hud"></div>
+    <div class="hud" id="gestos"></div>
+    <div id="escuro"></div>
+    <div id="preparando">Preparando a cidade...</div>
     <div id="estrelinhas"><span>✦</span><span>✦</span><span>✦</span></div>
     <div id="desmaio"></div>
     <div id="tiro"></div>
@@ -840,7 +1123,34 @@
       <div>
         <h1>A caçada</h1>
         <p>Uma assombração solta na cidade. O trem parte logo.</p>
-        <div class="entrar">Clique para entrar na cidade</div>
+        <div id="criador">
+          <canvas id="criador-previa" width="190" height="250"></canvas>
+          <div>
+            <div class="titulo-da-sala">Seu personagem</div>
+            <label class="opcao"><span>Nome</span><input id="sala-nome" placeholder="como os outros vão ver" maxlength="16" autocomplete="off" /></label>
+            <div class="opcoes"></div>
+          </div>
+        </div>
+        <div class="entrar" id="entrar">Jogar sozinho: clique para entrar na cidade</div>
+        <div id="sala">
+          <div id="sala-porta">
+            <div class="titulo-da-sala">Jogar em grupo</div>
+            <div class="linha">
+              <button id="sala-criar">Criar sala</button>
+              <span class="ou">ou</span>
+              <input id="sala-codigo" placeholder="código" maxlength="4" autocomplete="off" />
+              <button id="sala-juntar">Entrar na sala</button>
+            </div>
+          </div>
+          <div id="sala-espera" hidden>
+            <div>Sala</div>
+            <div id="sala-codigo-da-sala"></div>
+            <ul id="sala-lista"></ul>
+            <button id="sala-comecar">Começar a caçada</button>
+            <div id="sala-nota"></div>
+          </div>
+          <p id="sala-erro"></p>
+        </div>
         <dl>
           <dt>WASD</dt>
           <dd>andar (Shift corre, Espaço pula, C agacha)</dd>

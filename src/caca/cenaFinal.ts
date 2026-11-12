@@ -67,7 +67,10 @@ export class CenaFinal {
 
   constructor(private readonly op: OpcoesDaCena) {
     const { cena, caca, mundo, camera, jogador } = op;
-    this.tipo = caca.fim!.tipo;
+    // Provisorio: a cena do Traidor (vitoria dele ou dele descoberto) vem na etapa seguinte. Por ora o fim dele usa
+    // a cena do trem e a do voto usa a da mascara.
+    const fim = caca.fim!.tipo;
+    this.tipo = fim === "traidor" ? "trem" : fim === "votado" ? "desmascarada" : fim;
     this.de = { x: camera.position.x, y: camera.position.y, z: camera.position.z, giro: camera.rotation.y, inclinacao: camera.rotation.x };
     Object.assign(this.pose, this.de);
     jogador.cinema = this.pose;
@@ -122,6 +125,13 @@ export class CenaFinal {
       this.pose.x = ESTACAO.x;
       this.pose.z = ESTACAO.z;
     }
+  }
+
+  /** Tira a cena do mundo (a sala voltou para a plataforma). */
+  destruir(): void {
+    this.grupo.removeFromParent();
+    this.op.mundo.coisaSolta = false;
+    this.op.jogador.cinema = null;
   }
 
   /** O primeiro angulo (a partir de `rumo`) em que a camera, a `d` metros de (x, z), cabe e ve o ponto. */

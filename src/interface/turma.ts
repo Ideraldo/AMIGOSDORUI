@@ -25,6 +25,8 @@ export interface TelaDeEspera {
   dono: string;
   /** O dono apertou Enter uma vez e falta confirmar. */
   confirmando: boolean;
+  /** O que o dono comeca: 'noite' (a da carta, o padrao) ou 'caçada'. */
+  partida?: string;
 }
 
 /** A lista de quem chegou, com a cor do lenco de cada um (e a que se ve de longe). */
@@ -39,11 +41,12 @@ export function desenharEspera(el: HTMLElement, e: TelaDeEspera): void {
   const souDono = e.eu === e.dono;
   const n = e.jogadores.length;
   const nomeDoDono = e.jogadores.find((p) => p.id === e.dono)?.nome ?? 'quem criou a sala';
+  const partida = e.partida ?? 'noite';
   const comecar = !souDono
-    ? `Esperando ${escapar(nomeDoDono)} começar a noite.`
+    ? `Esperando ${escapar(nomeDoDono)} começar a ${partida}.`
     : e.confirmando
-      ? `Começar a noite com ${viajantes(n)}? <kbd>Enter</kbd>de novo para confirmar. Depois ninguém mais entra.`
-      : `<kbd>Enter</kbd>começa a noite, quando a turma estiver toda aqui. ${n === 1 ? 'Por enquanto só você chegou.' : `Já são ${viajantes(n)}.`}`;
+      ? `Começar a ${partida} com ${viajantes(n)}? <kbd>Enter</kbd>de novo para confirmar. Depois ninguém mais entra.`
+      : `<kbd>Enter</kbd>começa a ${partida}, quando a turma estiver toda aqui. ${n === 1 ? 'Por enquanto só você chegou.' : `Já são ${viajantes(n)}.`}`;
   por(
     el,
     `<div class="rotulo">Código da sala, para ditar aos amigos</div><div class="codigo">${escapar(e.codigo)}</div><ul>${lista(e)}</ul><div class="comecar">${comecar}</div>` +

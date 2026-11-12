@@ -5,6 +5,7 @@
 import { resolve } from 'node:path';
 import { defineConfig } from 'vite';
 import { ligarSalas } from './servidor/ligar.ts';
+import { ligarSalasDaCaca } from './servidor/ligarCaca.ts';
 
 // Duas paginas: index.html e a cacada (modo novo) e carta.html e a noite da carta (modo antigo).
 // modelos.html e a vitrine dos modelos da cacada, so para olhar.
@@ -21,7 +22,11 @@ export default defineConfig({
     {
       name: 'salas',
       configureServer(servidor) {
-        if (servidor.httpServer) ligarSalas(servidor.httpServer as import('node:http').Server);
+        if (!servidor.httpServer) return;
+        const http = servidor.httpServer as import('node:http').Server;
+        // A sala antiga (/sala, do carta.html) e a da cacada (/caca) dividem a porta.
+        ligarSalas(http);
+        ligarSalasDaCaca(http);
       },
     },
   ],

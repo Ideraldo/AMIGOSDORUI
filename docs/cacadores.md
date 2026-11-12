@@ -90,7 +90,7 @@ Estrelas: desmascarou sem derrubar, ninguém desmaiou, acabou em até metade do 
 
 1. Núcleo e testes. (feito)
 2. Tela para um jogador, com `npm run caca` conferindo uma partida inteira num Chrome sem janela. (feita: `src/caca/main.ts` e arquivos vizinhos; ver a seção "A caçada" do `CLAUDE.md`)
-3. Sala: jogar em grupo.
+3. Sala: jogar em grupo. (feita: `servidor/salaDaCaca.ts`, `servidor/ligarCaca.ts`, `src/caca/rede/` e as telas do dono e do convidado em `src/caca/anfitriao.ts`; ver a seção "A caçada" do `CLAUDE.md`. Pela sala esta etapa joga só a caçada com a Coisa do jogo.)
 4. Revisão por jogador de teste, revisor de design e revisor de código, e os consertos.
 
 ## Fica para depois

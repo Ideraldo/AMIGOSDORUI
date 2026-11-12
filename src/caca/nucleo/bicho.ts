@@ -11,7 +11,7 @@
 
 import { NOS, frenteDaPorta } from '../../nucleo/coisa.ts';
 import { escolher, proximo } from '../../nucleo/rng.ts';
-import { distancia, emitir, desmaiado, preso } from './base.ts';
+import { distancia, emitir, desmaiado, mesmoAndar, nasGalerias, preso } from './base.ts';
 import { irPara, planejar, ruas, seguirRota } from './andar.ts';
 import { assustar, naRua } from './moradores.ts';
 import {
@@ -32,7 +32,7 @@ import {
   type Coisa,
   type TipoDeEvento,
 } from './tipos.ts';
-import type { LugarId } from '../../mundo/planta.ts';
+import { SUBSOLO, type LugarId } from '../../mundo/planta.ts';
 
 // ---------- numeros da percepcao (chutes a calibrar jogando) ----------
 
@@ -77,10 +77,13 @@ const ALCANCE_DA_FUGA = 35;
 
 // ---------- quem ela pode caçar ----------
 
-/** Pode ser alvo agora: esta na cidade, de pe, solto, depois dos primeiros segundos e nao ignorado. */
+/**
+ * Pode ser alvo agora: esta na cidade, de pe, solto, depois dos primeiros segundos e nao ignorado. Quem esta nas
+ * galerias da mina nao existe para ela (nao a ve, nao a ouve e ela nao desce), e quem saiu da sala tambem nao.
+ */
 function alvoValido(caca: Caca, h: Cacador, amb: Ambiente): boolean {
   const t = caca.tempo;
-  if (t < SEGUNDOS_SEM_CACAR || !amb.poses[h.id]) return false;
+  if (t < SEGUNDOS_SEM_CACAR || h.ausente || !amb.poses[h.id] || nasGalerias(amb.poses[h.id])) return false;
   // Caido num tropeco ainda e alvo (e engracado); desmaiado e preso num laco, nao.
   if (desmaiado(h, t) || preso(h, t)) return false;
   if (caca.coisa.ignora === h.id && t < caca.coisa.ignoraAte) return false;
@@ -137,7 +140,7 @@ function luzPerto(caca: Caca, amb: Ambiente): { x: number; z: number } | null {
   };
   for (const h of caca.cacadores) {
     const p = amb.poses[h.id];
-    if (p?.lampiao && !desmaiado(h, caca.tempo) && distancia(c.x, c.z, p.x, p.z) <= SINAL.alcance && amb.visao(c.x, c.z, p.x, p.z)) considerar(p.x, p.z);
+    if (p?.lampiao && !nasGalerias(p) && !h.ausente && !desmaiado(h, caca.tempo) && distancia(c.x, c.z, p.x, p.z) <= SINAL.alcance && amb.visao(c.x, c.z, p.x, p.z)) considerar(p.x, p.z);
   }
   for (const s of caca.postos) if (s.tipo === 'sinal' && distancia(c.x, c.z, s.x, s.z) <= SINAL.alcance && amb.visao(c.x, c.z, s.x, s.z)) considerar(s.x, s.z);
   for (const m of caca.moradores) if (m.modo === 'seguindo') considerar(m.x, m.z);
@@ -257,6 +260,7 @@ function recuar(caca: Caca, ox: number, oz: number, dt: number, amb: Ambiente): 
 
 /** Larga no chao, perto de (x, z), o que o cacador levava nas maos. O revolver fica com ele. */
 export function largarOQueLevava(caca: Caca, h: Cacador, x: number, z: number, amb: Ambiente): void {
+  const y = amb.poses[h.id]?.y ?? 0;
   for (const item of h.itens) {
     let px = x;
     let pz = z;
@@ -266,15 +270,15 @@ export function largarOQueLevava(caca: Caca, h: Cacador, x: number, z: number, a
       const r = 0.6 + (k % 3) * 0.3;
       const nx = x + Math.sin(a) * r;
       const nz = z + Math.cos(a) * r;
-      if (amb.livre(nx, nz)) {
+      if (amb.livre(nx, nz, y)) {
         px = nx;
         pz = nz;
         break;
       }
     }
     caca.contador += 1;
-    caca.soltos.push({ id: `solto-${caca.contador}`, item, x: px, z: pz });
-    emitir(caca, 'largou', px, pz, h.id, item);
+    caca.soltos.push({ id: `solto-${caca.contador}`, item, x: px, z: pz, ...(Math.abs(y) > 0.01 ? { y: Math.round(y * 100) / 100 } : {}) });
+    emitir(caca, 'largou', px, pz, h.id, item, y);
   }
   h.itens = [];
 }
@@ -310,7 +314,7 @@ function quemAlcanca(caca: Caca, amb: Ambiente): Cacador | null {
   for (const h of caca.cacadores) {
     if (!alvoValido(caca, h, amb)) continue;
     const p = amb.poses[h.id]!;
-    if (p.dentro !== null) continue;
+    if (p.dentro !== null || !mesmoAndar(p.y, 0)) continue;
     const d = distancia(c.x, c.z, p.x, p.z);
     if (d < ESBARRAO || (c.modo === 'caca' && c.alvo === h.id && d <= ALCANCE_DO_GOLPE)) return h;
   }
@@ -325,7 +329,8 @@ function ouvirEventos(caca: Caca): void {
   for (const e of caca.eventos) {
     if (e.n <= c.ouviuN) continue;
     const alcance = SOM_DOS_EVENTOS[e.tipo];
-    if (alcance === undefined || distancia(c.x, c.z, e.x, e.z) > alcance) continue;
+    // O que se faz nas galerias nao chega a rua (nem ao ouvido dela).
+    if (alcance === undefined || (e.y !== undefined && e.y < SUBSOLO) || distancia(c.x, c.z, e.x, e.z) > alcance) continue;
     if (c.modo === 'ronda' || c.modo === 'confere' || c.modo === 'cerca') conferir(caca, e.x, e.z);
   }
 }

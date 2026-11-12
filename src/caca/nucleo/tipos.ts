@@ -82,6 +82,8 @@ export interface Coisa {
   npc: string;
   x: number;
   z: number;
+  /** Altura dos pes. So vale a fantasia do Traidor, que copia a pose dele (andar de cima, galerias). A Coisa do jogo anda no chao: sem valor, 0. */
+  y?: number;
   /** Para onde esta virada, angulo em volta de Y (0 e +Z). */
   rumo: number;
   modo: ModoDaCoisa;
@@ -139,6 +141,8 @@ export interface Solto {
   vaga?: number;
   x?: number;
   z?: number;
+  /** So no chao: a altura em que esta (andar de cima, galerias). Sem valor, 0. */
+  y?: number;
 }
 
 /** O que cada item vira quando montado no chao. */
@@ -158,6 +162,8 @@ export interface Posto {
   tipo: TipoDePosto;
   x: number;
   z: number;
+  /** Altura do chao onde foi montado (andar de cima, galerias). Sem valor, 0. */
+  y?: number;
   /** Quem montou. */
   dono: string;
   /** Segundo da partida em que foi montado. */
@@ -187,7 +193,7 @@ export interface Cacador {
   revolver: boolean;
   balas: number;
   /** O que esta fazendo com as maos agora (a tela manda enquanto o E esta apertado). */
-  ocupado: null | { com: 'mascara' } | { com: 'reanimar'; quem: string } | { com: 'montar'; indice: number; x: number; z: number; frouxo?: true } | { com: 'tarefa'; tarefa: Tarefa };
+  ocupado: null | { com: 'mascara' } | { com: 'reanimar'; quem: string } | { com: 'montar'; indice: number; x: number; z: number; y?: number; frouxo?: true } | { com: 'tarefa'; tarefa: Tarefa };
   /** Ha quantos segundos esta nisso. */
   progresso: number;
   // Para o resumo do fim.
@@ -200,6 +206,8 @@ export interface Cacador {
   aparencia?: { chapeu: number; lenco: number };
   /** Amarrado no banco da estacao ate este segundo (votado numa reuniao): nao anda nem age. */
   amarradoAte: number;
+  /** Saiu da sala no meio da partida: fica parado onde estava, sem agir, e deixa de ser alvo e de votar. */
+  ausente: boolean;
   /** Pernas bambas (uivo) ate este segundo. */
   bamboAte: number;
   /** Tocou o sino da estacao nesta partida (so uma vez). */
@@ -281,6 +289,8 @@ export interface Evento {
   tipo: TipoDeEvento;
   x: number;
   z: number;
+  /** Altura do que aconteceu, so quando nao e a superficie (andar de cima, galerias): quem esta embaixo nao ouve a rua. */
+  y?: number;
   /** Cacador ou morador envolvido, ou 'coisa'. */
   quem?: string;
   /** Item, tipo de posto ou ordem, conforme o evento. */
@@ -365,10 +375,10 @@ export interface Pose {
 /** O que as regras precisam saber do mundo e nao esta no estado. Quem hospeda fornece, com a colisao da cidade montada. */
 export interface Ambiente {
   poses: Readonly<Record<string, Pose | undefined>>;
-  /** Cabe um corpo em pe em (x, z), no chao? */
-  livre(x: number, z: number): boolean;
-  /** Ha linha de visao entre dois pontos, na altura dos olhos? */
-  visao(ax: number, az: number, bx: number, bz: number): boolean;
+  /** Cabe um corpo em pe em (x, z), com os pes em `y` (sem valor: no chao, y = 0)? */
+  livre(x: number, z: number, y?: number): boolean;
+  /** Ha linha de visao entre dois pontos, na altura dos olhos de quem esta com os pes em `y`? */
+  visao(ax: number, az: number, bx: number, bz: number, y?: number): boolean;
 }
 
 /** O que um cacador pede. Sozinho vai direto para as regras; numa sala vai pela rede ate quem hospeda. */
@@ -445,6 +455,9 @@ export const PODERES = {
 /** Cacador usando o alcapao (sem recarga): tempo segurando e alcance. */
 export const DESCER = { segundos: 3, alcance: 2.5 } as const;
 
+/** Entrar e sair das galerias a pe, pelo mesmo alcapao: tempo segurando e alcance (vale para a turma e para a Coisa fantasiada). */
+export const GALERIAS_A_PE = { segundos: 1.5, alcance: 2.5 } as const;
+
 /** Sabotagem sem fantasia: conferir um posto de perto. */
 export const CONFERIR = { segundos: 1, alcance: 2.2 } as const;
 
@@ -465,6 +478,8 @@ export interface Salto {
   /** Cresce a cada uso: a tela teleporta quando ve um n novo. */
   n: number;
   x: number;
+  /** Altura dos pes de onde se chega: 0 na superficie, `PISO_DAS_GALERIAS` embaixo. */
+  y: number;
   z: number;
 }
 
@@ -489,7 +504,11 @@ export interface Traidor {
 /** Um bau da fantasia. */
 export interface Toca {
   id: string;
+  /** O lugar onde fica o bau. */
+  lugar: LugarId;
+  /** Onde se fica de pe diante do bau (y: altura dos pes, o andar de cima ou o palheiro). */
   x: number;
+  y: number;
   z: number;
   /** Pregada com tabuas: nao serve para vestir nem despir ate a Coisa despregar. */
   pregada: boolean;
@@ -528,7 +547,9 @@ export type Tarefa =
   | { qual: 'espantar'; npc: string }
   | { qual: 'trancar' | 'destrancar' | 'arrombar'; lugar: LugarId }
   | { qual: 'conferir'; id: string }
-  | { qual: 'descer'; de: string; para: string };
+  | { qual: 'descer'; de: string; para: string }
+  /** A pe: da superficie, num alcapao, para o pe dele embaixo (`entrar`), e de la para cima (`sair`). */
+  | { qual: 'entrar' | 'sair'; de: string };
 
 /** Quanto cada tarefa leva, segurando. */
 export const SEGUNDOS_DA_TAREFA: Record<Tarefa['qual'], number> = {
@@ -542,6 +563,8 @@ export const SEGUNDOS_DA_TAREFA: Record<Tarefa['qual'], number> = {
   arrombar: TRANCA.segundosParaArrombar,
   conferir: CONFERIR.segundos,
   descer: DESCER.segundos,
+  entrar: GALERIAS_A_PE.segundos,
+  sair: GALERIAS_A_PE.segundos,
 };
 
 /** Os pedidos do modo Traidor (fazem parte de `Acao`). */
@@ -552,7 +575,10 @@ export type AcaoDeTraidor =
   | { t: 'trancar' | 'destrancar' | 'arrombar'; lugar: LugarId }
   | { t: 'poder'; qual: 'apagao' | 'uivo' }
   | { t: 'poder'; qual: 'tunel'; de: string; para: string }
-  | { t: 'descer'; de: string; para: string }
+  /** Com `para`: salta ao outro alcapao (3 s). Sem `para`: desce ao pe do mesmo alcapao, as galerias (1,5 s). */
+  | { t: 'descer'; de: string; para?: string }
+  /** Embaixo, ao pe da escada de um alcapao: volta a superficie por ele (1,5 s). */
+  | { t: 'subir'; de: string }
   | { t: 'conferir'; id: string }
   | { t: 'tocarSino' }
   | { t: 'votar'; quem: string };

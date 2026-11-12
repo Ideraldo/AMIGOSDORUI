@@ -42,11 +42,14 @@ function longe(): Poses {
 /** `a` perto da toca 0 veste a fantasia. Devolve o ambiente. */
 function vestido(caca: Caca, ps: Poses = longe()) {
   const toca = caca.tocas[0]!;
-  ps.a = pose(toca.x + 0.5, toca.z);
+  ps.a = pose(toca.x + 0.5, toca.z, { y: toca.y });
   const amb = ambiente(ps);
   agir(caca, 'a', { t: 'vestir', toca: toca.id }, amb);
   rodar(caca, amb, FANTASIA.segundosParaVestir + 0.2);
   assert.equal(caca.traidor!.fantasiado, true);
+  // Vestido, ele desce ao chao da rua (os baus ficam no andar de cima e no palheiro), onde os testes poem as armadilhas.
+  ps.a = pose(toca.x + 0.5, toca.z);
+  rodar(caca, amb, 0.05);
   return amb;
 }
 
@@ -92,7 +95,10 @@ test('Traidor: quatro moradores em casa, a Coisa guardada, tres tocas dos lugare
   // Aparencia guardada.
   assert.deepEqual(caca.cacadores[0]!.aparencia, { chapeu: 2, lenco: 5 });
   assert.equal(caca.cacadores[2]!.aparencia, undefined);
-  for (const a of ALCAPOES) assert.ok(Number.isFinite(a.x) && Number.isFinite(a.z));
+  for (const a of ALCAPOES) assert.ok(Number.isFinite(a.cima.x) && Number.isFinite(a.cima.z) && Number.isFinite(a.baixo.y));
+  // So tocas de lugares abertos, e o bar (alcapao e baus) e sempre aberto no modo Traidor.
+  assert.ok(caca.abertos.includes('bar'));
+  for (const t of caca.tocas) assert.ok(caca.abertos.includes(t.lugar), t.id);
 });
 
 // ---------- a fantasia ----------
@@ -101,12 +107,12 @@ test('fantasia: vestir leva 3 s perto da toca, a Coisa passa a copiar a pose del
   const caca = pt();
   const ps = longe();
   const toca = caca.tocas[0]!;
-  ps.a = pose(toca.x + 0.5, toca.z);
+  ps.a = pose(toca.x + 0.5, toca.z, { y: toca.y });
   const amb = ambiente(ps);
   const v = vigiar(caca);
   // Longe da toca nao veste.
   const lugar = { ...ps.a };
-  ps.a = pose(toca.x + 10, toca.z);
+  ps.a = pose(toca.x + 10, toca.z, { y: toca.y });
   agir(caca, 'a', { t: 'vestir', toca: toca.id }, amb);
   assert.equal(caca.cacadores[0]!.ocupado, null);
   ps.a = lugar;
@@ -138,6 +144,7 @@ test('fantasia: despir leva 3 s numa toca livre e guarda a Coisa fora do mundo',
   const ps = longe();
   const amb = vestido(caca, ps);
   const toca = caca.tocas[0]!;
+  ps.a = pose(toca.x + 0.5, toca.z, { y: toca.y });
   agir(caca, 'a', { t: 'despir', toca: toca.id }, amb);
   rodar(caca, amb, 3.2);
   assert.equal(caca.traidor!.fantasiado, false);
@@ -165,6 +172,7 @@ test('fantasia: calor sobe em 90 s, ofega com barulho, e desce em 45 s sem a fan
   rodar(caca, amb, 8.5);
   v.atualizar();
   assert.ok(v.contar('ofegante') - antes >= 2, 'a cada 4 s');
+  ps.a = pose(caca.tocas[0]!.x + 0.5, caca.tocas[0]!.z, { y: caca.tocas[0]!.y });
   agir(caca, 'a', { t: 'despir', toca: caca.tocas[0]!.id }, amb);
   rodar(caca, amb, 3.2);
   rodar(caca, amb, 45);
@@ -179,7 +187,7 @@ test('fantasia: toca pregada nao serve; nao se prega a ultima; a Coisa despregan
   const amb = ambiente(ps);
   const pregar = (quem: string, toca: typeof t0) => {
     caca.cacadores.find((c) => c.id === quem)!.itens.push('tabuas');
-    ps[quem] = pose(toca.x + 0.4, toca.z);
+    ps[quem] = pose(toca.x + 0.4, toca.z, { y: toca.y });
     agir(caca, quem, { t: 'pregar', toca: toca.id }, amb);
     rodar(caca, amb, 3.2);
   };
@@ -196,13 +204,13 @@ test('fantasia: toca pregada nao serve; nao se prega a ultima; a Coisa despregan
   assert.equal(t0.pregada, false);
   assert.deepEqual(caca.cacadores[3]!.itens, ['tabuas'], 'nao gastou');
   // Pregada nao serve para vestir.
-  ps.a = pose(t1.x + 0.4, t1.z);
+  ps.a = pose(t1.x + 0.4, t1.z, { y: t1.y });
   agir(caca, 'a', { t: 'vestir', toca: t1.id }, amb);
   rodar(caca, amb, 3.5);
   assert.equal(caca.traidor!.fantasiado, false);
   // Veste na livre, volta e desprega: 6 s, com barulho desde o comeco.
   vestido(caca, ps);
-  ps.a = pose(t1.x + 0.4, t1.z);
+  ps.a = pose(t1.x + 0.4, t1.z, { y: t1.y });
   agir(caca, 'a', { t: 'despregar', toca: t1.id }, amb);
   rodar(caca, amb, 3);
   v.atualizar();
@@ -555,28 +563,28 @@ test('tunel e descer: salto crescente para a tela, som nos dois alcapoes, recarg
   // Longe do alcapao: nada.
   agir(caca, 'a', { t: 'poder', qual: 'tunel', de: A.id, para: B.id }, amb);
   assert.equal(caca.traidor!.salto, null);
-  ps.a = pose(A.x + 1, A.z);
+  ps.a = pose(A.cima.x + 1, A.cima.z);
   agir(caca, 'a', { t: 'poder', qual: 'tunel', de: A.id, para: 'lixo' }, amb);
   agir(caca, 'a', { t: 'poder', qual: 'tunel', de: A.id, para: A.id }, amb);
   assert.equal(caca.traidor!.salto, null);
   agir(caca, 'a', { t: 'poder', qual: 'tunel', de: A.id, para: B.id }, amb);
-  assert.deepEqual(caca.traidor!.salto, { n: 1, x: B.x, z: B.z });
+  assert.deepEqual(caca.traidor!.salto, { n: 1, x: B.cima.x, y: 0, z: B.cima.z });
   v.atualizar();
   assert.equal(v.contar('tunel'), 2);
-  assert.ok(caca.eventos.some((e) => e.tipo === 'tunel' && e.x === A.x) && caca.eventos.some((e) => e.tipo === 'tunel' && e.x === B.x));
+  assert.ok(caca.eventos.some((e) => e.tipo === 'tunel' && e.x === A.cima.x) && caca.eventos.some((e) => e.tipo === 'tunel' && e.x === B.cima.x));
   agir(caca, 'a', { t: 'poder', qual: 'tunel', de: A.id, para: C.id }, amb);
   assert.equal(saltoDe(caca)!.n, 1, 'recarga');
   rodar(caca, amb, PODERES.tunel.recarga + 0.1);
   agir(caca, 'a', { t: 'poder', qual: 'tunel', de: A.id, para: C.id }, amb);
-  assert.deepEqual(caca.traidor!.salto, { n: 2, x: C.x, z: C.z });
+  assert.deepEqual(caca.traidor!.salto, { n: 2, x: C.cima.x, y: 0, z: C.cima.z });
 
   // Cacador: 3 s segurando, sem recarga.
-  ps.b = pose(B.x, B.z + 1);
+  ps.b = pose(B.cima.x, B.cima.z + 1);
   agir(caca, 'b', { t: 'descer', de: B.id, para: C.id }, amb);
   rodar(caca, amb, 2.5);
   assert.equal(caca.cacadores[1]!.salto, null);
   rodar(caca, amb, 0.7);
-  assert.deepEqual(caca.cacadores[1]!.salto, { n: 1, x: C.x, z: C.z });
+  assert.deepEqual(caca.cacadores[1]!.salto, { n: 1, x: C.cima.x, y: 0, z: C.cima.z });
   agir(caca, 'b', { t: 'descer', de: B.id, para: A.id }, amb);
   rodar(caca, amb, 3.2);
   assert.equal((caca.cacadores[1] as { salto: { n: number } | null }).salto!.n, 2);
@@ -685,7 +693,7 @@ test('visaoDe: o papel, as tocas e o frouxo so aparecem a quem pode saber', () =
   // Tocas: so as que viu de perto.
   assert.equal(honesto.tocas.length, 0);
   const toca = caca.tocas[1]!;
-  ps.b = pose(toca.x + 3, toca.z);
+  ps.b = pose(toca.x + 3, toca.z, { y: toca.y });
   rodar(caca, amb, 0.1);
   assert.deepEqual(visaoDe(caca, 'b').tocas.map((t) => t.id), [toca.id]);
   // Jogador que nao existe: visao vazia de cacador.
@@ -905,9 +913,10 @@ test('confusao: partidas inteiras com 4 jogadores e acoes sorteadas, sem erro e 
     const amb = ambiente(ps);
     const ids = J4.map((j) => j.id);
 
-    const pontos = (): { x: number; z: number }[] => [
+    const pontos = (): { x: number; z: number; y?: number }[] => [
       ...caca.tocas,
-      ...ALCAPOES,
+      ...ALCAPOES.map((a) => a.cima),
+      ...ALCAPOES.map((a) => a.baixo),
       NASCIMENTO,
       ...caca.moradores.map((m) => ({ x: m.x, z: m.z })),
       ...caca.postos,
@@ -919,7 +928,7 @@ test('confusao: partidas inteiras com 4 jogadores e acoes sorteadas, sem erro e 
         const r = sorteio();
         if (r < 0.04) {
           const alvo = um(pontos());
-          ps[id] = pose(alvo.x + (sorteio() - 0.5) * 3, alvo.z + (sorteio() - 0.5) * 3, { giro: sorteio() * 6.28, velocidade: sorteio() < 0.3 ? 5 : 0, noAr: sorteio() < 0.1, dentro: sorteio() < 0.15 ? um(caca.abertos) : null });
+          ps[id] = pose(alvo.x + (sorteio() - 0.5) * 3, alvo.z + (sorteio() - 0.5) * 3, { y: alvo.y ?? 0, giro: sorteio() * 6.28, velocidade: sorteio() < 0.3 ? 5 : 0, noAr: sorteio() < 0.1, dentro: sorteio() < 0.15 ? um(caca.abertos) : null });
         } else if (r < 0.5) continue;
         const toca = caca.tocas.length ? um(caca.tocas).id : 'x';
         const lugar = um(caca.abertos);
@@ -940,6 +949,8 @@ test('confusao: partidas inteiras com 4 jogadores e acoes sorteadas, sem erro e 
           { t: 'poder', qual: 'uivo' },
           { t: 'poder', qual: 'tunel', de: um(ALCAPOES).id, para: um(ALCAPOES).id },
           { t: 'descer', de: um(ALCAPOES).id, para: um(ALCAPOES).id },
+          { t: 'descer', de: um(ALCAPOES).id },
+          { t: 'subir', de: um(ALCAPOES).id },
           { t: 'conferir', id: posto },
           { t: 'tocarSino' },
           { t: 'votar', quem: um([...ids, 'ninguem', 'lixo']) },

@@ -32,9 +32,10 @@ test('o caderno diz o objetivo, as duas assombracoes e a tabela, e so lista quem
 
 test('o placar de cada fim: titulo, tempo, estrelas com o que cada uma e, quem era e a linha do jogador', () => {
   const quem = EXEMPLO.npcs.find((n) => n.id === 'coveiro');
-  for (const tipo of ['desmascarada', 'derrubada', 'trem'] as const) {
+  for (const tipo of ['desmascarada', 'derrubada', 'trem', 'traidor', 'votado'] as const) {
     const c = partida({ tipo: 'sombra' });
-    c.fim = { tipo, por: 'a', tempo: 200, estrelas: tipo === 'trem' ? 0 : tipo === 'derrubada' ? 2 : 3 };
+    c.fim = { tipo, por: 'a', tempo: 200, estrelas: tipo === 'trem' || tipo === 'traidor' ? 0 : tipo === 'derrubada' ? 2 : 3 };
+    if (tipo === 'traidor' || tipo === 'votado') c.fim.traidor = 'b';
     c.cacadores[0]!.sustos = 2;
     c.cacadores[0]!.montou = 1;
     c.cacadores[0]!.atirou = 3;
@@ -42,8 +43,12 @@ test('o placar de cada fim: titulo, tempo, estrelas com o que cada uma e, quem e
     const html = htmlDoFim(c, quem, 'a');
     assert.ok(html.includes('★'), tipo);
     assert.ok(html.includes('desmascarou sem derrubar') && html.includes('ninguém desmaiou') && html.includes('acabou na metade do tempo'), tipo);
-    assert.ok(html.includes('Era Seu Honório, coveiro.'), tipo);
-    assert.ok(html.includes('Sombra'), 'o nome e a fraqueza da assombracao aparecem no fim');
+    if (tipo === 'traidor' || tipo === 'votado') assert.ok(html.includes('O Traidor era Beto.') && html.includes('era o Traidor'), tipo);
+    else {
+      assert.ok(html.includes('Era Seu Honório, coveiro.'), tipo);
+      assert.ok(html.includes('Sombra'), 'o nome e a fraqueza da assombracao aparecem no fim');
+    }
+    assert.ok(html.includes('Beto'), 'a linha de cada jogador');
     assert.ok(html.includes('2 sustos') && html.includes('1 armadilha montada') && html.includes('3 tiros') && html.includes('2 acertos'), html);
     assert.ok(html.includes('outra caçada'));
     assert.equal(TRAVESSAO.test(html), false);

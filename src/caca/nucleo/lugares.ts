@@ -1,33 +1,27 @@
-// Onde ficam as tocas (os baus da fantasia) e os alcapoes (galerias da mina) do modo Traidor.
-// Coordenadas PROVISORIAS, tiradas de src/mundo/planta.ts: a frente da porta de cada lugar, a tantos
-// metros para fora. Quando o mapa ganhar as tocas e galerias de verdade, so este arquivo muda.
+// Onde ficam as tocas (os baus da fantasia) e os alcapoes (galerias da mina) do modo Traidor e da
+// caçada: os pontos DEFINITIVOS de src/mundo/planta.ts (`TOCAS`, `ALCAPOES`), com altura.
+//
+// - Toca: onde se fica de pe diante do bau (x, y, z) e o lugar em que ele esta. A toca de um lugar fechado
+//   nao entra no sorteio da partida.
+// - Alcapao: `cima` e o ponto da superficie (onde se aperta E) e `baixo` o pe da escada, embaixo, nas
+//   galerias (y = `PISO_DAS_GALERIAS`). A passagem e por teleporte, feito pela tela.
 
-import { LUGARES, PRACA, direcao, type LugarId } from '../../mundo/planta.ts';
+import { ALCAPOES as DA_PLANTA, TOCAS, type Alcapao, type LugarId } from '../../mundo/planta.ts';
 
-export interface PontoNomeado {
+export interface PontoDeToca {
   id: string;
+  lugar: LugarId;
   x: number;
+  /** Altura dos pes de quem esta diante do bau (o andar de cima, o palheiro). */
+  y: number;
   z: number;
 }
 
-/** O ponto a `recuo` metros da porta do lugar, para fora (a porta olha para a rua). */
-function naFrente(lugar: LugarId, recuo: number): { x: number; z: number } {
-  const l = LUGARES.find((x) => x.id === lugar);
-  if (!l) throw new Error(`lugares: ${lugar} nao existe na planta`);
-  const d = direcao(l.frente);
-  return { x: l.x + d.dx * recuo, z: l.z + d.dz * recuo };
-}
+/** De onde se sorteiam as tocas da partida: os baus de fantasia da planta (so contam os dos lugares abertos). */
+export const TOCAS_POSSIVEIS: readonly PontoDeToca[] = TOCAS.map((t) => ({ id: t.id, lugar: t.lugar, x: t.x, y: t.y, z: t.z }));
 
-/** Distancia da porta das tocas e dos alcapoes (os alcapoes ficam mais para o meio da rua). */
-const RECUO_DA_TOCA = 5;
-const RECUO_DO_ALCAPAO = 9;
+/** As bocas das galerias: o porao do bar, o poco da praca e a mina. O Traidor (tunel) e os cacadores (descer) vao de uma a outra. */
+export const ALCAPOES: readonly Alcapao[] = DA_PLANTA;
 
-/** De onde se sorteiam as tocas da partida: mina, estabulo, sitio, bar, pensao e casarao. */
-export const TOCAS_POSSIVEIS: readonly PontoNomeado[] = (['mina', 'estabulo', 'sitio', 'bar', 'pensao', 'casarao'] as const).map((id) => ({ id: `toca-${id}`, ...naFrente(id, RECUO_DA_TOCA) }));
-
-/** As bocas das galerias: mina, poco da praca e porao do bar. O Traidor (tunel) e os cacadores (descer) vao de uma a outra. */
-export const ALCAPOES: readonly PontoNomeado[] = [
-  { id: 'alcapao-mina', ...naFrente('mina', RECUO_DO_ALCAPAO) },
-  { id: 'alcapao-poco', x: PRACA.x, z: PRACA.z },
-  { id: 'alcapao-bar', ...naFrente('bar', RECUO_DO_ALCAPAO) },
-];
+/** O alcapao do bar fica dentro dele: so vale com o bar aberto na partida. */
+export const LUGAR_DO_ALCAPAO: Partial<Record<Alcapao['id'], LugarId>> = { bar: 'bar' };

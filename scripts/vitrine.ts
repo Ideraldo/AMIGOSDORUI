@@ -27,6 +27,7 @@ const VISTAS: Vista[] = [
   { nome: 'vitrine-itens', cam: [0.3, 1.75, -6.3, 0, 0.95, -9], t: 1.3 },
   { nome: 'vitrine-itens-perto', cam: [-1.2, 1.35, -7.6, -1.2, 0.95, -9], t: 1.3 },
   { nome: 'vitrine-itens-perto-b', cam: [1.2, 1.35, -7.6, 1.2, 0.95, -9], t: 1.3 },
+  { nome: 'vitrine-itens-traidor', cam: [3.9, 1.3, -7.5, 3.9, 0.95, -9], t: 1.3 },
   { nome: 'vitrine-postos', cam: [1, 3.2, 6.5, 1, 0.3, 0], t: 1.3 },
   { nome: 'vitrine-postos-a', cam: [-5.8, 2.6, 5, -5.8, 0.2, 0], t: 1.3 },
   { nome: 'vitrine-postos-b', cam: [6, 2.2, 4.5, 6.5, 0.7, 0], t: 1.3 },

@@ -2,7 +2,7 @@
 // piche gruda. Armadilha pega QUALQUER UM que pise: a Coisa e a propria turma (pelas poses). Quem
 // esta no ar (pulando) passa por cima. A Coisa e burrinha: nao desvia de nada.
 
-import { distancia, emitir } from './base.ts';
+import { distancia, emitir, mesmoAndar } from './base.ts';
 import { LACO, LATAS, PICHE, SINO, type Caca, type Cacador, type Ambiente, type Posto } from './tipos.ts';
 
 /** O sino de vaca posto no chao toca a cada `SINO.intervalo` por `SINO.dura`, e depois fica mudo. */
@@ -11,14 +11,14 @@ export function passoDosSinos(caca: Caca, antes: number): void {
     if (s.tipo !== 'sino' || s.gasto) continue;
     const agora = Math.floor((caca.tempo - s.desde) / SINO.intervalo);
     const passou = antes < s.desde ? -1 : Math.floor((antes - s.desde) / SINO.intervalo);
-    if (agora > passou) emitir(caca, 'sino', s.x, s.z, s.id);
+    if (agora > passou) emitir(caca, 'sino', s.x, s.z, s.id, undefined, s.y);
     if (caca.tempo - s.desde >= SINO.dura) s.gasto = true;
   }
 }
 
-/** O posto esta no caminho de quem esta em (x, z)? */
-function pisa(s: Posto, x: number, z: number, raio: number): boolean {
-  return !s.gasto && !s.frouxo && distancia(s.x, s.z, x, z) < raio;
+/** O posto esta no caminho de quem esta em (x, z), com os pes em `y`? (Armadilha do andar de cima ou das galerias nao pega o terreo.) */
+function pisa(s: Posto, x: number, z: number, raio: number, y = 0): boolean {
+  return !s.gasto && !s.frouxo && distancia(s.x, s.z, x, z) < raio && mesmoAndar(s.y, y);
 }
 
 const noChao = (modo: string) => modo === 'presa' || modo === 'derrubada' || modo === 'caida';
@@ -32,7 +32,7 @@ export function passoDasArmadilhas(caca: Caca, amb: Ambiente): void {
   if (c.modo !== 'presa' && c.modo !== 'derrubada') {
     for (const s of caca.postos) {
       if (noChao(c.modo)) break;
-      if (s.tipo === 'laco' && pisa(s, c.x, c.z, LACO.raio)) {
+      if (s.tipo === 'laco' && pisa(s, c.x, c.z, LACO.raio, c.y)) {
         s.gasto = true;
         c.modo = 'presa';
         c.ate = t + LACO.prendeACoisa;
@@ -40,20 +40,20 @@ export function passoDasArmadilhas(caca: Caca, amb: Ambiente): void {
         c.destino = null;
         c.rota = [];
         emitir(caca, 'laco', s.x, s.z, 'coisa');
-      } else if (s.tipo === 'latas' && pisa(s, c.x, c.z, LATAS.raio)) {
+      } else if (s.tipo === 'latas' && pisa(s, c.x, c.z, LATAS.raio, c.y)) {
         s.gasto = true;
         c.modo = 'caida';
         c.ate = t + LATAS.derrubaACoisa;
         c.alvo = null;
         c.destino = null;
         c.rota = [];
-        emitir(caca, 'latas', s.x, s.z, s.id);
-        emitir(caca, 'caiu', c.x, c.z, 'coisa');
+        emitir(caca, 'latas', s.x, s.z, s.id, undefined, s.y);
+        emitir(caca, 'caiu', c.x, c.z, 'coisa', undefined, c.y);
       }
     }
     // Piche: lenta enquanto dentro e por um tempo depois. O aviso vem so ao entrar.
     for (const s of caca.postos) {
-      if (s.tipo !== 'piche' || distancia(s.x, s.z, c.x, c.z) >= PICHE.raio) continue;
+      if (s.tipo !== 'piche' || distancia(s.x, s.z, c.x, c.z) >= PICHE.raio || !mesmoAndar(s.y, c.y)) continue;
       if (c.meladaAte <= t) emitir(caca, 'piche', s.x, s.z, 'coisa');
       c.meladaAte = t + PICHE.grudaDepois;
     }
@@ -62,28 +62,28 @@ export function passoDasArmadilhas(caca: Caca, amb: Ambiente): void {
   for (const h of caca.cacadores) {
     const p = amb.poses[h.id];
     // Vestido, o Traidor e a Coisa (acima), nao um cacador que pisa.
-    if (!p || p.noAr || (caca.traidor?.id === h.id && caca.traidor.fantasiado)) continue;
-    pisarComoCacador(caca, h, p.x, p.z);
+    if (!p || p.noAr || h.ausente || (caca.traidor?.id === h.id && caca.traidor.fantasiado)) continue;
+    pisarComoCacador(caca, h, p.x, p.z, p.y);
   }
 }
 
-function pisarComoCacador(caca: Caca, h: Cacador, x: number, z: number): void {
+function pisarComoCacador(caca: Caca, h: Cacador, x: number, z: number, y: number): void {
   const t = caca.tempo;
   for (const s of caca.postos) {
-    if (s.tipo === 'laco' && pisa(s, x, z, LACO.raio)) {
+    if (s.tipo === 'laco' && pisa(s, x, z, LACO.raio, y)) {
       s.gasto = true;
       h.presoAte = t + LACO.prendeGente;
       h.ocupado = null;
       h.progresso = 0;
       emitir(caca, 'laco', s.x, s.z, h.id);
-    } else if (s.tipo === 'latas' && pisa(s, x, z, LATAS.raio)) {
+    } else if (s.tipo === 'latas' && pisa(s, x, z, LATAS.raio, y)) {
       s.gasto = true;
       h.caidoAte = t + LATAS.derrubaGente;
       h.ocupado = null;
       h.progresso = 0;
-      emitir(caca, 'latas', s.x, s.z, s.id);
-      emitir(caca, 'caiu', x, z, h.id);
-    } else if (s.tipo === 'piche' && distancia(s.x, s.z, x, z) < PICHE.raio) {
+      emitir(caca, 'latas', s.x, s.z, s.id, undefined, s.y);
+      emitir(caca, 'caiu', x, z, h.id, undefined, y);
+    } else if (s.tipo === 'piche' && distancia(s.x, s.z, x, z) < PICHE.raio && mesmoAndar(s.y, y)) {
       if (h.meladoAte <= t) emitir(caca, 'piche', s.x, s.z, h.id);
       h.meladoAte = t + PICHE.grudaDepois;
     }

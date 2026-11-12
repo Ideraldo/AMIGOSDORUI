@@ -8,7 +8,7 @@
 // que so mudam de brilho.
 
 import * as THREE from 'three';
-import { animar, criarPersonagem, type Personagem } from '../mundo/personagem.ts';
+import { animar, criarPersonagem, descartarPersonagem, type Personagem } from '../mundo/personagem.ts';
 import { texturaDoHalo } from '../mundo/pecas.ts';
 import type { Ponto } from '../mundo/pontos.ts';
 import { Vulto } from '../mundo/vulto.ts';
@@ -34,9 +34,13 @@ const CONTORNO: Partial<Record<TipoDePosto, number>> = { laco: LACO.raio, latas:
 interface ItemNoMundo {
   grupo: THREE.Group;
   brilho: THREE.Sprite;
-  item: Item;
+  /** O que e: o item, e no retalho a cor (a pista), porque cada cor e um modelo. */
+  chave: string;
   quadro: number;
 }
+
+/** Cada coisa solta tem o seu modelo: o item e, no retalho, a pista que decide a cor. */
+const chaveDoItem = (s: Solto): string => (s.pista ? `${s.item}:${s.pista.de}${s.pista.valor}` : s.item);
 interface PostoVisto {
   grupo: THREE.Group;
   modelo: PostoNoMundo;
@@ -69,7 +73,7 @@ export class MundoDaCaca {
   /** Fim de jogo: a cena final manda na Coisa, o mundo nao a poe mais. */
   coisaSolta = false;
   private readonly itens = new Map<string, ItemNoMundo>();
-  private readonly reservaDeItens = new Map<Item, ItemNoMundo[]>();
+  private readonly reservaDeItens = new Map<string, ItemNoMundo[]>();
   private readonly postos = new Map<string, PostoVisto>();
   private readonly reservaDePostos = new Map<TipoDePosto, PostoVisto[]>();
   private readonly luzDoSinal: THREE.PointLight;
@@ -252,7 +256,8 @@ export class MundoDaCaca {
       return true;
     }
     saida.x = s.x ?? 0;
-    saida.y = 0.02;
+    // No chao do andar de cima ou das galerias, na altura do chao de la.
+    saida.y = (s.y ?? 0) + 0.02;
     saida.z = s.z ?? 0;
     saida.peX = saida.x;
     saida.peZ = saida.z;
@@ -261,24 +266,25 @@ export class MundoDaCaca {
 
   private readonly pouso = { x: 0, y: 0, z: 0, peX: 0, peZ: 0 };
 
-  private itemNovo(item: Item): ItemNoMundo {
-    const reserva = this.reservaDeItens.get(item);
+  private itemNovo(s: Solto): ItemNoMundo {
+    const chave = chaveDoItem(s);
+    const reserva = this.reservaDeItens.get(chave);
     const velho = reserva?.pop();
     if (velho) return velho;
-    const grupo = modeloDoItem(item);
+    const grupo = modeloDoItem(s.item, s.pista);
     const brilho = new THREE.Sprite(this.materialDoBrilho);
     brilho.position.y = 0.2;
     brilho.userData.dinamico = true;
     grupo.add(brilho);
     this.cena.add(grupo);
-    return { grupo, brilho, item, quadro: 0 };
+    return { grupo, brilho, chave, quadro: 0 };
   }
 
   private atualizarSoltos(t: number, caca: Caca): void {
     for (const s of caca.soltos) {
       let w = this.itens.get(s.id);
       if (!w) {
-        w = this.itemNovo(s.item);
+        w = this.itemNovo(s);
         this.itens.set(s.id, w);
       }
       w.quadro = this.quadro;
@@ -295,9 +301,9 @@ export class MundoDaCaca {
       if (w.quadro === this.quadro) continue;
       this.itens.delete(id);
       w.grupo.visible = false;
-      const reserva = this.reservaDeItens.get(w.item);
+      const reserva = this.reservaDeItens.get(w.chave);
       if (reserva) reserva.push(w);
-      else this.reservaDeItens.set(w.item, [w]);
+      else this.reservaDeItens.set(w.chave, [w]);
     }
   }
 
@@ -338,7 +344,7 @@ export class MundoDaCaca {
   }
 
   private atualizarPostos(t: number, caca: Caca): void {
-    let sinal: { x: number; z: number } | null = null;
+    let sinal: { x: number; y?: number; z: number } | null = null;
     for (const p of caca.postos) {
       let w = this.postos.get(p.id);
       if (!w) {
@@ -347,7 +353,7 @@ export class MundoDaCaca {
       }
       w.quadro = this.quadro;
       w.grupo.visible = true;
-      w.grupo.position.set(p.x, 0, p.z);
+      w.grupo.position.set(p.x, p.y ?? 0, p.z);
       w.modelo.atualizar(t, p.gasto);
       if (w.contorno) {
         w.contorno.visible = !p.gasto;
@@ -364,13 +370,13 @@ export class MundoDaCaca {
       else this.reservaDePostos.set(w.tipo, [w]);
     }
     if (sinal) {
-      this.luzDoSinal.position.set(sinal.x, 1.3, sinal.z);
+      this.luzDoSinal.position.set(sinal.x, 1.3 + (sinal.y ?? 0), sinal.z);
       this.luzDoSinal.intensity = 9 * (1 + Math.sin(t * 9) * 0.08 + Math.sin(t * 23.7) * 0.05);
     } else this.luzDoSinal.intensity = 0;
   }
 
   /** O que a pessoa vai montar, translucido, no ponto. `null` esconde. */
-  fantasma(tipo: TipoDePosto | null, x = 0, z = 0): void {
+  fantasma(tipo: TipoDePosto | null, x = 0, z = 0, y = 0): void {
     if (!tipo) {
       if (this.fantasmaAtual) this.fantasmaAtual.visible = false;
       this.fantasmaAtual = null;
@@ -410,7 +416,7 @@ export class MundoDaCaca {
     if (this.fantasmaAtual && this.fantasmaAtual !== g) this.fantasmaAtual.visible = false;
     this.fantasmaAtual = g;
     g.visible = true;
-    g.position.set(x, 0, z);
+    g.position.set(x, y, z);
   }
 
   /** O anel do pedido a um morador, onde a mira encontra o chao. `null` esconde. */
@@ -453,7 +459,9 @@ export class MundoDaCaca {
     const olha = modo === 'caca' || modo === 'cerca';
     v.gesto = modo === 'presa' ? 'debater' : null;
     v.mostrar(true);
-    const y = modo === 'derrubada' ? 0.3 : modo === 'caida' ? 0.1 : 0;
+    // A fantasia do Traidor copia a pose dele: no andar de cima ou nas galerias, na altura de la.
+    const chao = c.y ?? 0;
+    const y = chao + (modo === 'derrubada' ? 0.3 : modo === 'caida' ? 0.1 : 0);
     v.atualizar(dt, c.x, y, c.z, c.rumo, jeito, olha, jogador.x, jogador.z);
     // Caida fica sentada, para tras, tonta; derrubada deitada; presa se sacode; rindo, convulsiona.
     const alvoX = modo === 'caida' ? -0.95 : modo === 'derrubada' ? -1.5 : modo === 'ri' ? Math.sin(t * 24) * 0.13 : 0;
@@ -468,7 +476,7 @@ export class MundoDaCaca {
       const cz = c.z + Math.cos(g.rotation.y) * atras;
       this.estrelas.forEach((s, i) => {
         const a = t * 3.2 + (i * Math.PI * 2) / 3;
-        s.position.set(cx + Math.cos(a) * 0.42, 1.25 + Math.sin(t * 5 + i) * 0.06, cz + Math.sin(a) * 0.42);
+        s.position.set(cx + Math.cos(a) * 0.42, chao + 1.25 + Math.sin(t * 5 + i) * 0.06, cz + Math.sin(a) * 0.42);
       });
     }
   }
@@ -482,6 +490,24 @@ export class MundoDaCaca {
     this.atualizarPostos(t, caca);
     this.atualizarMoradores(dt, t, caca, jogador);
     if (!this.coisaSolta) this.atualizarCoisa(dt, t, caca, jogador);
+  }
+
+  /** Tira tudo isto da cena (a partida acabou, ou a sala voltou para a plataforma): outra partida monta outro mundo. */
+  destruir(): void {
+    this.vulto.grupo.removeFromParent();
+    this.vulto.sumir();
+    for (const m of this.moradores.values()) descartarPersonagem(m.figura);
+    this.moradores.clear();
+    for (const w of this.itens.values()) w.grupo.removeFromParent();
+    for (const lista of this.reservaDeItens.values()) for (const w of lista) w.grupo.removeFromParent();
+    for (const w of this.postos.values()) w.grupo.removeFromParent();
+    for (const lista of this.reservaDePostos.values()) for (const w of lista) w.grupo.removeFromParent();
+    for (const g of this.fantasmas.values()) g.removeFromParent();
+    this.estrelasGrupo.removeFromParent();
+    this.anelDoPedido.removeFromParent();
+    this.luzDoSinal.removeFromParent();
+    this.itens.clear();
+    this.postos.clear();
   }
 
   /** Quantas coisas estao na cena por categoria (para os scripts). */

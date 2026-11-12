@@ -13,6 +13,8 @@ import type { Som, Opcoes } from '../som/som.ts';
 import type { Voz } from '../som/voz.ts';
 import { falaDaCaca, type TipoDeFala } from './nucleo/gente.ts';
 import type { Hud } from './hud.ts';
+import { ouveEm } from './nucleo/base.ts';
+import { LeitorDeEventos } from './eventos.ts';
 import { PIADAS_DAS_LATAS, PIADAS_DO_LACO } from './textos.ts';
 import type { Caca, Evento, Ordem } from './nucleo/tipos.ts';
 
@@ -35,13 +37,17 @@ export interface DepsDasReacoes {
   jogador: Jogador;
   /** O coice do revolver: a vista sobe um pouco e volta (quem cuida disso e a tela). */
   coice: () => void;
+  /** O sino da estacao tocou (o balanco e o som grave sao da tela, que tem o sino na cena). */
+  sinoDaEstacao?: () => void;
   eu: string;
   bib: Biblioteca;
 }
 
 export class Reacoes {
-  /** O ultimo evento ja tratado. `null`: ainda nao se sabe (o primeiro quadro so marca o ponto de partida). */
-  private ultimo: number | null = null;
+  /** Quais eventos ainda nao foram vistos (o primeiro estado so marca o ponto de partida; estado mais velho de outro anfitriao nao repete). */
+  private readonly leitor = new LeitorDeEventos();
+  /** O evento que esta sendo tratado: quem esta nas galerias nao o ouve se ele foi na rua, e vice-versa. */
+  private atual: Evento | null = null;
   /** Para os scripts: os ultimos eventos tratados, em ordem. */
   readonly tratados: { n: number; tipo: string }[] = [];
 
@@ -50,6 +56,7 @@ export class Reacoes {
   /** Volume e lado de um som em (x, z): mais baixo de longe, do lado em que esta. `null` se nao chega. */
   private ouvido(x: number, z: number, alcance: number, base: number): Opcoes | null {
     const { jogador } = this.d;
+    if (this.atual && !ouveEm(jogador.posicao.y, this.atual)) return null;
     const dx = x - jogador.posicao.x;
     const dz = z - jogador.posicao.z;
     const dist = Math.hypot(dx, dz);
@@ -65,6 +72,8 @@ export class Reacoes {
     const texto = falaDaCaca(npc, tipo, ordem);
     if (!texto) return;
     const { jogador, hud, voz, bib } = this.d;
+    // Os moradores estao na rua: quem esta nas galerias nao os ouve.
+    if (this.atual && !ouveEm(jogador.posicao.y, this.atual)) return;
     if (Math.hypot(x - jogador.posicao.x, z - jogador.posicao.z) > ALCANCE.fala) return;
     const n = bib.npcs.find((p) => p.id === npc);
     hud.legendar(`“${texto}”`, n?.nome ?? '');
@@ -73,15 +82,10 @@ export class Reacoes {
 
   /** Trata os eventos novos. Chamado a cada quadro, com o estado de agora. */
   processar(caca: Caca): void {
-    if (this.ultimo === null) {
-      // Partida que ja tem historia (a tela entrou no meio, ou o estado chegou da rede): nao repete o passado.
-      this.ultimo = caca.contador;
-      return;
-    }
-    for (const e of caca.eventos) {
-      if (e.n <= this.ultimo) continue;
-      this.ultimo = e.n;
+    for (const e of this.leitor.novos(caca)) {
+      this.atual = e;
       this.tratar(caca, e);
+      this.atual = null;
       this.tratados.push({ n: e.n, tipo: e.tipo });
       if (this.tratados.length > 60) this.tratados.shift();
     }
@@ -245,6 +249,10 @@ export class Reacoes {
         hud.avisar(e.o === '60' ? 'Falta 1 minuto!' : 'Faltam 3 minutos', 'mau', 3200);
         break;
       case 'trem':
+        break;
+      case 'sino-da-estacao':
+        // O balanco do sino e o som grave: da tela (o sino e um objeto da cidade).
+        this.d.sinoDaEstacao?.();
         break;
     }
   }

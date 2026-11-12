@@ -12,6 +12,8 @@ const DENTRO: Record<Item, string> = {
   sinal:
     '<path d="M13 4h6M12 6h8"/><path d="M10 9h12l-2 16H12z" fill="currentColor" fill-opacity=".2"/><path d="M11 27h10"/><path d="M16 13v7" stroke-dasharray="2 2"/>',
   revolver: '<path d="M4 11h19v4h-9l-1.5 3.5L11 26H8l2-11H4z" fill="currentColor" fill-opacity=".2"/><path d="M23 12.5h4"/>',
+  tabuas: '<rect x="4" y="21" width="24" height="5" rx="1"/><rect x="6" y="15" width="21" height="5" rx="1" transform="rotate(-4 16 17)"/><path d="M11 4v10M11 4h-1.5M11 4h1.5M21 5v8"/><circle cx="8" cy="23.5" r=".6"/><circle cx="24" cy="23.5" r=".6"/>',
+  retalho: '<path d="M5 9l9-2 4 3 9-1-2 8 3 4-8 1-4 4-4-5-7-1 3-6z" fill="currentColor" fill-opacity=".22"/><path d="M11 14l3 2M17 13l4 4" stroke-dasharray="1.5 2"/>',
 };
 
 export const NOME_DO_ITEM: Record<Item, string> = {
@@ -21,10 +23,12 @@ export const NOME_DO_ITEM: Record<Item, string> = {
   sino: 'sino de vaca',
   sinal: 'lampião de sinal',
   revolver: 'revólver',
+  tabuas: 'tábuas com pregos',
+  retalho: 'retalho de pano',
 };
 
 /** Nomes curtos, para baixo dos espacos das maos. */
-export const NOME_CURTO: Record<Item, string> = { corda: 'corda', piche: 'piche', latas: 'latas', sino: 'sino', sinal: 'lampião', revolver: 'revólver' };
+export const NOME_CURTO: Record<Item, string> = { corda: 'corda', piche: 'piche', latas: 'latas', sino: 'sino', sinal: 'lampião', revolver: 'revólver', tabuas: 'tábuas', retalho: 'retalho' };
 
 /** O artigo e o nome para "pegar a corda", "pegar o barril de piche". */
 export const COM_ARTIGO: Record<Item, string> = {
@@ -34,6 +38,8 @@ export const COM_ARTIGO: Record<Item, string> = {
   sino: 'o sino de vaca',
   sinal: 'o lampião de sinal',
   revolver: 'o revólver',
+  tabuas: 'as tábuas',
+  retalho: 'o retalho de pano',
 };
 
 export function icone(item: Item, tamanho = 28): string {

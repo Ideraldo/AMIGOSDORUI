@@ -11,12 +11,12 @@ import { casaDoNpc } from '../../nucleo/partida.ts';
 import { embaralhar, escolher, inteiro } from '../../nucleo/rng.ts';
 import type { Biblioteca } from '../../nucleo/tipos.ts';
 import { passoDasArmadilhas, passoDosSinos } from './armadilhas.ts';
-import { emitir } from './base.ts';
+import { emitir, marcarAltura } from './base.ts';
 import { furiaFinal, passoDaCoisa } from './bicho.ts';
 import { JEITO } from './gente.ts';
 import { passoDasMaos, passoDosEstados } from './maos.ts';
 import { passoDosMoradores } from './moradores.ts';
-import { camposDaPartida, camposDoCacador, iniciarTraidor, marcarTrem, marcarMascara, passoDoTraidor, type OpcoesDeTraidor } from './traidor.ts';
+import { camposDaPartida, camposDoCacador, iniciarTraidor, marcarTrem, marcarMascara, modoDaPartida, passoDoTraidor, type OpcoesDeTraidor } from './traidor.ts';
 import {
   CORAGEM_CHEIA,
   DURACAO,
@@ -95,18 +95,23 @@ export function novaCaca(
   const casas = [vilao, ...outros].map((n) => casaDe(n.id));
 
   // Os lugares abertos: as casas deles, a delegacia, e sorteados ate somar `LUGARES_ABERTOS`.
+  const modo = modoDaPartida(op, jogadores.length);
   let abertos: LugarId[];
   if (op.abertos) abertos = [...op.abertos];
   else {
     const todos = LUGARES.map((l) => l.id);
     const set = new Set<LugarId>(casas);
     if (todos.includes('delegacia')) set.add('delegacia');
+    // No modo Traidor o bar fica aberto: e dele o alcapao do porao e tres dos baus de fantasia.
+    if (modo === 'traidor' && todos.includes('bar')) set.add('bar');
     for (const id of embaralhar(dado, todos)) {
       if (set.size >= LUGARES_ABERTOS) break;
       set.add(id);
     }
     abertos = todos.filter((id) => set.has(id));
   }
+  // Mesmo com os lugares escolhidos a mao, o Traidor precisa do bar (alcapao e baus).
+  if (modo === 'traidor' && !abertos.includes('bar') && LUGARES.some((l) => l.id === 'bar')) abertos.push('bar');
 
   const tipo = op.tipo ?? escolher(dado, TIPOS_DE_COISA);
   const coisa = novaCoisa(dado, vilao.id, tipo);
@@ -199,6 +204,24 @@ function espalharItens(caca: Caca): void {
 
 /** Um passo da simulacao, chamado a cada quadro. Nao faz nada depois do fim. */
 export function avancar(caca: Caca, dt: number, amb: Ambiente): void {
+  const desde = caca.contador;
+  passar(caca, dt, amb);
+  marcarAltura(caca, amb, desde);
+}
+
+/**
+ * Quem saiu da sala no meio da partida: o cacador dele fica parado onde estava (a ultima pose), sem agir, e
+ * deixa de ser alvo da Coisa, de votar e de pisar em armadilha. Quem hospeda chama quando ele cai.
+ */
+export function ausentar(caca: Caca, id: string): void {
+  const h = caca.cacadores.find((c) => c.id === id);
+  if (!h || h.ausente) return;
+  h.ausente = true;
+  h.ocupado = null;
+  h.progresso = 0;
+}
+
+function passar(caca: Caca, dt: number, amb: Ambiente): void {
   if (caca.fim) return;
   const antes = caca.tempo;
   caca.tempo += dt;

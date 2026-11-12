@@ -1,6 +1,6 @@
 // Quanto o cacador anda, em relacao ao normal, depois de armadilhas e do que faz com as maos.
 
-import { distancia, fora } from './base.ts';
+import { distancia, fora, mesmoAndar } from './base.ts';
 import { ajusteDoTraidor } from './ritmo.ts';
 import { PICHE, type Ambiente, type Caca } from './tipos.ts';
 
@@ -16,9 +16,10 @@ export function velocidadeDoCacador(caca: Caca, id: string, amb: Ambiente): numb
 function velocidadeSemTraidor(caca: Caca, id: string, amb: Ambiente): number {
   const h = caca.cacadores.find((c) => c.id === id);
   if (!h) return 1;
-  if (fora(h, caca.tempo) || h.ocupado?.com === 'montar') return 0;
+  // Montando ou numa tarefa (entrar nas galerias, por exemplo) o corpo fica parado.
+  if (fora(h, caca.tempo) || h.ocupado?.com === 'montar' || h.ocupado?.com === 'tarefa') return 0;
   if (h.meladoAte > caca.tempo) return PICHE.lentidao;
   const p = amb.poses[id];
-  if (p && caca.postos.some((s) => s.tipo === 'piche' && distancia(s.x, s.z, p.x, p.z) < PICHE.raio)) return PICHE.lentidao;
+  if (p && caca.postos.some((s) => s.tipo === 'piche' && distancia(s.x, s.z, p.x, p.z) < PICHE.raio && mesmoAndar(s.y, p.y))) return PICHE.lentidao;
   return 1;
 }

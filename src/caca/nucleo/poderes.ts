@@ -2,7 +2,7 @@
 
 import { distancia, emitir } from './base.ts';
 import { mandarParaCasa } from './moradores.ts';
-import { alcapaoDe, coisaNoChao, fantasiado } from './papeis.ts';
+import { alcapaoAberto, coisaNoChao, distanciaDaBoca, fantasiado } from './papeis.ts';
 import { PODERES, type Acao, type Ambiente, type Caca, type Cacador } from './tipos.ts';
 
 type PedidoDePoder = Extract<Acao, { t: 'poder' }>;
@@ -32,13 +32,14 @@ export function usarPoder(caca: Caca, h: Cacador, a: PedidoDePoder, amb: Ambient
     }
     emitir(caca, 'uivo', p.x, p.z, h.id);
   } else if (a.qual === 'tunel') {
-    const de = typeof a.de === 'string' ? alcapaoDe(a.de) : undefined;
-    const para = typeof a.para === 'string' ? alcapaoDe(a.para) : undefined;
+    // Entra num alcapao (o da superficie ou, se ja esta nas galerias, o pe da escada dele) e sai no outro, na superficie.
+    const de = alcapaoAberto(caca, a.de);
+    const para = alcapaoAberto(caca, a.para);
     if (!de || !para || de.id === para.id) return;
-    if (distancia(p.x, p.z, de.x, de.z) > PODERES.tunel.alcance) return;
+    if (distanciaDaBoca(p, de) > PODERES.tunel.alcance) return;
     tr.prontoEm.tunel = t + PODERES.tunel.recarga;
-    tr.salto = { n: (tr.salto?.n ?? 0) + 1, x: para.x, z: para.z };
-    emitir(caca, 'tunel', de.x, de.z, h.id, de.id);
-    emitir(caca, 'tunel', para.x, para.z, h.id, para.id);
+    tr.salto = { n: (tr.salto?.n ?? 0) + 1, x: para.cima.x, y: 0, z: para.cima.z };
+    emitir(caca, 'tunel', de.cima.x, de.cima.z, h.id, de.id);
+    emitir(caca, 'tunel', para.cima.x, para.cima.z, h.id, para.id);
   }
 }

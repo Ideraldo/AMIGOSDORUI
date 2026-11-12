@@ -11,7 +11,7 @@
 import { mkdirSync } from 'node:fs';
 import puppeteer, { type KeyInput, type Page } from 'puppeteer-core';
 import { createServer } from 'vite';
-import { LUGARES } from '../src/mundo/planta.ts';
+import { ALCAPOES, LUGARES, PISO_DAS_GALERIAS, SINO_DA_ESTACAO, SUBSOLO } from '../src/mundo/planta.ts';
 import { NOS, frenteDaPorta } from '../src/nucleo/coisa.ts';
 import { EXEMPLO } from '../src/nucleo/historias/exemplo.ts';
 import { novaCaca } from '../src/caca/nucleo/caca.ts';
@@ -911,6 +911,124 @@ async function roteiroCoisa(): Promise<void> {
 }
 
 /** Capturas para olhar: a rua com laco e poca, o caderno, o mapa, a abertura. */
+/** As galerias da mina e os alcapoes: descer e subir segurando o E, andar la embaixo, o sino da estacao. */
+async function roteiroGalerias(): Promise<void> {
+  const p = await abrir('?seed=21&tipo=sombra&som=0&abertura=0');
+  const e0 = await estado(p);
+  await p.evaluate(() => window.__caca!.porCoisa(60, 20, 0));
+  await p.evaluate(() => window.__caca!.furia(0));
+
+  // Cada alcapao oferece descer; o do bar so com o bar aberto na partida.
+  for (const a of ALCAPOES) {
+    await por(p, a.cima.x, a.cima.z + 0.9, a.cima.x, a.cima.z, 0, 1.0);
+    await dormir(250);
+    const aberto = a.id !== 'bar' || e0.abertos.includes('bar');
+    const dica = (await hud(p)).acao;
+    conferir(aberto === dica.includes('descer'), `alcapao ${a.id}: ${aberto ? 'oferece descer' : 'fechado (o bar esta fechado), nao oferece'} ("${dica}")`);
+    if (aberto) await foto(p, `alcapao-${a.id}`);
+  }
+
+  // Descer pelo poco da praca, segurando o E: a tela escurece enquanto segura e o salto leva a baixo.
+  const poco = ALCAPOES.find((a) => a.id === 'poco')!;
+  await por(p, poco.cima.x, poco.cima.z + 1.0, poco.cima.x, poco.cima.z, 0, 1.0);
+  await ate(p, () => window.__caca!.hud().acao.includes('descer'), 4000);
+  const clima0 = await p.evaluate(() => window.__caca!.clima());
+  await p.keyboard.down('KeyE');
+  await dormir(1000);
+  const meio = await hud(p);
+  conferir(meio.escuro > 0.25, `segurando o E a tela escurece (escuro ${meio.escuro.toFixed(2)})`);
+  conferir((await eu(p)).ocupado?.com === 'tarefa', 'segurando o E o jogador esta numa tarefa (descendo)');
+  const desceu = await ate(p, () => window.__caca!.jogador().y < -8, 5000);
+  await p.keyboard.up('KeyE');
+  conferir(desceu, 'o salto leva o jogador as galerias (y de -9)');
+  let j = await jog(p);
+  conferir(Math.abs(j.y - PISO_DAS_GALERIAS) < 0.3 && Math.abs(j.x - poco.baixo.x) < 1 && Math.abs(j.z - poco.baixo.z) < 1, `ele aparece ao pe da escada (${j.x.toFixed(1)}, ${j.y.toFixed(1)}, ${j.z.toFixed(1)})`);
+  conferir((await p.evaluate(() => window.__caca!.pose())).dentro === null, 'nas galerias ele nao esta "dentro" de lugar nenhum');
+  await dormir(900);
+  const embaixo = await p.evaluate(() => window.__caca!.clima());
+  conferir(embaixo.neblina < clima0.neblina * 0.6, `a neblina da rua some embaixo (${clima0.neblina.toFixed(4)} para ${embaixo.neblina.toFixed(4)})`);
+  conferir(j.lampiao, 'o lampiao do jogador segue aceso la embaixo');
+  conferir((await hud(p)).escuro < 0.2, 'a tela volta ao claro depois do salto');
+  await p.evaluate(() => window.__caca!.olhar(0, 0));
+  await dormir(300);
+  await foto(p, 'galerias-pe-da-escada');
+
+  // Andar por la: segue o corredor para o norte, sempre em y = -9, sem atravessar a rocha.
+  await p.evaluate(() => window.__caca!.olhar(0, 0));
+  await p.keyboard.down('KeyW');
+  await ate(p, () => window.__caca!.jogador().z < 38, 6000);
+  await p.keyboard.up('KeyW');
+  j = await jog(p);
+  conferir(j.z < 41 && Math.abs(j.y - PISO_DAS_GALERIAS) < 0.3, `andou pelo corredor sem sair do piso (z ${j.z.toFixed(1)}, y ${j.y.toFixed(1)})`);
+  await foto(p, 'galerias-corredor');
+  const sala = ALCAPOES.length ? { x: -4, z: 23 } : { x: 0, z: 0 };
+  await por(p, sala.x, sala.z, sala.x + 8, sala.z + 3, PISO_DAS_GALERIAS, 1.0);
+  await dormir(500);
+  await foto(p, 'galerias-salao');
+
+  // Armadilha e item la embaixo ficam no chao de la, e a superficie nao os toca.
+  await por(p, 0, 37.5, 0, 31, PISO_DAS_GALERIAS, 0.0);
+  await p.evaluate(() => {
+    window.__caca!.dar('corda');
+    window.__caca!.dar('latas');
+  });
+  await p.evaluate(() => window.__caca!.olhar(0, -0.5));
+  await dormir(300);
+  await montarPeloTeclado(p);
+  let e = await estado(p);
+  const posto = e.postos[0];
+  conferir(!!posto && posto.y === PISO_DAS_GALERIAS, `o laco montado la embaixo guarda a altura do chao de la (y ${posto?.y})`);
+  await dormir(300);
+  await foto(p, 'galerias-posto');
+  conferir((await p.evaluate(() => window.__caca!.mundo())).postos === 1, 'e aparece na cena');
+  await p.keyboard.press('Digit2');
+  await p.keyboard.press('KeyG');
+  await dormir(300);
+  e = await estado(p);
+  conferir(e.soltos.some((s) => s.y === PISO_DAS_GALERIAS), 'o item largado embaixo fica no chao de la (y -9)');
+  await p.keyboard.press('Digit1');
+
+  // A Coisa na rua, por cima de quem esta embaixo, de lampiao apagado: nao o ve nem o percebe.
+  await lampiao(p, false);
+  await p.evaluate(() => window.__caca!.porCoisa(0, 38.5, 3.14159));
+  await dormir(3500);
+  e = await estado(p);
+  conferir(e.coisa.modo !== 'caca' && (await eu(p)).sustos === 0, `a Coisa na rua nao percebe quem esta nas galerias (modo ${e.coisa.modo}, ${(await eu(p)).sustos} sustos)`);
+  await lampiao(p, true);
+  await p.evaluate(() => window.__caca!.porCoisa(60, 20, 0));
+
+  // Subir: de volta ao pe da escada, segura o E e aparece na rua, ao lado do poco.
+  await por(p, poco.baixo.x, poco.baixo.z - 0.8, poco.baixo.x, poco.baixo.z, PISO_DAS_GALERIAS, 1.0);
+  await ate(p, () => window.__caca!.hud().acao.includes('subir'), 4000);
+  conferir((await hud(p)).acao.includes('subir para a rua'), `embaixo, a linha de acao oferece subir ("${(await hud(p)).acao}")`);
+  await p.keyboard.down('KeyE');
+  const subiu = await ate(p, () => window.__caca!.jogador().y > -1, 5000);
+  await p.keyboard.up('KeyE');
+  j = await jog(p);
+  conferir(subiu && Math.abs(j.x - poco.cima.x) < 1 && Math.abs(j.z - poco.cima.z) < 1.5, `subiu para a rua ao lado do poco (${j.x.toFixed(1)}, ${j.y.toFixed(1)}, ${j.z.toFixed(1)})`);
+  await dormir(800);
+  const rua = await p.evaluate(() => window.__caca!.clima());
+  conferir(Math.abs(rua.neblina - clima0.neblina) < clima0.neblina * 0.2, 'na rua a neblina volta');
+  await foto(p, 'galerias-na-rua-de-novo');
+  conferir(SUBSOLO < 0, 'subsolo definido');
+
+  // O sino da estacao balanca e toca com o evento sino-da-estacao.
+  await por(p, SINO_DA_ESTACAO.x + 3, SINO_DA_ESTACAO.z + 5, SINO_DA_ESTACAO.x, SINO_DA_ESTACAO.z, 0, SINO_DA_ESTACAO.y);
+  conferir(Math.abs((await p.evaluate(() => window.__caca!.sino())).giro) < 1e-6, 'o sino da estacao esta parado');
+  await p.evaluate((x, z) => window.__caca!.evento('sino-da-estacao', x, z, 'voce'), SINO_DA_ESTACAO.x, SINO_DA_ESTACAO.z);
+  await ate(p, () => window.__caca!.sino().amplitude > 0.2, 3000);
+  conferir((await p.evaluate(() => window.__caca!.tratados())).some((v) => v.tipo === 'sino-da-estacao'), 'a tela tratou o evento sino-da-estacao');
+  const giros: number[] = [];
+  for (let i = 0; i < 6; i++) {
+    giros.push((await p.evaluate(() => window.__caca!.sino())).giro);
+    await dormir(180);
+  }
+  conferir(Math.max(...giros) - Math.min(...giros) > 0.2, `o sino balanca (de ${Math.min(...giros).toFixed(2)} a ${Math.max(...giros).toFixed(2)} rad)`);
+  await foto(p, 'sino-da-estacao');
+  conferir(await ate(p, () => window.__caca!.sino().batidas >= 2, 4000), 'o sino da uma batida a cada balanco');
+  await p.browserContext().close();
+}
+
 async function roteiroVistas(): Promise<void> {
   const p = await abrir('?seed=61&tipo=sombra&som=0&abertura=0');
   await p.evaluate(() => {
@@ -1008,6 +1126,7 @@ try {
     ['som', roteiroSom],
     ['acaso', roteiroAcaso],
     ['coisa', roteiroCoisa],
+    ['galerias', roteiroGalerias],
     ['vistas', roteiroVistas],
   ];
   for (const [nome, f] of roteiros) {

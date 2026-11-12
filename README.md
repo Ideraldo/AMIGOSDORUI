@@ -25,7 +25,20 @@ Reviram as casas (E pega o que está em cima dos móveis), montam armadilhas na 
 | M, P, H | mapa, ver o personagem de fora, estas teclas |
 | R | outra caçada (no fim, ou segurando por 1 s) |
 
-Parâmetros de URL: `?seed=`, `?tipo=sombra` ou `orelhuda`, `?vilao=coveiro`, `?duracao=120` (segundos), `?abertura=0`, `?som=0`, `?dia=1`, `?hud=0`, `?cam=x,y,z,giro,inc` (câmera presa, para capturas). `npm run caca` joga a caçada inteira num Chrome sem janela. Por enquanto a caçada é para um jogador; a sala em rede é a próxima etapa.
+Parâmetros de URL: `?seed=`, `?tipo=sombra` ou `orelhuda`, `?vilao=coveiro`, `?duracao=120` (segundos), `?abertura=0`, `?som=0`, `?dia=1`, `?hud=0`, `?cam=x,y,z,giro,inc` (câmera presa, para capturas). `npm run caca` joga a caçada inteira num Chrome sem janela e `npm run caca:sala` põe dois navegadores na mesma sala para conferir o jogo em grupo.
+
+Por baixo da cidade há galerias de mina, com três bocas: o porão do bar (só com o bar aberto), o poço da praça e a mina. **Segurando E** ao lado da boca desce, e embaixo, ao pé da escada de mão, segurando E sobe de volta. Lá embaixo é escuro e a assombração da cidade não percebe você, nem você ouve a rua.
+
+### Caçada em grupo
+
+De 2 a 6 amigos, na mesma máquina ou na mesma rede (`npm run dev:rede` e passar o endereço de rede que aparecer no terminal; a sala da caçada fica no caminho `/caca` da mesma porta, e a da noite da carta continua no `/sala`).
+
+1. Na tela de entrada, monte o personagem, escreva o nome e clique em **Criar sala**. Aparece um **código de 4 letras**, que se dita aos amigos.
+2. Os amigos montam o personagem, escrevem o nome e o código e clicam em **Entrar na sala**.
+3. Todos esperam na plataforma ao lado do trem, onde dá para andar, acenar e dançar (teclas 1 a 8). Quem criou a sala aperta **Enter** duas vezes (a segunda confirma) para começar. Depois disso ninguém mais entra: quem tentar recebe "A caçada desta sala já começou".
+4. Na caçada cada um vê os outros como os personagens que criaram, com o nome por cima e o lampião na mão. Amigo preso num laço fica pendurado de cabeça para baixo, amigo que caiu num tropeço fica sentado tonto e amigo desmaiado fica deitado: segure **E** ao lado dele para acordar. No fim há um placar com a linha de cada um, e quem criou a sala aperta **R** para outra caçada (todos voltam à plataforma).
+
+Quem criou a sala roda o jogo na tela dele e manda o estado aos outros; se ele fechar a aba, o jogador mais antigo na sala assume e continua do ponto em que estava, e o personagem de quem saiu fica parado na cidade. O ideal é quem hospeda não deixar a aba em segundo plano. A sala em rede ainda não tem o modo em que um dos amigos é a Coisa (`docs/traidor.md`).
 
 A noite da carta, o modo anterior, abre em `carta.html` e é descrita daqui para baixo.
 
