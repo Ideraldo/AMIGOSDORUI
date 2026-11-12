@@ -1,7 +1,8 @@
 // Tudo o que nao e predio: chao, rua, paredao do canion, ceu, lua e aderecos da rua.
 
 import * as THREE from 'three';
-import { ACUDE, CAMINHOS, CLAREIRA, CURRAL, LIMITES, MILHARAL, POSTES_DE_LUZ, PRACA, RUA, contem, pegada, todasAsConstrucoes, type Retangulo } from './planta.ts';
+import { ACUDE, CAMINHOS, CLAREIRA, CURRAL, LIMITES, MILHARAL, PATIO, POSTES_DE_LUZ, PRACA, RUA, contem, pegada, todasAsConstrucoes, type Retangulo } from './planta.ts';
+import { patioDaEstacao } from './patio.ts';
 import {
   COR,
   anel,
@@ -145,7 +146,7 @@ export function terreno(g: THREE.Object3D): void {
   // Pedras soltas pelo chao.
   const ocupados = areasOcupadas(2);
   const lago: Retangulo = { minX: ACUDE.x - ACUDE.raio - 1, maxX: ACUDE.x + ACUDE.raio + 1, minZ: ACUDE.z - ACUDE.raio - 1, maxZ: ACUDE.z + ACUDE.raio + 1 };
-  ocupados.push(lago, ...CAMINHOS);
+  ocupados.push(lago, PATIO, ...CAMINHOS);
   for (let i = 0; i < 80; i++) {
     const x = minX + 3 + r() * (lx - 6);
     const z = minZ + 3 + r() * (lz - 6);
@@ -157,7 +158,7 @@ export function terreno(g: THREE.Object3D): void {
   }
 
   // Tufos de capim seco fora das ruas, numa malha instanciada so.
-  const semCapim = [...areasOcupadas(0.4), ...CAMINHOS, lago, { minX: -RUA.largura / 2 - 0.5, maxX: RUA.largura / 2 + 0.5, minZ: RUA.minZ, maxZ: RUA.maxZ }];
+  const semCapim = [...areasOcupadas(0.4), ...CAMINHOS, PATIO, lago, { minX: -RUA.largura / 2 - 0.5, maxX: RUA.largura / 2 + 0.5, minZ: RUA.minZ, maxZ: RUA.maxZ }];
   const tufos: THREE.Matrix4[] = [];
   const auxiliar = new THREE.Object3D();
   for (let i = 0; i < 2600; i++) {
@@ -310,6 +311,10 @@ function poco(g: THREE.Object3D, x: number, z: number): void {
   cilindro(grupo, 1.15, 1.25, 0.95, p, 0, 0.475, 0, { lados: 12 });
   cilindro(grupo, 0.9, 0.9, 0.02, fosco(0x020202), 0, 0.96, 0, { lados: 12, sombra: false });
   barreira(grupo, 2.3, 1.2, 2.3, 0, 0.6, 0);
+  // Escada de mao descendo pelo poco, do lado da rua: e a boca das galerias da mina (ALCAPOES em planta.ts).
+  for (const dx of [-0.28, 0.28]) caixa(grupo, 0.08, 1.6, 0.08, m, dx, 1.25, 0.76, { sombra: false });
+  for (let y = 1.1; y < 2.0; y += 0.25) caixa(grupo, 0.56, 0.05, 0.05, m, 0, y, 0.76, { sombra: false });
+  for (const dx of [-0.25, 0.25]) caixa(grupo, 0.1, 0.1, 0.1, metal(COR.ferro), dx, 0.99, 0.84, { sombra: false });
   for (const lado of [-1, 1]) caixa(grupo, 0.16, 2.6, 0.16, m, lado * 1.05, 1.3, 0);
   caixa(grupo, 2.5, 0.12, 0.12, m, 0, 2.2, 0);
   caixa(grupo, 2.9, 0.08, 1.2, madeira(COR.tabuaVelha), 0, 2.85, 0.5, { rx: 0.5 });
@@ -355,26 +360,6 @@ function cocho(g: THREE.Object3D, x: number, z: number): void {
   const m = madeira(COR.madeira);
   caixa(g, 0.7, 0.5, 2.0, m, x, 0.3, z, { solido: true });
   caixa(g, 0.54, 0.02, 1.84, fosco(0x0b1218), x, 0.53, z, { sombra: false });
-}
-
-function torreDagua(g: THREE.Object3D, x: number, z: number): void {
-  const m = madeira(COR.madeiraEscura);
-  const grupo = new THREE.Group();
-  grupo.position.set(x, 0, z);
-  for (const dx of [-1.6, 1.6]) for (const dz of [-1.6, 1.6]) caixa(grupo, 0.26, 6.6, 0.26, m, dx, 3.3, dz);
-  for (const dz of [-1.6, 1.6]) {
-    caixa(grupo, 4.6, 0.12, 0.12, m, 0, 2.6, dz, { rz: 0.6 });
-    caixa(grupo, 4.6, 0.12, 0.12, m, 0, 2.6, dz, { rz: -0.6 });
-  }
-  caixa(grupo, 4.4, 0.2, 4.4, madeira(COR.tabuaVelha, 2), 0, 6.7, 0);
-  cilindro(grupo, 2.1, 2.1, 3.2, madeira(COR.madeira, 6), 0, 8.4, 0, { lados: 16 });
-  const tampa = new THREE.Mesh(new THREE.ConeGeometry(2.5, 1.4, 16), fosco(0x2a2320));
-  tampa.position.y = 10.7;
-  tampa.castShadow = true;
-  grupo.add(tampa);
-  caixa(grupo, 0.2, 0.2, 2.4, m, 0, 6.9, 2.6, { rx: 0.4 });
-  barreira(grupo, 3.6, 6, 3.6, 0, 3, 0);
-  g.add(grupo);
 }
 
 function forca(g: THREE.Object3D, x: number, z: number): void {
@@ -749,7 +734,7 @@ export function aderecos(g: THREE.Object3D, luzes: LuzTremulante[]): void {
   diligencia(g, 3.6, -45);
   trilhos(g);
   vagao(g, 27, -71.5);
-  torreDagua(g, 13, -63);
+  patioDaEstacao(g, luzes);
   forca(g, 16, -52);
   corvo(g, 15.4, 5.0, -53.2, 2.4);
   placaDeSaida(g, -4.4, -61.5, 0);
@@ -854,7 +839,6 @@ export function aderecos(g: THREE.Object3D, luzes: LuzTremulante[]): void {
   const arvores: [number, number, number][] = [
     [-41, -22, 1.5],
     [-44, 16, 1.3],
-    [30, -56, 1.2],
     [36, -17.5, 1.3],
     [-30, -58, 1.3],
     [27, 49, 1.2],
@@ -875,7 +859,7 @@ export function aderecos(g: THREE.Object3D, luzes: LuzTremulante[]): void {
   arvores.forEach(([x, z, escala], i) => {
     if (!ocupados.some((o) => contem(o, x, z))) arvoreSeca(g, x, z, 40 + i, escala);
   });
-  const mandacarus: [number, number][] = [[-43, -40], [37.5, -60], [-43.5, 24], [37, 46.5], [-42, -8], [20, -66], [-50, 40], [-108, 2], [-88, 72], [-52, 76], [-109, -20]];
+  const mandacarus: [number, number][] = [[-43, -40], [-43.5, 24], [37, 46.5], [-42, -8], [-50, 40], [-108, 2], [-88, 72], [-52, 76], [-109, -20]];
   mandacarus.forEach(([x, z], i) => {
     if (!ocupados.some((o) => contem(o, x, z))) mandacaru(g, x, z, 70 + i);
   });

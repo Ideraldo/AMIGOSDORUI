@@ -443,3 +443,154 @@ export function todasAsConstrucoes(): Construcao[] {
 export function lugarPorId(id: string): Lugar | undefined {
   return LUGARES.find((l) => l.id === id);
 }
+
+// ---------- Patio da estacao ----------
+
+/**
+ * O patio da estacao: a leste da chegada, entre a rua e o paredao, do trilho ate a forca.
+ * Trilhos, tres vagoes, plataforma com bancos e o sino, pilhas de caixas e a caixa-d'agua.
+ * Nada aqui fecha a passagem entre `NASCIMENTO` e a rua.
+ */
+export const PATIO: Retangulo = { minX: 11, maxX: 40, minZ: -76, maxZ: -48 };
+
+/**
+ * O sino da estacao, num poste da plataforma do patio. `y` e o centro do sino. E um objeto
+ * dinamico da cidade (`Cidade.sino`, nome `sino-da-estacao`): a tela o balanca.
+ */
+export const SINO_DA_ESTACAO = { x: 19, y: 2.35, z: -66.6 };
+
+/** Onde a turma se reune para a cena final: uma roda de seis bonecos, de frente para o sino. */
+export const RODA_DO_SINO = { x: 19, z: -63.4, raio: 2.5 };
+
+/** A caixa-d'agua: o mirante fica a `mirante.y` de altura, com o piso de `mirante.lado` de lado. */
+export const CAIXA_DAGUA = { x: 31, z: -58, mirante: { y: 4.0, lado: 4.4 } };
+
+/** Os trilhos do patio ficam em z = -71.5 (os mesmos da plataforma da estacao). */
+export const TRILHO_Z = -71.5;
+
+// ---------- Galerias da mina ----------
+
+/**
+ * Altura do piso das galerias. O chao do mundo e plano em y = 0 e a colisao trabalha com faixas de
+ * altura, entao as galerias nao sao escavadas: sao um espaco fechado a parte, bem embaixo da cidade,
+ * alcancado so pelos alcapoes. Quem esta na superficie nao cai nem as ve.
+ */
+export const PISO_DAS_GALERIAS = -9;
+/** Abaixo disto os pes ja nao estao sobre o chao do mundo (y = 0): so ha o piso das galerias. */
+export const SUBSOLO = -3;
+export const ALTURA_DAS_GALERIAS = 2.2;
+export const ALTURA_DO_SALAO = 3.4;
+
+export interface Alcapao {
+  id: 'mina' | 'poco' | 'bar';
+  /** Na superficie: o alcapao (ou a escada do poco), onde se aperta E. */
+  cima: { x: number; z: number };
+  /** Embaixo: onde se aparece, ao pe da escada de mao. */
+  baixo: { x: number; y: number; z: number };
+}
+
+/** As tres bocas: a mina, o poco da praca e o porao do bar. A passagem e por teleporte. */
+export const ALCAPOES: Alcapao[] = [
+  { id: 'bar', cima: { x: -20.5, z: -14.8 }, baixo: { x: -20.5, y: PISO_DAS_GALERIAS, z: -16.9 } },
+  { id: 'poco', cima: { x: PRACA.x, z: PRACA.z + 1.9 }, baixo: { x: PRACA.x, y: PISO_DAS_GALERIAS, z: 44.4 } },
+  { id: 'mina', cima: { x: 53, z: 58 }, baixo: { x: 53, y: PISO_DAS_GALERIAS, z: 55.4 } },
+];
+
+export interface Galeria {
+  /** Linha poligonal do eixo do corredor. */
+  pontos: [number, number][];
+  largura: number;
+  /** Tem trilho de vagonete. */
+  trilho?: boolean;
+  /** Nome para os mapas e testes. */
+  nome: string;
+}
+
+/** Salas e camaras: retangulos de piso. `alto` tem o teto do salao. */
+export interface SalaDaGaleria extends Retangulo {
+  nome: string;
+  alto?: boolean;
+}
+
+/**
+ * A rede: tres camaras (uma por boca), um salao no meio e corredores de 2 m. Em (24, 35) o caminho
+ * bifurca e um dos ramos nao tem saida. O trajeto por baixo e mais curto que o de cima entre quaisquer
+ * duas bocas (o teste confere contra a distancia em quarteiroes).
+ */
+export const CAMARAS: SalaDaGaleria[] = [
+  { nome: 'porao do bar', minX: -23, maxX: -18, minZ: -18, maxZ: -13 },
+  { nome: 'poco', minX: -3, maxX: 3, minZ: 40, maxZ: 45.5 },
+  { nome: 'mina', minX: 49, maxX: 57, minZ: 54.5, maxZ: 61.5 },
+  { nome: 'salao', minX: -11, maxX: 3, minZ: 18.5, maxZ: 27.5, alto: true },
+];
+
+export const GALERIAS: Galeria[] = [
+  { nome: 'do bar ao salao', pontos: [[-20.5, -13], [-20.5, -3], [-10.5, 7], [-5, 7], [-5, 18.5]], largura: 2 },
+  { nome: 'do salao ao poco', pontos: [[-3, 27.5], [-3, 33], [0, 36], [0, 40]], largura: 2 },
+  { nome: 'do salao a bifurcacao', pontos: [[3, 23], [12, 23], [24, 35], [24, 49]], largura: 2, trilho: true },
+  { nome: 'do poco a mina', pontos: [[3, 43], [24, 49], [49, 58]], largura: 2, trilho: true },
+  { nome: 'ramo sem saida', pontos: [[24, 35], [35, 35]], largura: 2, trilho: true },
+];
+
+/** O fim do ramo sem saida: uma parede de pedra caida. */
+export const FIM_DO_RAMO = { x: 35, z: 35 };
+
+// ---------- Tocas: os baus de fantasia ----------
+
+export interface Toca {
+  id: string;
+  lugar: LugarId;
+  /** Onde se fica de pe diante do bau, em coordenadas do mundo (y: altura dos pes). */
+  x: number;
+  y: number;
+  z: number;
+  /** O centro do bau. */
+  bau: { x: number; z: number };
+}
+
+/** Um bau no referencial do predio (porta na origem, interior em -Z), com o piso em `y`. */
+export interface TocaLocal {
+  id: string;
+  lugar: LugarId;
+  y: number;
+  bau: { x: number; z: number; ry: number };
+  /** Onde se fica de pe, no mesmo referencial. */
+  pe: { x: number; z: number };
+}
+
+/**
+ * Os baus de fantasia, nos quartos antes trancados dos sobrados, no palheiro do celeiro e na mina.
+ * `interiores.ts` e `predios.ts` montam o bau a partir daqui.
+ */
+export const TOCAS_LOCAIS: TocaLocal[] = [
+  { id: 'bar-2', lugar: 'bar', y: PISO_DE_CIMA, bau: { x: -1.39, z: -2.9, ry: Math.PI / 2 }, pe: { x: -0.45, z: -2.9 } },
+  { id: 'bar-4', lugar: 'bar', y: PISO_DE_CIMA, bau: { x: -4.6, z: -13.3, ry: 0 }, pe: { x: -4.6, z: -12.3 } },
+  { id: 'bar-6', lugar: 'bar', y: PISO_DE_CIMA, bau: { x: 7.5, z: -13.3, ry: 0 }, pe: { x: 7.5, z: -12.3 } },
+  { id: 'pensao-2', lugar: 'pensao', y: PISO_DE_CIMA, bau: { x: -0.8, z: -4.64, ry: 0 }, pe: { x: -0.8, z: -3.7 } },
+  { id: 'casarao-esquerdo', lugar: 'casarao', y: PISO_DE_CIMA, bau: { x: -8.2, z: -15.3, ry: 0 }, pe: { x: -8.2, z: -14.3 } },
+  { id: 'casarao-meio', lugar: 'casarao', y: PISO_DE_CIMA, bau: { x: 2.2, z: -15.3, ry: 0 }, pe: { x: 2.2, z: -14.3 } },
+  { id: 'celeiro-palheiro', lugar: 'celeiro', y: 2.6, bau: { x: 5.3, z: -12, ry: -Math.PI / 2 }, pe: { x: 4.4, z: -12 } },
+  { id: 'mina-fundo', lugar: 'mina', y: 0, bau: { x: 1.1, z: -15.3, ry: -Math.PI / 2 }, pe: { x: 0.1, z: -15.3 } },
+];
+
+/** Ponto do referencial do predio (porta na origem, interior em -Z) levado para o mundo. */
+export function noMundo(c: Construcao, x: number, z: number): { x: number; z: number } {
+  const a = rotacaoY(c.frente);
+  return { x: c.x + x * Math.cos(a) + z * Math.sin(a), z: c.z - x * Math.sin(a) + z * Math.cos(a) };
+}
+
+const arredondar = (n: number) => Math.round(n * 100) / 100;
+
+export function tocaLocal(id: string): TocaLocal {
+  const t = TOCAS_LOCAIS.find((l) => l.id === id);
+  if (!t) throw new Error(`toca desconhecida: ${id}`);
+  return t;
+}
+
+/** Os baus de fantasia em coordenadas do mundo. */
+export const TOCAS: Toca[] = TOCAS_LOCAIS.map((t) => {
+  const c = lugarPorId(t.lugar)!;
+  const pe = noMundo(c, t.pe.x, t.pe.z);
+  const bau = noMundo(c, t.bau.x, t.bau.z);
+  return { id: t.id, lugar: t.lugar, x: arredondar(pe.x), y: t.y, z: arredondar(pe.z), bau: { x: arredondar(bau.x), z: arredondar(bau.z) } };
+});

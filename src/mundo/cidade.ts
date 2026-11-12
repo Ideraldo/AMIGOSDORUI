@@ -3,10 +3,12 @@
 
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { FIGURANTES, LUGARES, rotacaoY, type Construcao } from './planta.ts';
+import { FIGURANTES, LUGARES, SUBSOLO, rotacaoY, type Construcao } from './planta.ts';
 import { type Solido } from '../jogador/colisao.ts';
 import { type LuzTremulante } from './base.ts';
 import { aderecos, terreno } from './cenario.ts';
+import { galerias } from './galerias.ts';
+import { construirSino } from './patio.ts';
 import { cemiterio, igreja, mina, predio } from './predios.ts';
 
 export interface PortaInfo {
@@ -25,6 +27,8 @@ export interface Cidade {
   solidos: Solido[];
   luzes: LuzTremulante[];
   portas: PortaInfo[];
+  /** O sino do patio da estacao (`sino-da-estacao`): fora da fusao, para a tela balancar. */
+  sino: THREE.Group;
 }
 
 function construir(c: Construcao, aberto: boolean, luzes: LuzTremulante[]): THREE.Group {
@@ -88,7 +92,7 @@ function solidoDe(malha: THREE.Mesh): Solido {
  * A cidade e montada com caixas e cilindros soltos, o que e comodo de escrever mas
  * custaria uma chamada de desenho por peca. Depois de fundir, sobram as luzes.
  */
-function fundir(pedaco: THREE.Object3D, destino: THREE.Group): void {
+function fundir(pedaco: THREE.Object3D, destino: THREE.Group): THREE.Mesh[] {
   pedaco.updateMatrixWorld(true);
   const baldes = new Map<string, { material: THREE.Material; sombra: boolean; recebe: boolean; geos: THREE.BufferGeometry[] }>();
   const luzes: THREE.Light[] = [];
@@ -124,6 +128,7 @@ function fundir(pedaco: THREE.Object3D, destino: THREE.Group): void {
   });
   pedaco.removeFromParent();
 
+  const fundidas: THREE.Mesh[] = [];
   for (const balde of baldes.values()) {
     const unida = mergeGeometries(balde.geos);
     for (const geo of balde.geos) geo.dispose();
@@ -132,7 +137,29 @@ function fundir(pedaco: THREE.Object3D, destino: THREE.Group): void {
     malha.castShadow = balde.sombra;
     malha.receiveShadow = balde.recebe;
     destino.add(malha);
+    fundidas.push(malha);
   }
+  return fundidas;
+}
+
+/**
+ * As galerias ficam bem abaixo do chao: de cima ninguem as ve, mas o Three.js desenharia tudo o que cai
+ * dentro do campo de visao. Este vigia (um cubo minusculo que nao pinta nada) olha a altura da camera a cada
+ * quadro e so deixa as malhas das galerias visiveis quando ela esta no subsolo. A troca vale a partir do
+ * quadro seguinte. As luzes nao mudam: ligar e desligar luz recompila os shaders.
+ */
+function vigiaDasGalerias(malhas: THREE.Mesh[]): THREE.Mesh {
+  const vigia = new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.01, 0.01), new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false }));
+  vigia.name = 'vigia-das-galerias';
+  vigia.frustumCulled = false;
+  let visiveis = true;
+  vigia.onBeforeRender = (_renderizador, _cena, camera) => {
+    const embaixo = camera.position.y < SUBSOLO + 1;
+    if (embaixo === visiveis) return;
+    visiveis = embaixo;
+    for (const m of malhas) m.visible = embaixo;
+  };
+  return vigia;
 }
 
 export function construirCidade(abertos: readonly string[]): Cidade {
@@ -158,15 +185,30 @@ export function construirCidade(abertos: readonly string[]): Cidade {
   for (const l of LUGARES) colocar(l, abertos.includes(l.id), false);
   for (const f of FIGURANTES) colocar(f, false, true);
 
+  // As galerias da mina, bem embaixo da cidade, em pedacos que se fundem cada um por si.
+  const pedacosDasGalerias = new Set<THREE.Group>(galerias(luzes));
+  for (const pedaco of pedacosDasGalerias) {
+    grupo.add(pedaco);
+    pedacos.push(pedaco);
+  }
+  // O sino do patio: dinamico, fica fora da fusao.
+  const sino = construirSino();
+  grupo.add(sino);
+
   // A colisao e calculada antes de fundir, enquanto cada peca ainda existe.
   grupo.updateMatrixWorld(true);
   const solidos: Solido[] = [];
   grupo.traverse((objeto) => {
     if (objeto.userData.solido) solidos.push(solidoDe(objeto as THREE.Mesh));
   });
-  for (const pedaco of pedacos) fundir(pedaco, grupo);
+  const malhasDasGalerias: THREE.Mesh[] = [];
+  for (const pedaco of pedacos) {
+    const fundidas = fundir(pedaco, grupo);
+    if (pedacosDasGalerias.has(pedaco as THREE.Group)) malhasDasGalerias.push(...fundidas);
+  }
+  grupo.add(vigiaDasGalerias(malhasDasGalerias));
 
-  return { grupo, solidos, luzes, portas };
+  return { grupo, solidos, luzes, portas, sino };
 }
 
 /** Libera a memoria da cidade antiga antes de montar outra noite. */

@@ -61,7 +61,7 @@ declare global {
         inicio: [number, number],
         pontos: [number, number][],
         area: { minX: number; maxX: number; minZ: number; maxZ: number },
-        op?: { pulo?: number; altura?: number; passo?: number },
+        op?: { pulo?: number; altura?: number; passo?: number; y?: number },
       ) => AlcancePulando;
       /** Dispara um efeito de tela e de luz, como se a partida tivesse pedido. */
       sinal: (sinal: Sinal) => void;

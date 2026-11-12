@@ -4,7 +4,7 @@
 // Os interiores ficam em interiores.ts e os objetos reaproveitados em objetos.ts.
 
 import * as THREE from 'three';
-import { ALPENDRE, PAREDE, PISO_DE_CIMA, PORTA, alturaDoTeto, zDasJanelasLaterais, type Construcao } from './planta.ts';
+import { ALPENDRE, PAREDE, PISO_DE_CIMA, PORTA, alturaDoTeto, tocaLocal, zDasJanelasLaterais, type Construcao } from './planta.ts';
 import {
   COR,
   barreira,
@@ -23,7 +23,7 @@ import {
   volumeDeSombra,
   type LuzTremulante,
 } from './base.ts';
-import { arvoreSeca, caixote, cerca, cercaLateral, corvo, escada, lampiao } from './objetos.ts';
+import { alcapao, arvoreSeca, bauDeFantasia, caixote, cerca, cercaLateral, corvo, escada, lampiao } from './objetos.ts';
 import { interior, type Poco } from './interiores.ts';
 
 const T = PAREDE;
@@ -366,6 +366,10 @@ export function mina(c: Construcao, aberto: boolean, luzes: LuzTremulante[]): TH
   cilindro(g, 0.03, 0.03, 1.2, escura, 1.3, 0.55, -5.2, { rz: -0.35, sombra: false, lados: 6 });
   caixa(g, 0.5, 0.05, 0.05, ferro, 1.5, 1.1, -5.2, { rz: -0.35, sombra: false });
   esfera(g, 0.16, metal(0x4a4338), 1.15, 0.72, -3, { sy: 0.7 });
+  // O alcapao entre os trilhos, no fundo: a boca das galerias (ALCAPOES em planta.ts), e o bau de fantasia no canto.
+  alcapao(g, 0, -13, 0);
+  const toca = tocaLocal('mina-fundo').bau;
+  bauDeFantasia(g, toca.x, toca.z, toca.ry);
 
   if (aberto) {
     lampiao(g, luzes, 1.45, 2.6, 0.7, 20, 16);

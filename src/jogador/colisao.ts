@@ -99,9 +99,18 @@ export function agachar(c: Corpo, sim: boolean, solidos: readonly Solido[]): boo
   return c.altura !== undefined;
 }
 
+/**
+ * Abaixo desta altura dos pes o chao do mundo (y = 0) nao existe mais: so ha o piso dos solidos.
+ * E o que deixa as galerias da mina, bem embaixo da cidade, terem o proprio chao.
+ * (Copia de `SUBSOLO` de planta.ts, para esta matematica nao depender do mapa.)
+ */
+const SUBSOLO = -3;
+/** Chao de quem esta no subsolo e nao pisa em nada: o abismo. */
+export const ABISMO = -1000;
+
 /** Altura do chao sob o ponto (x, z) para quem esta com os pes em y. */
 export function alturaDoChao(x: number, z: number, y: number, solidos: readonly Solido[]): number {
-  let chao = 0;
+  let chao = y > SUBSOLO ? 0 : ABISMO;
   for (const s of solidos) {
     if (s.maxY <= chao || s.maxY > y + DEGRAU + FOLGA) continue;
     const [lx, lz] = paraLocal(s, x, z);
@@ -309,7 +318,7 @@ export function alcancePulando(
   pontos: readonly (readonly [number, number])[],
   area: { minX: number; maxX: number; minZ: number; maxZ: number },
   solidos: readonly Solido[],
-  op: { passo?: number; pulo?: number; altura?: number } = {},
+  op: { passo?: number; pulo?: number; altura?: number; y?: number } = {},
 ): AlcancePulando {
   const passo = op.passo ?? 0.4;
   const pulo = op.pulo ?? ALTURA_DO_PULO;
@@ -347,7 +356,7 @@ export function alcancePulando(
     if (m === undefined || y < m) menor.set(c, y);
   };
 
-  const y0 = alturaDoChao(inicio[0], inicio[1], 0, perto(inicio[0], inicio[1]));
+  const y0 = alturaDoChao(inicio[0], inicio[1], op.y ?? 0, perto(inicio[0], inicio[1]));
   visitar(celula(inicio[0], inicio[1]), y0);
   let fugiu = false;
   const maisAlto = { x: inicio[0], y: y0, z: inicio[1] };
@@ -380,7 +389,8 @@ export function alcancePulando(
           const vz = z + dj * k * passo;
           const la = perto(vx, vz);
           const yv = alturaDoChao(vx, vz, y + h, la);
-          if (livre(vx, vz, yv, la, RAIO, altura)) visitar(vi + nx * vj, yv);
+          // No subsolo, fora do piso, so ha o abismo: ninguem pisa ali.
+          if (yv > ABISMO && livre(vx, vz, yv, la, RAIO, altura)) visitar(vi + nx * vj, yv);
           if (h > 0 && !livre(vx, vz, y + h, la, RAIO, altura)) break;
         }
       }

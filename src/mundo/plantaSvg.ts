@@ -7,16 +7,24 @@
 
 import {
   ACUDE,
+  ALCAPOES,
+  CAIXA_DAGUA,
+  CAMARAS,
   CAMINHOS,
   CLAREIRA,
   CURRAL,
   MILHARAL,
   FIGURANTES,
+  GALERIAS,
   LIMITES,
   LUGARES,
   NASCIMENTO,
+  PATIO,
   PRACA,
+  RODA_DO_SINO,
   RUA,
+  SINO_DA_ESTACAO,
+  TRILHO_Z,
   direcao,
   pegada,
   type Construcao,
@@ -63,8 +71,19 @@ export function plantaSvg(abertos: readonly string[], comJogador = false): strin
     `<text x="${-(CURRAL.minX + CURRAL.maxX) / 2}" y="${-(CURRAL.minZ + CURRAL.maxZ) / 2 + 1}" font-size="2.2" text-anchor="middle" fill="#9a8f84">curral</text>`,
     ...CAMINHOS.map((c) => `<rect ${ret(c)} fill="${chao}"/>`),
     `<circle cx="${-CLAREIRA.x}" cy="${-CLAREIRA.z}" r="${CLAREIRA.raio}" fill="${chao}"/>`,
-    // Trilhos do trem.
-    `<rect ${ret({ minX: LIMITES.minX, maxX: LIMITES.maxX, minZ: -72.1, maxZ: -70.9 })} fill="#5a5048"/>`,
+    // Trilhos do trem e o patio da estacao: terra batida, plataforma, tres vagoes e a caixa-d'agua.
+    `<rect ${ret({ minX: 6.5, maxX: PATIO.maxX - 1, minZ: -69.5, maxZ: PATIO.maxZ })} fill="${chao}"/>`,
+    `<rect ${ret({ minX: LIMITES.minX, maxX: LIMITES.maxX, minZ: TRILHO_Z - 0.6, maxZ: TRILHO_Z + 0.6 })} fill="#5a5048"/>`,
+    `<rect ${ret({ minX: 11, maxX: 29, minZ: -69, maxZ: -65.6 })} fill="#6a5a46" stroke="#8a7a62" stroke-width="0.3"/>`,
+    `<rect ${ret({ minX: 12.7, maxX: 21.3, minZ: TRILHO_Z - 1.2, maxZ: TRILHO_Z + 1.2 })} fill="#4b3826" stroke="#8a7a62" stroke-width="0.3"/>`,
+    `<rect ${ret({ minX: 22.5, maxX: 31.5, minZ: TRILHO_Z - 1.25, maxZ: TRILHO_Z + 1.25 })} fill="#5a2a22" stroke="#8a7a62" stroke-width="0.3"/>`,
+    `<rect ${ret({ minX: 32.6, maxX: 39.4, minZ: TRILHO_Z - 1.2, maxZ: TRILHO_Z + 1.2 })} fill="#4a3a2c" stroke="#8a7a62" stroke-width="0.3"/>`,
+    `<rect ${ret({ minX: CAIXA_DAGUA.x - CAIXA_DAGUA.mirante.lado / 2, maxX: CAIXA_DAGUA.x + CAIXA_DAGUA.mirante.lado / 2, minZ: CAIXA_DAGUA.z - CAIXA_DAGUA.mirante.lado / 2, maxZ: CAIXA_DAGUA.z + CAIXA_DAGUA.mirante.lado / 2 })} fill="#6a4a30" stroke="#d8c28a" stroke-width="0.4"/>`,
+    `<circle cx="${-SINO_DA_ESTACAO.x}" cy="${-SINO_DA_ESTACAO.z}" r="0.9" fill="#e0b84a"/>`,
+    `<circle cx="${-RODA_DO_SINO.x}" cy="${-RODA_DO_SINO.z}" r="${RODA_DO_SINO.raio}" fill="none" stroke="#9a8f84" stroke-width="0.25" stroke-dasharray="0.8 0.8"/>`,
+    `<text x="${-(PATIO.minX + PATIO.maxX) / 2}" y="${-RODA_DO_SINO.z + 0.8}" font-size="2.4" text-anchor="middle" fill="#9a8f84">pátio</text>`,
+    `<text x="${-CAIXA_DAGUA.x}" y="${-CAIXA_DAGUA.z + 0.8}" font-size="1.5" text-anchor="middle" fill="#f3e6c0">caixa-d'água</text>`,
+    `<text x="${-(12.7 + 39.4) / 2}" y="${-TRILHO_Z + 0.7}" font-size="1.7" text-anchor="middle" fill="#d8cfc4">vagões</text>`,
   );
 
   const desenhar = (c: Construcao, aberto: boolean, figurante: boolean) => {
@@ -91,6 +110,27 @@ export function plantaSvg(abertos: readonly string[], comJogador = false): strin
 
   for (const f of FIGURANTES) desenhar(f, false, true);
   for (const l of LUGARES) desenhar(l, abertos.includes(l.id), false);
+
+  // As galerias da mina, por baixo da cidade (tracejadas), e os alcapoes das tres bocas.
+  for (const c of CAMARAS) {
+    partes.push(`<rect ${ret(c)} fill="#d8c28a" fill-opacity="0.08" stroke="#d8c28a" stroke-width="0.4" stroke-dasharray="1.2 0.9"/>`);
+  }
+  for (const g of GALERIAS) {
+    partes.push(
+      `<polyline points="${g.pontos.map(([x, z]) => `${-x},${-z}`).join(' ')}" fill="none" stroke="#d8c28a" stroke-width="${g.largura}" stroke-opacity="0.1" stroke-linejoin="round"/>`,
+      `<polyline points="${g.pontos.map(([x, z]) => `${-x},${-z}`).join(' ')}" fill="none" stroke="#d8c28a" stroke-width="0.35" stroke-dasharray="1.2 0.9" stroke-linejoin="round"/>`,
+    );
+  }
+  const nomes = { bar: 'alçapão', poco: 'poço', mina: 'alçapão' } as const;
+  for (const a of ALCAPOES) {
+    partes.push(
+      `<rect x="${-a.cima.x - 1.1}" y="${-a.cima.z - 1.1}" width="2.2" height="2.2" fill="#2a1c12" stroke="#ffd28a" stroke-width="0.4"/>`,
+      `<path d="M ${-a.cima.x - 0.7} ${-a.cima.z - 0.7} L ${-a.cima.x + 0.7} ${-a.cima.z + 0.7} M ${-a.cima.x + 0.7} ${-a.cima.z - 0.7} L ${-a.cima.x - 0.7} ${-a.cima.z + 0.7}" stroke="#ffd28a" stroke-width="0.35"/>`,
+      `<text x="${-a.cima.x}" y="${-a.cima.z + 3.9}" font-size="1.7" text-anchor="middle" fill="#ffd28a">${nomes[a.id]}</text>`,
+    );
+  }
+  const salao = CAMARAS.find((c) => c.alto);
+  if (salao) partes.push(`<text x="${-(salao.minX + salao.maxX) / 2}" y="${-salao.maxZ - 1.2}" font-size="2.2" text-anchor="middle" fill="#d8c28a" fill-opacity="0.8">galerias (por baixo)</text>`);
 
   const bx = -area.maxX + 7;
   const by = -area.maxZ + 8;

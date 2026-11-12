@@ -13,7 +13,7 @@ import { mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import puppeteer from 'puppeteer-core';
 import { createServer } from 'vite';
-import { LUGARES, PISO_DE_CIMA, direcao, lugarPorId, rotacaoY, type LugarId } from '../src/mundo/planta.ts';
+import { CAIXA_DAGUA, LUGARES, PISO_DAS_GALERIAS, PISO_DE_CIMA, SINO_DA_ESTACAO, TOCAS, direcao, lugarPorId, rotacaoY, type LugarId } from '../src/mundo/planta.ts';
 
 const CHROME = process.env.CHROME ?? '/usr/bin/google-chrome';
 const PORTA = Number(process.env.PORTA) || 5199;
@@ -85,6 +85,65 @@ const RUAS: Vista[] = [
   { nome: 'noite-aerea', cam: [-150, 95, -80, giroPara(120, 80), -0.55], abertos: TODOS, lampiao: false },
 ];
 
+
+/** Patio da estacao, alcapoes das tres bocas e galerias da mina. */
+const SUB = PISO_DAS_GALERIAS + OLHOS;
+const TOPO_DA_TORRE = CAIXA_DAGUA.mirante.y + OLHOS;
+const PATIO_E_GALERIAS: Vista[] = [
+  { nome: 'patio-01-chegada', cam: [2, OLHOS, -55, giroPara(1, -0.45), 0.02], abertos: 'estacao' },
+  { nome: 'patio-02-vagoes', cam: [9, OLHOS, -62, giroPara(1, -0.55), 0.05], abertos: 'estacao' },
+  { nome: 'patio-03-sino', cam: [19, OLHOS, -60.2, giroPara(0, -1), 0.1], abertos: 'estacao' },
+  { nome: 'patio-04-torre', cam: [18, OLHOS, -54, giroPara(1, -0.2), 0.25], abertos: 'estacao' },
+  { nome: 'patio-05-escada', cam: [21.5, OLHOS, -58, LESTE, 0.3], abertos: 'estacao' },
+  { nome: 'patio-06-pilhas', cam: [30, OLHOS, -64.5, giroPara(1, -0.3), 0.1], abertos: 'estacao' },
+  { nome: 'patio-07-gondola', cam: [17, 1.1 + OLHOS, -70.6, giroPara(-1, -0.5), 0.12], abertos: 'estacao' },
+  { nome: 'patio-08-mirante', cam: [CAIXA_DAGUA.x - 1.4, TOPO_DA_TORRE, CAIXA_DAGUA.z, giroPara(-1, -0.7), -0.12], abertos: 'estacao' },
+  { nome: 'patio-09-mirante-sul', cam: [CAIXA_DAGUA.x - 1.6, TOPO_DA_TORRE, CAIXA_DAGUA.z + 1.5, giroPara(-0.2, 1), -0.1], abertos: 'estacao' },
+  { nome: 'patio-10-do-alto', cam: [4, 24, -46, giroPara(1, -1.35), -0.5], abertos: 'estacao', lampiao: false },
+  { nome: 'patio-11-roda', cam: [SINO_DA_ESTACAO.x + 3.2, OLHOS, -61.2, giroPara(-0.8, -1), 0.1], abertos: 'estacao' },
+  { nome: 'patio-dia-01-chegada', cam: [2, OLHOS, -55, giroPara(1, -0.45), 0.02], abertos: 'estacao', dia: true },
+  { nome: 'patio-dia-02-vagoes', cam: [9, OLHOS, -62, giroPara(1, -0.55), 0.05], abertos: 'estacao', dia: true },
+  { nome: 'patio-dia-03-torre', cam: [18, OLHOS, -54, giroPara(1, -0.2), 0.25], abertos: 'estacao', dia: true },
+  { nome: 'patio-dia-04-mirante', cam: [CAIXA_DAGUA.x - 1.4, TOPO_DA_TORRE, CAIXA_DAGUA.z, giroPara(-1, -0.7), 0.25], abertos: 'estacao', dia: true },
+  { nome: 'patio-dia-05-do-alto', cam: [4, 24, -46, giroPara(1, -1.35), -0.5], abertos: 'estacao', dia: true },
+  { nome: 'patio-dia-06-gondola', cam: [17, 1.1 + OLHOS, -70.6, giroPara(-1, -0.5), 0.12], abertos: 'estacao', dia: true },
+  { nome: 'alcapao-01-bar', cam: [-17.4, OLHOS, -14.8, giroPara(-1, 0), -0.5], abertos: 'bar' },
+  { nome: 'alcapao-02-poco', cam: [0, OLHOS, 46.2, giroPara(0, -1), -0.2], abertos: 'igreja' },
+  { nome: 'alcapao-03-mina', cam: [50.4, OLHOS, 58.1, LESTE, -0.5], abertos: 'mina' },
+  { nome: 'alcapao-04-mina-fundo', cam: [47.5, OLHOS, 58.4, LESTE, -0.1], abertos: 'mina' },
+  { nome: 'galeria-01-porao-do-bar', cam: [-20.5, SUB, -14.2, giroPara(0, -1), 0.1], abertos: '' },
+  { nome: 'galeria-02-saida-do-porao', cam: [-20.5, SUB, -16.2, SUL, 0.0], abertos: '' },
+  { nome: 'galeria-03-corredor', cam: [-20.5, SUB, -8, SUL, 0.0], abertos: '' },
+  { nome: 'galeria-04-diagonal', cam: [-14, SUB, 3.5, giroPara(1, 1), 0.0], abertos: '' },
+  { nome: 'galeria-05-salao-leste', cam: [2.2, SUB + 0.3, 23, OESTE, 0.0], abertos: '' },
+  { nome: 'galeria-06-salao-oeste', cam: [-9.6, SUB + 0.3, 21.5, giroPara(1, 0.4), 0.0], abertos: '' },
+  { nome: 'galeria-07-salao-sul', cam: [-5, SUB + 0.3, 19.8, giroPara(0.1, 1), 0.0], abertos: '' },
+  { nome: 'galeria-08-poco', cam: [0, SUB, 41.2, SUL, 0.05], abertos: '' },
+  { nome: 'galeria-09-trilho', cam: [8, SUB, 44.1, giroPara(1, 0.29), 0.0], abertos: '' },
+  { nome: 'galeria-10-bifurcacao', cam: [24, SUB, 41, SUL, 0.0], abertos: '' },
+  { nome: 'galeria-11-ramo-sem-saida', cam: [26, SUB, 35, LESTE, 0.0], abertos: '' },
+  { nome: 'galeria-12-mina', cam: [52, SUB, 59.5, giroPara(0.2, -1), 0.05], abertos: '' },
+  { nome: 'galeria-13-escuro', cam: [-7, SUB, 7, OESTE, 0.0], abertos: '', lampiao: false },
+  { nome: 'galeria-dia-01-corredor', cam: [-20.5, SUB, -8, SUL, 0.0], abertos: '', dia: true },
+  { nome: 'galeria-dia-02-salao', cam: [2.2, SUB + 0.3, 23, OESTE, 0.0], abertos: '', dia: true },
+  { nome: 'galeria-dia-03-bifurcacao', cam: [24, SUB, 41, SUL, 0.0], abertos: '', dia: true },
+  { nome: 'galeria-dia-04-mina', cam: [52, SUB, 59.5, giroPara(0.2, -1), 0.05], abertos: '', dia: true },
+];
+
+/** Cada toca, vista de onde se fica de pe diante do bau (o que o jogador ve ao chegar). */
+function vistasDasTocas(): Vista[] {
+  const vistas: Vista[] = [];
+  for (const t of TOCAS) {
+    vistas.push({ nome: `toca-${t.id}`, cam: [t.x, t.y + OLHOS, t.z, giroPara(t.bau.x - t.x, t.bau.z - t.z), -0.4], abertos: t.lugar });
+    // Um passo atras: o bau no quarto.
+    const d = Math.hypot(t.x - t.bau.x, t.z - t.bau.z);
+    const ux = (t.x - t.bau.x) / d;
+    const uz = (t.z - t.bau.z) / d;
+    vistas.push({ nome: `tocalonge-${t.id}`, cam: [t.x + ux * 1.1, t.y + OLHOS, t.z + uz * 1.1, giroPara(-ux, -uz), -0.15], abertos: t.lugar });
+  }
+  return vistas;
+}
+
 /** Duas vistas por interior: da porta para o fundo e do fundo para a porta. */
 function vistasDeDentro(): Vista[] {
   const vistas: Vista[] = [];
@@ -116,16 +175,23 @@ const SOBRADOS: [LugarId, string, number, number, number, number, boolean][] = [
   ['bar', 'quarto1', -4.4, -6.9, -0.1, 1, true],
   ['bar', 'quarto3', 5.3, -6.9, 0.1, 1, true],
   ['bar', 'quarto5', 0, -8.9, 0, -1, true],
+  ['bar', 'quarto2', 0.6, -6.6, -0.5, 1, true],
+  ['bar', 'quarto2b', -0.4, -0.8, 0.1, -1, true],
+  ['bar', 'quarto4', -5.9, -9.0, 0, -1, true],
+  ['bar', 'quarto6', 5.8, -9.0, 0, -1, true],
   ['pensao', 'escada', 2.6, -0.7, 0.3, -1, false],
   ['pensao', 'corredor', 2.3, -7.3, 0, 1, true],
   ['pensao', 'quarto1', 1.3, -6.3, -1, -0.1, true],
   ['pensao', 'quarto3', 1.3, -1.45, -1, 0.1, true],
+  ['pensao', 'quarto2', 1.4, -3.85, -1, 0.05, true],
   ['casarao', 'escada', 7.4, -2.0, 0.3, -1, false],
   ['casarao', 'corredor', 8.8, -9.35, -1, 0, true],
   ['casarao', 'suite', -5.9, -8.2, 0, 1, true],
   ['casarao', 'crianca', 0, -8.2, 0, 1, true],
   ['casarao', 'escritorio', 4.9, -8.2, 0, 1, true],
   ['casarao', 'banho', 6.4, -10.5, 0.15, -1, true],
+  ['casarao', 'hospedes', -6.5, -10.9, 0, -1, true],
+  ['casarao', 'deposito', 0, -10.9, 0, -1, true],
 ];
 
 function vistasDeCima(): Vista[] {
@@ -138,7 +204,7 @@ function vistasDeCima(): Vista[] {
   });
 }
 
-const VISTAS = [...RUAS, ...vistasDeDentro(), ...vistasDeCima()];
+const VISTAS = [...RUAS, ...vistasDeDentro(), ...vistasDeCima(), ...PATIO_E_GALERIAS, ...vistasDasTocas()];
 
 const argumentos = process.argv.slice(2);
 const forcarDia = argumentos.includes('--dia');
