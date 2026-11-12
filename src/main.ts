@@ -31,6 +31,9 @@ import { Rede } from './rede/rede.ts';
 import { NASCIMENTO } from './mundo/planta.ts';
 import { Segredos } from './interface/segredos.ts';
 import { Vulto } from './mundo/vulto.ts';
+import { Cacada, Olho } from './interface/cacada.ts';
+import { RAIO_DE_COMPANHIA, emChaoBento, oQueElaQuer, posicaoDaCoisa, type PosicaoDaCoisa } from './nucleo/coisa.ts';
+import { regraDe } from './nucleo/partida.ts';
 import { figura } from './mundo/gente.ts';
 import { casaDoNpc, falasDoNpc } from './nucleo/partida.ts';
 import { EXEMPLO } from './nucleo/historias/exemplo.ts';
@@ -80,6 +83,16 @@ declare global {
       guias: () => string[];
       /** O vulto: se esta na cena e onde. */
       vulto: () => { ativo: boolean; x: number; z: number };
+      /**
+       * A Coisa: se esta na rua, onde, o que esta fazendo (`modo`), o quanto percebe este jogador
+       * (`atencao`: 0 nada, 1 ouviu ou procura, 2 ve; `percebe` e o que ela capta neste quadro),
+       * onde a ronda a poria (`ronda`) e que lugar ela cerca.
+       */
+      coisa: () => { ativa: boolean; visivel: boolean; x: number; z: number; modo: string; atencao: number; percebe: string | null; distancia: number; dona: boolean; ronda: { x: number; z: number } | null; cerco: string | null; passos: number; lampiao: boolean; quer: string | null };
+      /** Prende a Coisa num ponto, parada e virada para `rumo` (0 e +Z), em vez da ronda. null solta. */
+      forcarCoisa: (ponto: { x: number; z: number; rumo?: number } | null) => void;
+      /** Faz o relogio da noite andar mesmo sem o mouse preso (os scripts nao prendem o mouse), e acerta quanto falta na hora. */
+      tempo: (corre: boolean, restante?: number) => void;
       /** Como o som esta: contexto, arquivos carregados e os ultimos sons tocados. */
       som: () => { contexto: string; carregados: number; total: number; tocados: string[] };
       /** Vira o jogador: giro (PI olha para o sul) e inclinacao. */
@@ -152,8 +165,9 @@ const jogador = new Jogador(camera, canvas);
 const vulto = new Vulto(cena);
 /** A partida avisa de coisas ja enquanto e criada. Antes disso ela ainda nao pode ser usada. */
 let partidaPronta = false;
-/** O vulto espera o painel da virada fechar para aparecer. */
-let aparicao: 'longe' | 'perto' | null = null;
+/** O que a Coisa faz quando sai da ronda por causa deste jogador, e o olho que diz se ela o percebe. */
+const cacada = new Cacada();
+const olhoDaCoisa = new Olho();
 const segredos: Segredos = new Segredos({
   avisar: (texto, ms) => partida.avisar(texto, ms),
   sinal: (sinal) => {
@@ -381,12 +395,10 @@ const partida = new PartidaNaTela(EXEMPLO, semente, { abertos: abertosForcados, 
   sinal: (sinal) => {
     efeitos.sinal(sinal);
     som.sinal(sinal);
-    // Depois do sino, a ameaca aparece: longe no pressagio e na ronda, perto depois do ataque.
-    if (sinal === 'pressagio' || sinal === 'ronda') aparicao = 'longe';
-    else if (sinal === 'ataque') aparicao = 'perto';
-    else if (sinal === 'noite' || sinal === 'morte' || sinal === 'amanhecer') {
-      aparicao = null;
-      vulto.sumir();
+    // A Coisa agora anda pela cidade (ver atualizarCoisa). Aqui so se desfaz dela quando a noite acaba.
+    if (sinal === 'noite' || sinal === 'morte' || sinal === 'amanhecer') {
+      cacada.largar();
+      if (sinal !== 'morte') vulto.sumir();
       if (sinal === 'noite') {
         segredos.noite();
         ditas.clear();
@@ -595,6 +607,7 @@ rede.aoAviso = (aviso) => {
           montar: () => rede.enviar({ t: 'montar' }),
           acusar: (npc) => rede.enviar({ t: 'acusar', npc }),
           puxar: () => rede.enviar({ t: 'puxar' }),
+          apanhado: () => rede.enviar({ t: 'apanhado' }),
           virar: () => rede.enviar({ t: 'virar' }),
           outra: () => rede.enviar({ t: 'outra' }),
         });
@@ -731,7 +744,14 @@ function atualizarOutros(dt: number): void {
   desdeAPose += dt;
   if (desdeAPose < 1 / POSICOES_POR_SEGUNDO) return;
   desdeAPose = 0;
-  rede.enviar({ t: 'pos', x: jogador.posicao.x, y: jogador.posicao.y, z: jogador.posicao.z, giro: jogador.giroDoCorpo, lampiao: jogador.lampiao.visible, agachado: jogador.agachado, gesto: jogador.gesto, espia: jogador.espia });
+  const pose: Pose = { x: jogador.posicao.x, y: jogador.posicao.y, z: jogador.posicao.z, giro: jogador.giroDoCorpo, lampiao: jogador.lampiao.visible, agachado: jogador.agachado, gesto: jogador.gesto, espia: jogador.espia };
+  // Se a Coisa saiu da ronda por causa deste jogador, a posicao dela vai junto, para os outros a verem no mesmo lugar.
+  if (cacada.dona && !emEspera) {
+    pose.cx = cacada.x;
+    pose.cz = cacada.z;
+    pose.cv = cacada.atencao === 2;
+  }
+  rede.enviar({ t: 'pos', ...pose });
 }
 
 /** O personagem do proprio jogador, quando a camera esta fora do corpo, a roda de gestos e o folego. */
@@ -880,6 +900,27 @@ window.__depurar = {
   pontos: (lugar) => pontosPorLugar.get(lugar) ?? [],
   som: () => som.estado(),
   vulto: () => ({ ativo: vulto.ativo, x: vulto.grupo.position.x, z: vulto.grupo.position.z }),
+  coisa: () => ({
+    ativa: cacada.presente,
+    visivel: vulto.ativo,
+    x: cacada.x,
+    z: cacada.z,
+    modo: cacada.modo,
+    atencao: cacada.atencao,
+    percebe: cacada.percepcao,
+    distancia: cacada.distancia,
+    dona: cacada.dona,
+    ronda: rondaDaCoisa ? { x: rondaDaCoisa.x, z: rondaDaCoisa.z } : null,
+    cerco: rondaDaCoisa?.cerco ?? null,
+    passos: passosDaCoisa,
+    lampiao: jogador.lampiao.visible,
+    quer: cenaDaCacada.quer,
+  }),
+  forcarCoisa: (ponto) => (coisaForcada = ponto ? { x: ponto.x, z: ponto.z, ativa: true, rumo: ponto.rumo ?? 0, parada: true, cerco: null } : null),
+  tempo: (corre, restante) => {
+    tempoForcado = corre;
+    if (restante !== undefined) partida.restante = restante;
+  },
   gente: () => presentes.map((p) => ({ id: p.id, lugar: p.lugar, x: p.x, z: p.z })),
   guias: () => [...guias.values()].filter((g) => g.el.style.display === 'block').map((g) => g.el.textContent ?? ''),
   achados: () =>
@@ -1216,26 +1257,146 @@ function atualizarGuias(): void {
   }
 }
 
-/** Poe o vulto de pe na rua, na direcao em que o jogador esta olhando. */
-function invocarVulto(tipo: 'longe' | 'perto'): void {
-  if (!cidade) return;
-  const f = jogador.frente();
-  const frente = Math.atan2(f.x, f.z);
-  for (let tentativa = 0; tentativa < 40; tentativa++) {
-    // Comeca bem na frente e vai abrindo o leque.
-    const angulo = frente + (Math.random() - 0.5) * (0.5 + tentativa * 0.07);
-    const distancia = tipo === 'perto' ? 7 + Math.random() * 3 : 16 + Math.random() * 14;
-    const x = jogador.posicao.x + Math.sin(angulo) * distancia;
-    const z = jogador.posicao.z + Math.cos(angulo) * distancia;
-    if (x < LIMITES.minX + 2 || x > LIMITES.maxX - 2 || z < LIMITES.minZ + 2 || z > LIMITES.maxZ - 2) continue;
-    // Na rua, nunca dentro de uma construcao nem em cima de alguma coisa.
-    if (construcoes.some((r) => contem(r, x, z)) || !livre(x, z, 0, cidade.solidos, 0.6)) continue;
-    vulto.aparecer(x, z, tipo === 'perto' ? 2.4 : 7);
-    return;
-  }
+// ---------- a Coisa que anda ----------
+// A ronda vem do nucleo (igual para todos na sala). A cacada e desta tela: ela ve, persegue e
+// perde ESTE jogador. Aqui se junta as duas, se mexe o boneco e se faz o mundo reagir a ela.
+
+/** Onde a ronda poe a Coisa agora. null: ela nao esta na rua. */
+let rondaDaCoisa: PosicaoDaCoisa | null = null;
+/** Para os scripts e as capturas (?coisa=x,z,rumo): a Coisa presa num ponto, no lugar da ronda. */
+let coisaForcada: PosicaoDaCoisa | null = null;
+{
+  const [cx, cz, rumo = 0] = (parametros.get('coisa') ?? '').split(',').map(Number);
+  if (parametros.get('coisa') && Number.isFinite(cx) && Number.isFinite(cz)) coisaForcada = { x: cx!, z: cz!, ativa: true, rumo, parada: true, cerco: null };
 }
-/** Com muito medo, o jogador ve o vulto mesmo sem sino nenhum. */
-let proximaVisao = 30;
+/** Para os scripts, que nao prendem o mouse: o relogio da noite anda assim mesmo. */
+let tempoForcado = false;
+let passosDaCoisa = 0;
+let proximaBatida = 0;
+let ultimoSusto = -99;
+const lugarDaRonda: PosicaoDaCoisa = { x: 0, z: 0, ativa: false, rumo: 0, parada: true, cerco: null };
+let regraDaCacada = regraDe(partida.estado, EXEMPLO);
+const cenaDaCacada: Parameters<Cacada['atualizar']>[1] = {
+  base: null,
+  solidos: [],
+  x: 0,
+  y: 0,
+  z: 0,
+  lampiao: false,
+  agachado: false,
+  correndo: false,
+  andando: false,
+  exposto: false,
+  quer: null,
+  bento: (x, z) => emChaoBento(regraDaCacada, x, z),
+  alheia: null,
+};
+const coisaDeOutro = { x: 0, z: 0, ve: false };
+/** Para quem a cabeca dela vira quando persegue outro jogador. */
+const alvoDeOutro = { x: 0, z: 0 };
+/** As luzes da cidade, em coordenadas do mundo, para falharem quando ela passa. */
+let luzesNoMundo: { cidade: Cidade; pontos: Float32Array } | null = null;
+const pontoDaLuz = new THREE.Vector3();
+
+// Os passos dela: os mesmos sons de passo do jogador, mais graves, mais altos de perto e do lado certo.
+vulto.aoPisar = () => {
+  passosDaCoisa += 1;
+  const d = cacada.distancia;
+  if (d > 34 || !Number.isFinite(d)) return;
+  const f = jogador.frente();
+  const lado = d > 0.5 ? (((cacada.x - jogador.posicao.x) * -f.z + (cacada.z - jogador.posicao.z) * f.x) / d) * 0.8 : 0;
+  som.tocar(`passo-terra-${(passosDaCoisa % 2) + 1}` as 'passo-terra-1', { volume: 0.95 * (1 - d / 34) ** 1.6 * (partida.dentro ? 0.7 : 1), tom: cacada.modo === 'caca' ? 0.7 : 0.58, lado });
+};
+cacada.aoVer = () => {
+  // Ela viu o jogador: um tranco, o lampiao treme e um grave avisa.
+  if (relogio.elapsedTime - ultimoSusto < 6) return;
+  ultimoSusto = relogio.elapsedTime;
+  efeitos.sinal('susto');
+  som.tocar('ronda', { volume: 0.55 });
+};
+cacada.aoAlcancar = () => partida.apanhado();
+
+/** Um quadro da Coisa. Devolve o quanto ela esta perto do jogador, de 0 (longe) a 1 (em cima). */
+function atualizarCoisa(dt: number, t: number): number {
+  const estado = partida.estado;
+  const c = cenaDaCacada;
+  // Camera presa (capturas) so tem Coisa se ela for posta num ponto. Na plataforma de espera nao ha noite.
+  rondaDaCoisa = emEspera ? null : (coisaForcada ?? (cam ? null : posicaoDaCoisa(estado, EXEMPLO, partida.restante, lugarDaRonda)));
+  regraDaCacada = regraDe(estado, EXEMPLO);
+  const p = jogador.posicao;
+  c.base = rondaDaCoisa;
+  c.solidos = cidade!.solidos;
+  c.x = p.x;
+  c.y = p.y;
+  c.z = p.z;
+  c.lampiao = jogador.lampiao.visible;
+  c.agachado = jogador.agachado;
+  c.correndo = jogador.velocidade > 5.5;
+  c.andando = jogador.velocidade > 1 && !jogador.agachado && Math.abs(jogador.espia) < 0.15;
+  // Com painel aberto, na abertura ou morto, ela nao percebe o jogador.
+  c.exposto = !cam && partida.personagem.vivo && partida.modo === 'andando' && !abertura && !estado.fim;
+  // Na sala: quem esta por perto (companhia) e se ela esta atras de outro jogador.
+  let acompanhado: boolean | undefined;
+  c.alheia = null;
+  if (partida.sala) {
+    acompanhado = false;
+    let dono = '';
+    for (const outro of outros.values()) {
+      const pose = outro.pose;
+      if (!pose || !estado.personagens.find((x) => x.id === outro.id)?.vivo) continue;
+      if (Math.hypot(pose.x - p.x, pose.z - p.z) <= RAIO_DE_COMPANHIA) acompanhado = true;
+      // Dois perseguidos ao mesmo tempo: vale a Coisa de quem tem o menor id, e o outro so assiste.
+      if (pose.cx === undefined || pose.cz === undefined || (cacada.dona && outro.id > partida.eu) || (dono && outro.id > dono)) continue;
+      dono = outro.id;
+      coisaDeOutro.x = pose.cx;
+      coisaDeOutro.z = pose.cz;
+      coisaDeOutro.ve = !!pose.cv;
+      alvoDeOutro.x = pose.x;
+      alvoDeOutro.z = pose.z;
+      c.alheia = coisaDeOutro;
+    }
+  }
+  c.quer = !c.exposto || emChaoBento(regraDaCacada, p.x, p.z) ? null : oQueElaQuer(estado, EXEMPLO, partida.eu, acompanhado);
+  // Sozinho, com o relogio parado (painel, abertura, mouse solto), ela tambem para.
+  const parada = !partida.sala && !coisaForcada && !((jogador.travado || tempoForcado) && !abertura && partida.modo === 'andando');
+  cacada.atualizar(parada ? 0 : dt, c);
+  vulto.mostrar(cacada.presente);
+  const deOutro = cacada.modo === 'alheia';
+  const olha = deOutro ? coisaDeOutro.ve : cacada.atencao === 2 || cacada.modo === 'encara' || cacada.modo === 'caca' || cacada.modo === 'fareja';
+  vulto.atualizar(parada ? 0 : dt, cacada.x, cacada.y, cacada.z, cacada.rumo, deOutro ? (coisaDeOutro.ve ? 'corre' : 'anda') : cacada.jeito, olha, deOutro ? alvoDeOutro.x : p.x, deOutro ? alvoDeOutro.z : p.z);
+  if (!cacada.presente) {
+    olhoDaCoisa.atualizar(dt, false, 0, 0);
+    return 0;
+  }
+  // Cercando o lugar em que o jogador esta: parada na porta, ela bate tres vezes, de tempos em tempos.
+  if (rondaDaCoisa?.cerco && rondaDaCoisa.cerco === partida.dentro && rondaDaCoisa.parada && cacada.modo === 'ronda' && !parada && t > proximaBatida) {
+    proximaBatida = t + 9;
+    for (let i = 0; i < 3; i++) som.tocar('passo-madeira-1', { volume: 0.9, tom: 0.5, atraso: i * 0.38 });
+    efeitos.sinal('susto');
+  }
+  const d = cacada.distancia;
+  olhoDaCoisa.atualizar(dt, c.exposto, d < 45 ? 1 : 0, cacada.atencao);
+  return Math.max(0, 1 - d / 16);
+}
+
+/** Quanto cada luz da cidade falha por causa dela: as que estao a menos de 14 m piscam. */
+function falhaDaLuz(i: number, t: number): number {
+  if (!cacada.presente || !cidade) return 1;
+  if (luzesNoMundo?.cidade !== cidade) {
+    const pontos = new Float32Array(cidade.luzes.length * 2);
+    cidade.grupo.updateMatrixWorld(true);
+    cidade.luzes.forEach((l, k) => {
+      l.luz.getWorldPosition(pontoDaLuz);
+      pontos[k * 2] = pontoDaLuz.x;
+      pontos[k * 2 + 1] = pontoDaLuz.z;
+    });
+    luzesNoMundo = { cidade, pontos };
+  }
+  const d = Math.hypot(luzesNoMundo.pontos[i * 2]! - cacada.x, luzesNoMundo.pontos[i * 2 + 1]! - cacada.z);
+  if (d >= 14) return 1;
+  const n = Math.sin((Math.floor(t * 14) + i * 31.7) * 12.9898) * 43758.5453;
+  return 1 - (1 - d / 14) * (0.3 + 0.7 * (n - Math.floor(n)));
+}
 const direcaoDaLua = new THREE.Vector3(-0.38, 0.5, 0.78).normalize();
 
 const relogio = new THREE.Clock();
@@ -1251,37 +1412,31 @@ function quadro(): void {
   atualizarEu(dt, t);
   // O relogio da noite so anda com o jogo em foco e depois da abertura. Camera presa (capturas) nao joga.
   // Na plataforma de espera nao ha noite nenhuma: nem relogio, nem lugares, nem ameaca.
-  if (!cam && !emEspera) partida.atualizar(dt, jogador.posicao.x, jogador.posicao.z, jogador.travado && !abertura);
+  if (!cam && !emEspera) partida.atualizar(dt, jogador.posicao.x, jogador.posicao.z, (jogador.travado || tempoForcado) && !abertura);
   if (!emEspera) palco.atualizar(dt, t);
   // O que a partida faz sentir: luzes que falham, lampiao nervoso, tranco, neblina e amanhecer.
   const eu = medidoresForcados ?? partida.personagem;
   const fx = efeitos.atualizar(dt, eu.medo, eu.ferimento);
-  jogador.tremor = fx.tremor;
-  jogador.brilhoDoLampiao(fx.lampiao);
+  // A Coisa: perto dela o lampiao treme, e com ela no encalco a camera tambem.
+  const pertoDela = atualizarCoisa(dt, t);
+  const cacado = cacada.dona && (cacada.modo === 'caca' || cacada.modo === 'fareja');
+  jogador.tremor = fx.tremor + (cacado ? 0.005 * pertoDela : 0);
+  jogador.brilhoDoLampiao(fx.lampiao * (1 - pertoDela * 0.45 * (0.5 + 0.5 * Math.sin(t * 31) * Math.sin(t * 17.3))));
   clima.neblina(fx.neblina);
   clima.amanhecer(fx.amanhecer);
-  som.atualizar(dt, eu.medo, partida.dentro !== null, partida.personagem.vivo);
+  // Com ela vendo o jogador o coracao dispara, mesmo sem medo no medidor. Procurando por perto, bate.
+  som.atualizar(dt, Math.max(eu.medo, cacado && cacada.atencao === 2 ? 5 : cacada.atencao > 0 ? 4 : 0), partida.dentro !== null, partida.personagem.vivo);
   if (!cam && !emEspera && partida.modo === 'andando') {
-    if (aparicao) {
-      invocarVulto(aparicao);
-      aparicao = null;
-    }
-    proximaVisao -= eu.medo >= 4 && !vulto.ativo ? dt : 0;
-    if (proximaVisao <= 0) {
-      proximaVisao = 35 + Math.random() * 30;
-      invocarVulto('longe');
-    }
     camera.getWorldDirection(olhar);
     segredos.atualizar(dt, partida.dentro === null && olhar.dot(direcaoDaLua) > 0.992);
   }
-  // Sem mascara nao ha vulto: a Coisa esta amarrada na praca, desenhada pelo palco.
-  if (partida.estado.desmascarado && vulto.ativo) vulto.sumir();
-  vulto.atualizar(dt, camera);
   // Janelas e chamas apagam junto com as luzes (sobra um resto de brasa).
   brilhoGeral(0.06 + 0.94 * fx.luzes);
-  for (const l of cidade.luzes) {
+  for (let i = 0; i < cidade.luzes.length; i++) {
+    const l = cidade.luzes[i]!;
     const tremor = Math.sin(t * 11 + l.fase) * 0.06 + Math.sin(t * 23.7 + l.fase * 2.3) * 0.04 + Math.sin(t * 3.1 + l.fase) * 0.05;
-    l.luz.intensity = l.base * (0.9 + tremor) * fx.luzes;
+    // As luzes do lugar por onde a Coisa passa falham.
+    l.luz.intensity = l.base * (0.9 + tremor) * fx.luzes * falhaDaLuz(i, t);
   }
   atualizarMarcas(t);
   atualizarGente(t);

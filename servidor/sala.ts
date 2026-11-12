@@ -5,6 +5,8 @@
 import { apurar, cenaDe, chegar, contar, entrar, mostrarCarta, novaPartida, passarRodada, pegar, sair, usar, votar, ouvirDica } from '../src/nucleo/partida.ts';
 import { anotarNumero, entregar, girarDisco, puxarAlavanca, largarCaixa } from '../src/nucleo/missoes.ts';
 import { acusar, largarPecas, montar, puxar } from '../src/nucleo/vilao.ts';
+import { SEGUNDOS_ENTRE_ATAQUES, apanhar, emChaoBento, posicaoDaCoisa, precisaRondar, rondar, temCompanhia } from '../src/nucleo/coisa.ts';
+import { regraDe } from '../src/nucleo/partida.ts';
 import { SEGUNDOS_POR_RODADA, type Biblioteca, type Cena, type Estado } from '../src/nucleo/tipos.ts';
 import { limparAparencia } from '../src/rede/aparencia.ts';
 import { MAXIMO_DE_JOGADORES, SEGUNDOS_DE_VOTO, type Intencao, type Presenca } from '../src/rede/protocolo.ts';
@@ -20,6 +22,11 @@ export class Sala {
   /** Segundos que faltam em cada votacao aberta, por cena. */
   private readonly prazos = new Map<string, number>();
   private proximoId = 1;
+  /** Segundos de noite corridos nesta sala, para o intervalo entre um ataque da Coisa e outro. */
+  private tempo = 0;
+  private readonly apanhadoEm = new Map<string, number>();
+  /** A ultima posicao que cada jogador mandou. */
+  private readonly posicoes: Record<string, { x: number; z: number }> = {};
   /** Chamado quando o estado da noite muda, para o servidor avisar todo mundo. */
   aoMudar: () => void = () => {};
 
@@ -143,6 +150,9 @@ export class Sala {
           // Onde a Coisa esta sai do relogio da sala, nao do que a tela de quem puxou diz.
           if (!cenaDe(e, id)) this.mudar(puxar(e, this.bib, id, this.restante));
           break;
+        case 'apanhado':
+          this.apanhado(id);
+          break;
         case 'virar':
           if (id === this.dono && !e.fim) this.virar();
           break;
@@ -158,7 +168,38 @@ export class Sala {
     }
   }
 
+  /** Onde este jogador esta (a ultima posicao que ele mandou). Nao e regra: so serve a ronda e ao encontro. */
+  posicionar(id: string, x: number, z: number): void {
+    const p = this.posicoes[id];
+    if (p) {
+      p.x = x;
+      p.z = z;
+    } else this.posicoes[id] = { x, z };
+  }
+
+  /**
+   * A tela de um jogador diz que a Coisa o alcancou. Quem ve isso e so a tela dele, entao o
+   * servidor confere o que pode: a noite esta correndo, ele esta vivo, a Coisa esta na rua
+   * nesta parte da hora, a regra da noite nao o protege (em chao bento, acompanhado), e ja
+   * passou o intervalo desde a ultima vez. O pedido so fere quem o mandou.
+   */
+  private apanhado(id: string): void {
+    const e = this.estado;
+    if (!e || e.fim) return;
+    if (!posicaoDaCoisa(e, this.bib, this.restante)?.ativa) return;
+    const ultima = this.apanhadoEm.get(id);
+    if (ultima !== undefined && this.tempo - ultima < SEGUNDOS_ENTRE_ATAQUES) return;
+    // Na regra do chao bento, quem a posicao diz que esta no adro tambem esta a salvo.
+    const onde = this.posicoes[id];
+    if (onde && emChaoBento(regraDe(e, this.bib), onde.x, onde.z)) return;
+    const novo = apanhar(e, this.bib, id, temCompanhia(e, id, this.posicoes));
+    if (novo === e) return;
+    this.apanhadoEm.set(id, this.tempo);
+    this.mudar(novo);
+  }
+
   private comecar(): void {
+    this.apanhadoEm.clear();
     this.prazos.clear();
     this.restante = SEGUNDOS_POR_RODADA;
     this.mudar(novaPartida(this.bib, this.semente, this.jogadores));
@@ -182,7 +223,10 @@ export class Sala {
       if (cena) this.mudar(apurar(this.estado!, this.bib, cena.quem[0]!));
     }
     if (this.estado!.fim) return;
+    this.tempo += dt;
     this.restante -= dt;
     if (this.restante <= 0) this.virar();
+    // A ronda da Coisa e refeita a cada trecho da hora (so entao o estado muda).
+    if (this.estado && precisaRondar(this.estado, this.restante)) this.mudar(rondar(this.estado, this.bib, this.restante, this.posicoes));
   }
 }

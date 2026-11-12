@@ -59,6 +59,7 @@ import {
 } from '../nucleo/vilao.ts';
 import { FERIMENTO_FATAL, MEDO_MAXIMO, PISTAS_PARA_DESCOBRIR, RODADAS, SEGUNDOS_POR_RODADA, atoDaRodada, type Achado, type Biblioteca, type Cena, type Estado, type Personagem, type Registro } from '../nucleo/tipos.ts';
 import type { Sinal } from './efeitos.ts';
+import { apanhar, precisaRondar, rondar } from '../nucleo/coisa.ts';
 
 /** Quanto tempo de chama um lampiao cheio aguenta, em segundos de relogio. */
 const SEGUNDOS_DE_QUEROSENE = 300;
@@ -105,6 +106,8 @@ export interface Condutor {
   montar(): void;
   acusar(npc: string): void;
   puxar(): void;
+  /** A Coisa alcancou este jogador (src/nucleo/coisa.ts). */
+  apanhado(): void;
   virar(): void;
   outra(): void;
 }
@@ -203,6 +206,7 @@ export class PartidaNaTela {
       montar: () => this.receber(montar(this.estado, this.eu, this.restante)),
       acusar: (npc) => this.receber(acusar(this.estado, this.eu, npc)),
       puxar: () => this.receber(puxar(this.estado, this.bib, this.eu, this.restante)),
+      apanhado: () => this.receber(apanhar(this.estado, this.bib, this.eu)),
       virar: () => {
         this.restante = SEGUNDOS_POR_RODADA;
         this.receber(passarRodada(this.estado, this.bib).estado);
@@ -499,6 +503,11 @@ export class PartidaNaTela {
     if (this.modo === 'andando' && this.podeMostrarCarta) this.condutor.mostrar(npc);
   }
 
+  /** A Coisa alcancou este jogador: quem viu foi a tela (src/interface/cacada.ts), quem decide o que acontece sao as regras. */
+  apanhado(): void {
+    if (this.personagem.vivo && !this.estado.fim) this.condutor.apanhado();
+  }
+
   /** Lugares abertos em que ainda ha o que investigar nesta hora. */
   pendentes(): LugarId[] {
     if (this.estado.fim || !this.personagem.vivo) return [];
@@ -700,6 +709,14 @@ export class PartidaNaTela {
         if (traco) this.legendar(`${npc.nome} reparou numa coisa: ${traco.dica}`, 'lugar');
       }
       if (certo) this.mundo.sinal('pista');
+    }
+    // A Coisa que anda: alcancou este jogador no meio da hora, ou cercou o lugar em que ele esta.
+    if (!virou) {
+      for (const r of novos) {
+        if (r.tipo !== 'encontro' || !r.quem?.includes(this.eu)) continue;
+        this.mundo.sinal(souEu.ferimento > eraEu.ferimento ? 'ataque' : 'medo');
+        this.legendar(r.texto, souEu.ferimento > eraEu.ferimento ? 'ataque' : 'pressagio');
+      }
     }
     // O que ele usou da bolsa.
     if (souEu.bolsa.atadura < eraEu.bolsa.atadura) {
@@ -1068,6 +1085,8 @@ export class PartidaNaTela {
       // Sozinho, quem vira a hora e a tela. Numa sala, e o servidor.
       if (!this.sala && this.restante <= 0) this.condutor.virar();
     }
+    // Sozinho, quem refaz a ronda da Coisa a cada trecho da hora e a tela. Numa sala, e o servidor.
+    if (!this.sala && vivo && precisaRondar(this.estado, this.restante)) this.receber(rondar(this.estado, this.bib, this.restante, { [this.eu]: { x, z } }));
     // Numa votacao com prazo, o painel mostra os segundos correndo.
     if (this.modo === 'cena' && this.votoRestante !== null) this.abrirCena();
     this.desenharHud();

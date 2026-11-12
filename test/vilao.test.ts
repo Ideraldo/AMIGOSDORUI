@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { LUGARES, PRACA } from '../src/mundo/planta.ts';
-import { posicaoDaCoisa } from '../src/nucleo/coisa.ts';
+import { posicaoDaCoisa, rondar } from '../src/nucleo/coisa.ts';
 import { EXEMPLO } from '../src/nucleo/historias/exemplo.ts';
 import { INDICACAO } from '../src/nucleo/indicacoes.ts';
 import { casaDoNpc, chegar, mostrarCarta, novaPartida, objetivos, passarRodada, pegar, sair, tarefas, validarBiblioteca } from '../src/nucleo/partida.ts';
@@ -25,7 +25,7 @@ import {
   oQueImpedePuxar,
   passosDaArmadilha,
   pecasNaMao,
-  puxar,
+  puxar as puxarCru,
   quemTem,
   suspeitosDaCoisa,
   textoDoVestigio,
@@ -40,6 +40,20 @@ const DOIS = [{ id: 'a', nome: 'A' }, { id: 'b', nome: 'B' }];
 const TRES = [...DOIS, { id: 'c', nome: 'C' }];
 
 /** Passa as horas ate a rodada pedida, com todo mundo na rua. */
+// A Coisa so anda quando quem tem o relogio chama `rondar` a cada trecho da hora: aqui o teste faz
+// as vezes do relogio, do comeco da hora ate o instante pedido.
+function trazer(e: Estado, ate: number): Estado {
+  let x = e;
+  for (let r = SEGUNDOS_POR_RODADA; r >= ate; r -= 10) x = rondar(x, EXEMPLO, r);
+  return x;
+}
+/** Puxa a corda com a Coisa ja tendo andado ate aquele instante. Sem efeito, devolve o estado recebido. */
+function puxar(e: Estado, bib: typeof EXEMPLO, quem: string, restante: number): Estado {
+  const veio = trazer(e, restante);
+  const depois = puxarCru(veio, bib, quem, restante);
+  return depois === veio ? e : depois;
+}
+
 function ateARodada(inicio: Estado, rodada: number): Estado {
   let e = inicio;
   while (e.rodada < rodada && !e.fim) e = passarRodada(e, EXEMPLO).estado;
@@ -196,17 +210,18 @@ test('as pecas da armadilha so aparecem no ato 3, e montar pede estar na rua com
   assert.deepEqual(e.armadilha!.armadaEm, { rodada: RODADA_DA_ARMADILHA, restante: 90 });
 });
 
-test('a Coisa provisoria vem ver o lampiao de sinal e fica ao alcance da corda', () => {
+test('a Coisa vem ver o lampiao de sinal e fica ao alcance da corda', () => {
   const inicio = novaPartida(EXEMPLO, 5, UM);
-  // No ato 1 ela nao esta na rua.
-  assert.equal(posicaoDaCoisa(inicio, EXEMPLO, 100)!.ativa, false);
+  // Sem ronda feita nao ha Coisa nenhuma.
+  assert.equal(posicaoDaCoisa(inicio, EXEMPLO, 100), null);
   const e = armada(inicio, 'a', 140);
-  assert.ok(!coisaNoAlcance(e, EXEMPLO, 139), 'chegou na hora, sem andar');
-  assert.ok(coisaNoAlcance(e, EXEMPLO, 60));
-  const c = posicaoDaCoisa(e, EXEMPLO, 60)!;
+  assert.ok(!coisaNoAlcance(trazer(e, 139), EXEMPLO, 139), 'chegou na hora, sem andar');
+  const veio = trazer(e, 0);
+  assert.ok(coisaNoAlcance(veio, EXEMPLO, 0));
+  const c = posicaoDaCoisa(veio, EXEMPLO, 0)!;
   assert.ok(Math.hypot(c.x - PRACA.x, c.z - PRACA.z) <= ALCANCE_DA_ARMADILHA && c.ativa);
-  // A hora virou com a armadilha armada: continua la.
-  assert.ok(coisaNoAlcance(passarRodada(e, EXEMPLO).estado, EXEMPLO, SEGUNDOS_POR_RODADA));
+  // A hora virou com a armadilha armada: ela continua rodando o poco.
+  assert.ok(coisaNoAlcance(trazer(passarRodada(veio, EXEMPLO).estado, 60), EXEMPLO, 60));
 });
 
 test('acusar: cada vivo escolhe um nome, vale o mais votado e empate vai a sorteio', () => {
@@ -241,12 +256,12 @@ test('puxar com o nome certo: a mascara cai, o medo cede, a ameaca para de ataca
   for (const p of e.personagens) p.medo = 3;
   // A Coisa ainda vem pela rua: a corda nao pega nada.
   assert.equal(puxar(e, EXEMPLO, 'a', 139), e);
-  assert.ok(oQueImpedePuxar(e, EXEMPLO, 'a', 139)?.includes('ainda não chegou'));
+  assert.ok(oQueImpedePuxar(trazer(e, 139), EXEMPLO, 'a', 139)?.includes('ainda não chegou'));
   // De dentro de um lugar tambem nao.
   const dentro = chegar(e, ['a'], e.abertos[0]!);
   assert.equal(puxar(dentro, EXEMPLO, 'a', 0), dentro);
   const antes = structuredClone(e);
-  const pego = puxar(e, EXEMPLO, 'a', 30);
+  const pego = puxar(e, EXEMPLO, 'a', 0);
   assert.deepEqual(e, antes, 'puxar alterou o estado recebido');
   assert.equal(pego.desmascarado!.npc, e.vilao);
   assert.equal(pego.desmascarado!.por, 'a');

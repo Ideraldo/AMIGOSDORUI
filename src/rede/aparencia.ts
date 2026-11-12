@@ -79,5 +79,12 @@ export function limparPose(m: Partial<Record<keyof Pose, unknown>>): Pose | null
   const { x, y, z, giro } = m;
   if (![x, y, z, giro].every((n) => typeof n === 'number' && Number.isFinite(n))) return null;
   const espia = typeof m.espia === 'number' && Number.isFinite(m.espia) ? Math.max(-1, Math.min(1, m.espia)) : 0;
-  return { x: x as number, y: y as number, z: z as number, giro: giro as number, lampiao: !!m.lampiao, agachado: !!m.agachado, gesto: ehGesto(m.gesto) ? m.gesto : null, espia };
+  const pose: Pose = { x: x as number, y: y as number, z: z as number, giro: giro as number, lampiao: !!m.lampiao, agachado: !!m.agachado, gesto: ehGesto(m.gesto) ? m.gesto : null, espia };
+  // A Coisa, quando persegue quem mandou.
+  if (typeof m.cx === 'number' && Number.isFinite(m.cx) && typeof m.cz === 'number' && Number.isFinite(m.cz)) {
+    pose.cx = m.cx;
+    pose.cz = m.cz;
+    pose.cv = !!m.cv;
+  }
+  return pose;
 }

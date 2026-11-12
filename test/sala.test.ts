@@ -263,7 +263,7 @@ test('a armadilha pela sala: o servidor confere hora, lugar, cena e nome, e usa 
   // A Coisa ainda vem pela rua: puxar agora nao pega nada. O tempo da sala passa e ela chega.
   sala.receber(b, { t: 'puxar' });
   assert.equal(sala.estado!.desmascarado, null);
-  sala.avancar(60);
+  for (let i = 0; i < 12; i++) sala.avancar(10);
   sala.receber(b, { t: 'puxar' });
   const pego = (sala.estado as Estado).desmascarado;
   assert.deepEqual({ npc: pego?.npc, por: pego?.por }, { npc: vilao, por: b });
