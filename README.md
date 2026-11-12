@@ -4,6 +4,8 @@ Jogo de terror e mistério para 3 a 6 amigos. Cada partida sorteia uma história
 
 **Estado atual: cenário pronto, a noite jogável sozinho e a primeira versão do jogo em grupo, por sala.** Dá para andar pela cidade e pelo vale do sítio em primeira pessoa. Em cada lugar aberto há algo brilhando para investigar com a tecla E, que abre uma cena com 2 ou 3 escolhas, o relógio da noite anda em 8 horas, uma ameaça age seguindo uma regra secreta e a noite termina com um epílogo. A história usada é uma **biblioteca de exemplo**, escrita só para o molde funcionar. Em grupo, um jogador cria uma sala, os outros entram com o código de 4 letras, todos se veem na cidade e quem está no mesmo lugar decide a cena por voto.
 
+Desde 13/11/2026 a noite da carta descrita aqui abre em `carta.html`, e `index.html` é a caçada, o modo novo (ver `docs/cacadores.md`).
+
 ![Chegada pela rua principal](docs/01-chegada.png)
 
 ![Cena ao entrar no bar](docs/09-cena.png)
@@ -163,7 +165,8 @@ $env:CHROME = "C:\Program Files\Google\Chrome\Application\chrome.exe"; npm run c
 ## Estrutura
 
 ```
-index.html                página e interface (HUD, mapa, tela de entrada)
+index.html                página da caçada (modo novo, ver docs/cacadores.md)
+carta.html               página e interface da noite da carta (HUD, mapa, tela de entrada)
 src/main.ts               cria a cena, monta a noite, laço principal
 src/nucleo/tipos.ts       formato da história (fragmentos, regras, pistas) e do estado da partida
 src/nucleo/partida.ts     regras: entrar, escolher, virar a hora, ameaça, fim e validação da biblioteca

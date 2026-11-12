@@ -2,6 +2,8 @@
 
 Jogo de terror e mistério em grupo numa cidade de faroeste sombrio. 3D na web com Three.js e TypeScript, em primeira pessoa. Existe o cenário e uma noite jogável sozinho, com uma biblioteca de história de exemplo. Leia o README antes.
 
+A noite da carta (descrita neste guia, salvo onde disser o contrário) é servida em `carta.html` + `src/main.ts`, e os scripts de Chrome abrem `/carta.html?...`. `index.html` é a caçada, o modo novo, com código em `src/caca/` (especificação em `docs/cacadores.md`).
+
 ## Com quem você está trabalhando
 
 - O dono do projeto é o Ideraldo, dev backend (Node e TypeScript). É um projeto paralelo, com pouco tempo por semana.

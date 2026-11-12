@@ -23,7 +23,8 @@
     "abertura": "tsx scripts/abertura.ts",
     "gestos": "tsx scripts/gestos.ts",
     "vilao": "tsx scripts/vilao.ts",
-    "coisa": "tsx scripts/coisa.ts"
+    "coisa": "tsx scripts/coisa.ts",
+    "vitrine": "tsx scripts/vitrine.ts"
   },
   "dependencies": {
     "three": "^0.187.0"

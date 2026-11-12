@@ -83,7 +83,7 @@ async function abrir(url: string, largura = 1280, altura = 720, semEntrada = tru
   const pagina = await contexto.newPage();
   await pagina.setViewport({ width: largura, height: altura });
   pagina.on('pageerror', (e) => erros.push(String(e)));
-  await pagina.goto(`http://localhost:${PORTA}/${url}`, { waitUntil: 'load', timeout: 120000 });
+  await pagina.goto(`http://localhost:${PORTA}/carta.html${url}`, { waitUntil: 'load', timeout: 120000 });
   await pagina.waitForFunction(() => window.__pronto === true, { timeout: 180000 });
   if (semEntrada) await pagina.addStyleTag({ content: '#entrada{display:none!important}' });
   return pagina;

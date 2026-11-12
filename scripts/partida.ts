@@ -41,7 +41,7 @@ try {
   const erros: string[] = [];
   pagina.on('pageerror', (e) => erros.push(String(e)));
   const ABERTOS: LugarId[] = ['bar', 'armazem', 'delegacia', 'igreja'];
-  await pagina.goto(`http://localhost:${PORTA}/?seed=7&regra=chao-consagrado&abertos=${ABERTOS.join(',')}`, { waitUntil: 'load' });
+  await pagina.goto(`http://localhost:${PORTA}/carta.html?seed=7&regra=chao-consagrado&abertos=${ABERTOS.join(',')}`, { waitUntil: 'load' });
   await pagina.waitForFunction(() => window.__pronto === true, { timeout: 180000 });
   await pagina.addStyleTag({ content: '#entrada{display:none!important}' });
 

@@ -35,7 +35,7 @@ try {
   const erros: string[] = [];
   pagina.on('pageerror', (e) => erros.push(String(e)));
   const carregar = async (): Promise<void> => {
-    await pagina.goto(`http://localhost:${PORTA}/?seed=3&som=0&abertura=0`, { waitUntil: 'load' });
+    await pagina.goto(`http://localhost:${PORTA}/carta.html?seed=3&som=0&abertura=0`, { waitUntil: 'load' });
     await pagina.waitForFunction(() => window.__pronto === true, { timeout: 180000 });
     await pagina.addStyleTag({ content: '#entrada{display:none!important}' });
   };

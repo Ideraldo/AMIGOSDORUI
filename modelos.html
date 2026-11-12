@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Vitrine dos modelos da caçada</title>
+    <link rel="icon" href="data:," />
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        overflow: hidden;
+        background: #8fb4d8;
+      }
+      canvas#jogo {
+        display: block;
+        width: 100%;
+        height: 100%;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="jogo"></canvas>
+    <!-- Vitrine para olhar os modelos de src/caca/mundo/modelos.ts. ?t= (tempo da animacao), ?gasto=1, ?cam=x,y,z,alvoX,alvoY,alvoZ -->
+    <script type="module" src="/src/caca/vitrine.ts"></script>
+  </body>
+</html>

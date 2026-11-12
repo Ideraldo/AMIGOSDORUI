@@ -47,7 +47,7 @@ try {
     const pagina = await contexto.newPage();
     await pagina.setViewport({ width: 960, height: 540 });
     pagina.on('pageerror', (e) => erros.push(String(e)));
-    await pagina.goto(`http://localhost:${PORTA}/?seed=3&som=0&abertura=0`, { waitUntil: 'load', timeout: 120000 });
+    await pagina.goto(`http://localhost:${PORTA}/carta.html?seed=3&som=0&abertura=0`, { waitUntil: 'load', timeout: 120000 });
     await pagina.waitForFunction(() => window.__pronto === true, { timeout: 180000 });
     return pagina;
   };

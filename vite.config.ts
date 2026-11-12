@@ -2,10 +2,21 @@
 // Assim `npm run dev` basta para jogar em grupo na mesma maquina, e `npm run dev:rede`
 // abre a porta para quem estiver na mesma rede.
 
+import { resolve } from 'node:path';
 import { defineConfig } from 'vite';
 import { ligarSalas } from './servidor/ligar.ts';
 
+// Duas paginas: index.html e a cacada (modo novo) e carta.html e a noite da carta (modo antigo).
+// modelos.html e a vitrine dos modelos da cacada, so para olhar.
 export default defineConfig({
+  build: {
+    rollupOptions: {
+      input: {
+        index: resolve(import.meta.dirname, 'index.html'),
+        carta: resolve(import.meta.dirname, 'carta.html'),
+      },
+    },
+  },
   plugins: [
     {
       name: 'salas',

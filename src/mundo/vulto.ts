@@ -143,6 +143,20 @@ export class Vulto {
     cena.add(g);
   }
 
+  /**
+   * Ponto de entrada para quem troca a roupa do boneco (src/caca/mundo/modelos.ts, `vestirCoisa`).
+   * Devolve as partes por onde se mexe e a lista de materiais que somem e aparecem junto: quem
+   * acrescentar uma peca com material novo o poe em `materiais` (e o tira de la ao desvestir).
+   */
+  paraVestir(): { corpo: THREE.Group; cabeca: THREE.Group; mascara: THREE.Object3D; chapeu: THREE.Object3D; materiais: THREE.Material[] } {
+    return { corpo: this.corpo, cabeca: this.cabeca, mascara: this.cabeca.getObjectByName('mascara')!, chapeu: this.cabeca.getObjectByName('chapeu')!, materiais: this.materiais };
+  }
+
+  /** Os panos da capa (para quem vestir outra roupa esconder a capa preta). */
+  get panosDaCapa(): readonly THREE.Object3D[] {
+    return this.panos.map((p) => p.pivo);
+  }
+
   /** Esta na cena agora (aparecendo, a vista ou sumindo)? */
   get ativo(): boolean {
     return this.grupo.visible;

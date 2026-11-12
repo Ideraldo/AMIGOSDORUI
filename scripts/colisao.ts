@@ -57,7 +57,7 @@ try {
   const pagina = await navegador.newPage();
   await pagina.setViewport({ width: 320, height: 200 });
   const abrir = async (abertos: string) => {
-    await pagina.goto(`http://localhost:${PORTA}/?seed=1&hud=0&abertos=${abertos}`, { waitUntil: 'load' });
+    await pagina.goto(`http://localhost:${PORTA}/carta.html?seed=1&hud=0&abertos=${abertos}`, { waitUntil: 'load' });
     await pagina.waitForFunction('window.__pronto === true', { timeout: 120000 });
   };
   /** Devolve quantos pontos do trecho estao bloqueados. */

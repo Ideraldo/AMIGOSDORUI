@@ -142,7 +142,7 @@ async function abrir(): Promise<{ pagina: Page; erros: string[] }> {
   await pagina.setViewport({ width: 1280, height: 720 });
   const erros: string[] = [];
   pagina.on('pageerror', (e) => erros.push(String(e)));
-  await pagina.goto(`http://localhost:${PORTA}/?seed=${SEMENTE}&regra=chao-consagrado&som=0&abertura=0`, { waitUntil: 'load' });
+  await pagina.goto(`http://localhost:${PORTA}/carta.html?seed=${SEMENTE}&regra=chao-consagrado&som=0&abertura=0`, { waitUntil: 'load' });
   await pagina.waitForFunction(() => window.__pronto === true, { timeout: 180000 });
   await pagina.addStyleTag({ content: '#entrada{display:none!important}' });
   return { pagina, erros };

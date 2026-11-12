@@ -178,7 +178,7 @@ try {
     if (v.abertos !== undefined) q.set('abertos', v.abertos);
     if (v.lampiao === false || dia) q.set('lampiao', '0');
     if (dia) q.set('dia', '1');
-    await pagina.goto(`http://localhost:${PORTA}/?${q}`, { waitUntil: 'load' });
+    await pagina.goto(`http://localhost:${PORTA}/carta.html?${q}`, { waitUntil: 'load' });
     await pagina.waitForFunction('window.__pronto === true', { timeout: 120000 });
     const arquivo = resolve('capturas', `${v.nome}${forcarDia && !v.dia ? '-dia' : ''}.png`) as `${string}.png`;
     await pagina.screenshot({ path: arquivo });

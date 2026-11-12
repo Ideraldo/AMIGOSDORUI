@@ -107,7 +107,7 @@ export const NOS: readonly (readonly [number, number])[] = [
   [0, 39], [-3, 42], [3, 42], [0, 45],
 ];
 
-const ARESTAS: readonly (readonly [number, number])[] = [
+export const ARESTAS: readonly (readonly [number, number])[] = [
   [0, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6], [6, 7], [7, 8], [8, 9], [9, 10],
   [10, 40], [40, 41], [40, 42], [41, 43], [42, 43], [41, 11], [42, 12], [43, 13],
   [2, 14], [14, 15], [5, 16], [16, 17], [8, 18], [18, 19], [15, 20], [20, 17], [17, 21], [21, 19],
@@ -138,7 +138,7 @@ export function emChaoBento(regra: RegraSecreta, x: number, z: number): boolean 
   return false;
 }
 
-interface Grafo {
+export interface Grafo {
   /** Nos em que ela pode pisar nesta regra. */
   vale: boolean[];
   /** Vizinhos de cada no. */
@@ -173,7 +173,7 @@ function grafoDa(regra: RegraSecreta): Grafo {
 }
 
 /** O no mais perto de um ponto, entre os que valem (e, se pedido, que tenham para onde ir). */
-function noMaisPerto(g: Grafo, x: number, z: number): number {
+export function noMaisPerto(g: Grafo, x: number, z: number): number {
   let melhor = -1;
   let menor = Infinity;
   for (let i = 0; i < NOS.length; i++) {
@@ -188,7 +188,7 @@ function noMaisPerto(g: Grafo, x: number, z: number): number {
 }
 
 /** O caminho mais curto entre dois nos, contando o peso extra de passar por cada no. Inclui os dois. */
-function caminho(g: Grafo, de: number, ate: number, peso?: readonly number[]): number[] {
+export function caminho(g: Grafo, de: number, ate: number, peso?: readonly number[]): number[] {
   const n = NOS.length;
   const custo = new Array<number>(n).fill(Infinity);
   const anterior = new Array<number>(n).fill(-1);
@@ -211,6 +211,11 @@ function caminho(g: Grafo, de: number, ate: number, peso?: readonly number[]): n
   const volta: number[] = [];
   for (let u = ate; u >= 0; u = anterior[u]!) volta.push(u);
   return volta.reverse();
+}
+
+/** As ruas sem restricao nenhuma (sem chao bento), para quem anda por elas fora da noite da carta (a cacada). */
+export function grafoDasRuas(): Grafo {
+  return grafoDa({ alvo: { tipo: 'sozinho' } } as RegraSecreta);
 }
 
 /** Onde a porta de um lugar da para a rua, a uns passos da soleira. */

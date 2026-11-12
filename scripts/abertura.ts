@@ -26,7 +26,7 @@ try {
   await pagina.setViewport({ width: 1280, height: 720 });
   const erros: string[] = [];
   pagina.on('pageerror', (e) => erros.push(String(e)));
-  await pagina.goto(`http://localhost:${PORTA}/?seed=3&som=0`, { waitUntil: 'load' });
+  await pagina.goto(`http://localhost:${PORTA}/carta.html?seed=3&som=0`, { waitUntil: 'load' });
   await pagina.waitForFunction(() => window.__pronto === true, { timeout: 180000 });
   await pagina.addStyleTag({ content: '#entrada{display:none!important}' });
 
@@ -135,7 +135,7 @@ try {
   comSom.on('pageerror', (e) => erros.push(String(e)));
   const pedidos: string[] = [];
   comSom.on('response', (r) => r.url().includes('/vozes/') && r.url().endsWith('.mp3') && pedidos.push(r.url().split('/').pop()!));
-  await comSom.goto(`http://localhost:${PORTA}/?seed=3&som=0.2`, { waitUntil: 'load' });
+  await comSom.goto(`http://localhost:${PORTA}/carta.html?seed=3&som=0.2`, { waitUntil: 'load' });
   await comSom.waitForFunction(() => window.__pronto === true, { timeout: 180000 });
   await comSom.evaluate(() => window.__depurar!.abrir());
   await comSom.waitForFunction(() => window.__depurar!.abertura().falando, espera);
