@@ -69,6 +69,7 @@ npm run caca       # joga a CACADA inteira (index.html) num Chrome sem janela e 
 npm run caca:sala  # dois navegadores (e um terceiro) na mesma sala da cacada, pelo servidor de verdade: confere o estado e guarda capturas/cacasala-*.png
 npm run gestos     # confere aderecos e gestos das cenas, o cofre de ferro e o favor (uns 12 minutos; aceita filtro: npm run gestos -- retrato cofre)
 npm run dev:rede   # como o dev, mas aberto para quem esta na mesma rede
+npm run online     # jogar com quem esta em outra casa: monta o jogo, serve com as salas (porta 4173, so local) e abre um tunel cloudflared; imprime o endereco https para mandar aos amigos
 npm run planta     # regenera docs/planta.*
 npm run sons       # gera na ElevenLabs os sons que faltam em public/sons/ (gasta credito da conta dele)
 npm run vozes      # grava na ElevenLabs a narracao e as falas que faltam em public/vozes/ (gasta credito da conta dele)

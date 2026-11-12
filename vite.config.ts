@@ -28,6 +28,14 @@ export default defineConfig({
         ligarSalas(http);
         ligarSalasDaCaca(http);
       },
+      // O jogo ja montado (`npm run online`) tambem atende as salas.
+      configurePreviewServer(servidor) {
+        const http = servidor.httpServer as import('node:http').Server;
+        ligarSalas(http);
+        ligarSalasDaCaca(http);
+      },
     },
   ],
+  // O endereco publico temporario do tunel (`npm run online`).
+  preview: { allowedHosts: ['.trycloudflare.com'] },
 });
