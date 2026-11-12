@@ -89,12 +89,12 @@ export function percebe(s: Sinais): 've' | 'ouve' | null {
 export const NOS: readonly (readonly [number, number])[] = [
   // 0 a 10: a rua principal, da estacao a praca.
   [0, -50], [0, -36], [0, -25], [0, -14], [0, -7.5], [0, -0.5], [0, 9], [0, 13.5], [0, 18.5], [0, 27.5], [0, 33.5],
-  // 11 a 13: a praca, em volta do poco.
+  // 11 a 13: as saidas da praca para o cemiterio, para a mina e para a igreja.
   [-7.5, 42], [7.5, 42], [0, 49.5],
   // 14 a 21: becos do oeste e a rua de tras.
   [-8, -25.5], [-25.5, -25.5], [-8, -0.5], [-25.5, -0.5], [-8, 18.5], [-25.5, 18.5], [-25.5, -13.5], [-25.5, 9.75],
   // 22 a 28: becos do leste e a rua de tras.
-  [8, -24.5], [23, -24.5], [8, -7.5], [23, -7.5], [8, 13.5], [23, 13.5], [23, -44],
+  [8, -24.5], [22.5, -24.5], [8, -7.5], [22.5, -7.5], [8, 13.5], [22.5, 13.5], [22.5, -44],
   // 29 e 30: o caminho do casarao.
   [8, 28], [16, 28],
   // 31 e 32: o caminho do cemiterio.
@@ -103,11 +103,13 @@ export const NOS: readonly (readonly [number, number])[] = [
   [11, 49], [11, 58], [24, 58], [36, 58],
   // 37 a 39: a estrada do sitio e o terreiro.
   [-45, 9.75], [-62, 9.75], [-72, 5],
+  // 40 a 43: a roda em volta do poco, por dentro dos bancos (que ficam nas diagonais da praca).
+  [0, 39], [-3, 42], [3, 42], [0, 45],
 ];
 
 const ARESTAS: readonly (readonly [number, number])[] = [
   [0, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6], [6, 7], [7, 8], [8, 9], [9, 10],
-  [10, 11], [10, 12], [11, 13], [12, 13],
+  [10, 40], [40, 41], [40, 42], [41, 43], [42, 43], [41, 11], [42, 12], [43, 13],
   [2, 14], [14, 15], [5, 16], [16, 17], [8, 18], [18, 19], [15, 20], [20, 17], [17, 21], [21, 19],
   [2, 22], [22, 23], [4, 24], [24, 25], [7, 26], [26, 27], [28, 23], [23, 25], [25, 27],
   [9, 29], [29, 30],
