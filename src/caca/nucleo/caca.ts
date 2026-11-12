@@ -16,6 +16,7 @@ import { furiaFinal, passoDaCoisa } from './bicho.ts';
 import { JEITO } from './gente.ts';
 import { passoDasMaos, passoDosEstados } from './maos.ts';
 import { passoDosMoradores } from './moradores.ts';
+import { camposDaPartida, camposDoCacador, iniciarTraidor, marcarTrem, marcarMascara, passoDoTraidor, type OpcoesDeTraidor } from './traidor.ts';
 import {
   CORAGEM_CHEIA,
   DURACAO,
@@ -33,6 +34,8 @@ import {
 export { agir } from './acoes.ts';
 export { cacadorDe, podeDesmascarar, restante, resumoDoFim } from './base.ts';
 export { velocidadeDoCacador } from './velocidade.ts';
+export { velocidadeMaximaDe } from './ritmo.ts';
+export { visaoDe } from './visao.ts';
 
 // ---------- numeros da montagem ----------
 
@@ -65,6 +68,7 @@ function novoCacador(id: string, nome: string): Cacador {
     montou: 0,
     atirou: 0,
     acertou: 0,
+    ...camposDoCacador(),
   };
 }
 
@@ -75,8 +79,8 @@ function novoCacador(id: string, nome: string): Cacador {
 export function novaCaca(
   bib: Biblioteca,
   semente: number,
-  jogadores: { id: string; nome: string }[],
-  op: { tipo?: TipoDeCoisa; abertos?: LugarId[]; duracao?: number; vilao?: string } = {},
+  jogadores: { id: string; nome: string; aparencia?: { chapeu: number; lenco: number } }[],
+  op: { tipo?: TipoDeCoisa; abertos?: LugarId[]; duracao?: number; vilao?: string } & OpcoesDeTraidor = {},
 ): Caca {
   const dado = { rng: (semente ^ 0x9e3779b9) >>> 0 };
 
@@ -121,8 +125,10 @@ export function novaCaca(
     contador: 0,
     houveDesmaio: false,
     fim: null,
+    ...camposDaPartida(),
   };
   espalharItens(caca);
+  iniciarTraidor(caca, jogadores, op, moradorEmCasa(vilao.id, casaDe(vilao.id)));
   return caca;
 }
 
@@ -196,6 +202,8 @@ export function avancar(caca: Caca, dt: number, amb: Ambiente): void {
   if (caca.fim) return;
   const antes = caca.tempo;
   caca.tempo += dt;
+  // Reuniao (Traidor): o relogio do trem para.
+  if (caca.reuniao) caca.duracao += dt;
 
   // O relogio: o apito avisa, o trem parte.
   for (const falta of APITOS) {
@@ -207,14 +215,17 @@ export function avancar(caca: Caca, dt: number, amb: Ambiente): void {
     caca.tempo = caca.duracao;
     caca.fim = { tipo: 'trem', tempo: caca.duracao, estrelas: 0 };
     emitir(caca, 'trem', 0, 0);
+    marcarTrem(caca);
     return;
   }
 
   passoDosEstados(caca, amb);
   passoDasMaos(caca, dt, amb);
+  marcarMascara(caca);
   if (caca.fim) return;
   passoDosSinos(caca, antes);
-  passoDaCoisa(caca, dt, amb);
+  if (caca.traidor) passoDoTraidor(caca, dt, amb);
+  else passoDaCoisa(caca, dt, amb);
   passoDosMoradores(caca, dt, amb);
   passoDasArmadilhas(caca, amb);
 }

@@ -72,7 +72,9 @@ export const TIPOS_DE_COISA: readonly TipoDeCoisa[] = ['sombra', 'orelhuda'];
  * - 'presa': no laco, ate `ate`. 'caida': tombo (latas ou tiro), ate `ate`.
  * - 'derrubada': levou tiros demais e nao levanta mais.
  */
-export type ModoDaCoisa = 'ronda' | 'confere' | 'caca' | 'recua' | 'cerca' | 'ri' | 'presa' | 'caida' | 'derrubada';
+export type ModoDaCoisa = 'ronda' | 'confere' | 'caca' | 'recua' | 'cerca' | 'ri' | 'presa' | 'caida' | 'derrubada'
+  /** So no Traidor: a fantasia esta guardada numa toca e a Coisa esta fora do mundo. Vestida, ela fica em 'ronda' (sem IA). */
+  | 'guardada';
 
 export interface Coisa {
   tipo: TipoDeCoisa;
@@ -118,14 +120,21 @@ export interface Coisa {
  * - 'sino' (de vaca) e 'sinal' (lampiao de sinal) se poem no chao como isca ou barreira.
  * - 'revolver': vem com `BALAS` cartuchos de sal grosso. Nao ocupa as maos.
  */
-export type Item = 'corda' | 'piche' | 'latas' | 'sino' | 'sinal' | 'revolver';
+export type ItemDeCacada = 'corda' | 'piche' | 'latas' | 'sino' | 'sinal' | 'revolver';
+/** Itens do modo Traidor: 'tabuas' (2 por partida, prega uma toca) e 'retalho' (pista no chao, nao ocupa as maos). */
+export type ItemDeTraidor = 'tabuas' | 'retalho';
+/** Tudo o que pode estar solto no chao. */
+export type Item = ItemDeCacada | ItemDeTraidor;
+
 /** Quantos de cada a cidade tem por partida. */
-export const ITENS_POR_PARTIDA: Record<Item, number> = { corda: 2, piche: 1, latas: 2, sino: 1, sinal: 1, revolver: 1 };
+export const ITENS_POR_PARTIDA: Record<ItemDeCacada, number> = { corda: 2, piche: 1, latas: 2, sino: 1, sinal: 1, revolver: 1 };
 
 /** Uma coisa largada: em cima de um movel de um lugar (`lugar` e `vaga`) ou no chao (`x` e `z`). */
 export interface Solto {
   id: string;
   item: Item;
+  /** So no 'retalho' (Traidor): o que ele conta sobre quem esta por baixo da fantasia. */
+  pista?: Pista;
   lugar?: LugarId;
   vaga?: number;
   x?: number;
@@ -134,7 +143,7 @@ export interface Solto {
 
 /** O que cada item vira quando montado no chao. */
 export type TipoDePosto = 'laco' | 'piche' | 'latas' | 'sino' | 'sinal';
-export const POSTO_DO_ITEM: Record<Exclude<Item, 'revolver'>, TipoDePosto> = { corda: 'laco', piche: 'piche', latas: 'latas', sino: 'sino', sinal: 'sinal' };
+export const POSTO_DO_ITEM: Record<Exclude<ItemDeCacada, 'revolver'>, TipoDePosto> = { corda: 'laco', piche: 'piche', latas: 'latas', sino: 'sino', sinal: 'sinal' };
 
 /**
  * Uma coisa montada no chao, na rua ou dentro de um lugar. Armadilha pega QUALQUER UM que pise:
@@ -155,6 +164,10 @@ export interface Posto {
   desde: number;
   /** Ja disparou (laco e latas) ou parou de tocar (sino). Fica no chao, sem efeito, e pode ser recolhido so para limpar. */
   gasto: boolean;
+  /** So no Traidor: no frouxo (laco ou latas montados pelo Traidor) nao dispara em ninguem. De longe e igual aos outros. */
+  frouxo?: true;
+  /** So no Traidor: quem ja conferiu este posto de perto (so esses, e o Traidor, enxergam o `frouxo`). */
+  conferidoPor?: string[];
 }
 
 // ---------- a turma ----------
@@ -170,11 +183,11 @@ export interface Cacador {
   caidoAte: number;
   meladoAte: number;
   /** O que leva nas maos, na ordem em que pegou. No maximo `MAOS`. */
-  itens: Exclude<Item, 'revolver'>[];
+  itens: (Exclude<ItemDeCacada, 'revolver'> | 'tabuas')[];
   revolver: boolean;
   balas: number;
   /** O que esta fazendo com as maos agora (a tela manda enquanto o E esta apertado). */
-  ocupado: null | { com: 'mascara' } | { com: 'reanimar'; quem: string } | { com: 'montar'; indice: number; x: number; z: number };
+  ocupado: null | { com: 'mascara' } | { com: 'reanimar'; quem: string } | { com: 'montar'; indice: number; x: number; z: number; frouxo?: true } | { com: 'tarefa'; tarefa: Tarefa };
   /** Ha quantos segundos esta nisso. */
   progresso: number;
   // Para o resumo do fim.
@@ -182,6 +195,25 @@ export interface Cacador {
   montou: number;
   atirou: number;
   acertou: number;
+  // Modo Traidor (zeros e vazios na cacada comum).
+  /** Aparencia escolhida na tela de entrada: indices do chapeu e do lenco. */
+  aparencia?: { chapeu: number; lenco: number };
+  /** Amarrado no banco da estacao ate este segundo (votado numa reuniao): nao anda nem age. */
+  amarradoAte: number;
+  /** Pernas bambas (uivo) ate este segundo. */
+  bamboAte: number;
+  /** Tocou o sino da estacao nesta partida (so uma vez). */
+  tocouSino: boolean;
+  /** Pistas que pegou (nao ocupam as maos). */
+  pistas: Pista[];
+  /** Ids das tocas que ja viu de perto. */
+  tocasVistas: string[];
+  /** Ultimo alcapao usado por ele com `descer` (para a tela teleportar). */
+  salto: Salto | null;
+  espantou: number;
+  sabotou: number;
+  golpes: number;
+  votosCertos: number;
 }
 
 // ---------- a gente da cidade ----------
@@ -204,7 +236,9 @@ export interface Morador {
   z: number;
   rumo: number;
   /** 'casa': no lugar dele (a tela o poe num movel). Os outros modos sao na rua, em (x, z). */
-  modo: 'casa' | 'indo' | 'posto' | 'seguindo' | 'fugindo' | 'voltando' | 'assustado';
+  modo: 'casa' | 'indo' | 'posto' | 'seguindo' | 'fugindo' | 'voltando' | 'assustado'
+    /** So no Traidor: a Coisa o espantou. Anda ate a estacao (`NASCIMENTO`) e nao aceita mais pedidos. */
+    | 'espantado';
   ordem: Ordem | null;
   /** Quem pediu. */
   de: string | null;
@@ -235,7 +269,10 @@ export type TipoDeEvento =
   | 'viu' /* a Coisa percebeu alguem e comecou a cacar */ | 'susto' /* alcancou alguem */ | 'riso' | 'recuou' | 'escapou' | 'furia' | 'caiu' | 'levantou' | 'derrubada'
   | 'desmaiou' | 'acordou'
   | 'aceitou' | 'recusou' | 'grito' /* morador viu a Coisa */ | 'correu' /* morador medroso fugiu */ | 'panela' /* a isca fazendo barulho */
-  | 'mascara' /* caiu: fim */ | 'apito' /* faltam 3 min, 1 min */ | 'trem' /* partiu: fim */;
+  | 'mascara' /* caiu: fim */ | 'apito' /* faltam 3 min, 1 min */ | 'trem' /* partiu: fim */
+  // Modo Traidor. Vestir e despir NAO sao eventos: ninguem pode saber.
+  | 'apagao' | 'uivo' | 'tunel' /* som nos dois alcapoes (tambem em `descer`) */ | 'arrombou' | 'trancou' | 'destrancou' | 'espantou'
+  | 'golpe' | 'ofegante' | 'retalho' /* o retalho caiu no chao */ | 'sino-da-estacao' | 'voto-fechado' | 'amarrado' | 'pregou' | 'despregou';
 
 export interface Evento {
   n: number;
@@ -260,7 +297,15 @@ export const EVENTOS_GUARDADOS = 24;
  * - 'trem': o tempo acabou. O trem parte sem a turma e a Coisa fica com a cidade.
  */
 export interface Fim {
-  tipo: 'desmascarada' | 'derrubada' | 'trem';
+  tipo: 'desmascarada' | 'derrubada' | 'trem'
+    /** So no Traidor: ele espantou `moradores.length - 1` moradores. Vitoria dele. */
+    | 'traidor'
+    /** So no Traidor: a reuniao votou nele. Vitoria dos cacadores. */
+    | 'votado';
+  /** So no Traidor: quem era. */
+  traidor?: string;
+  /** So no Traidor: o trem partiu com a Coisa sem nome. Meia vitoria dos cacadores. */
+  meia?: true;
   /** Quem arrancou a mascara. */
   por?: string;
   /** Em que segundo acabou. */
@@ -288,6 +333,16 @@ export interface Caca extends ComRng {
   /** Alguem desmaiou nesta partida (para as estrelas). */
   houveDesmaio: boolean;
   fim: Fim | null;
+  // Modo Traidor: `traidor !== null` diz que a partida e esse modo.
+  traidor: Traidor | null;
+  tocas: Toca[];
+  pegadas: Pegada[];
+  apagao: Apagao | null;
+  reuniao: Reuniao | null;
+  /** Quantas reunioes ja foram abertas. */
+  chamados: number;
+  /** Lugares com a porta trancada por dentro. */
+  trancados: LugarId[];
 }
 
 /** Como cada cacador esta no mundo agora. Quem hospeda junta a propria pose e as que chegam pela rede. */
@@ -322,7 +377,7 @@ export type Acao =
   /** Solta no chao o item desta posicao das maos, sem montar. */
   | { t: 'largar'; indice: number }
   /** Comeca a montar no chao, em (x, z), o item desta posicao das maos. Vale enquanto `ocupado` durar. */
-  | { t: 'montar'; indice: number; x: number; z: number }
+  | { t: 'montar'; indice: number; x: number; z: number; /** So vale vindo do Traidor. */ frouxo?: true }
   | { t: 'recolher'; id: string }
   /** Segurando o E na Coisa presa ou num amigo desmaiado. `null` solta. */
   | { t: 'ocupar'; com: 'mascara' | null }
@@ -330,4 +385,174 @@ export type Acao =
   /** Tiro: de onde sai e para onde aponta (vetor de tamanho 1, no plano e em altura). */
   | { t: 'atirar'; x: number; y: number; z: number; dx: number; dy: number; dz: number }
   | { t: 'pedir'; npc: string; ordem: Ordem; x: number; z: number }
-  | { t: 'dispensar'; npc: string };
+  | { t: 'dispensar'; npc: string }
+  | AcaoDeTraidor;
+
+// ---------- o modo TRAIDOR (docs/traidor.md): um dos jogadores e, em segredo, a Coisa ----------
+// Os numeros sao chutes a calibrar jogando.
+
+export type ModoDeJogo = 'caca' | 'traidor';
+
+/** A partida. */
+export const TRAIDOR = {
+  /** Sem `op.modo`, a partida e Traidor a partir deste numero de jogadores. */
+  minimoDeJogadores: 3,
+  /** Quantas tocas a partida sorteia, quantas tabuas existem. */
+  tocas: 3,
+  tabuas: 2,
+} as const;
+
+/** A fantasia: segurar o E perto da toca. */
+export const FANTASIA = {
+  segundosParaVestir: 3,
+  segundosParaDespir: 3,
+  /** O calor sobe de 0 a 1 vestido, em tantos segundos, e desce sem a fantasia. */
+  segundosParaEsquentar: 90,
+  segundosParaEsfriar: 45,
+  /** Com calor 1 ele fica ofegante: anda a esta fracao da velocidade e o ofego se ouve a cada tantos segundos. */
+  multiplicadorOfegante: 0.5,
+  intervaloDoOfego: 4,
+  /** Pregar e despregar. */
+  segundosParaPregar: 3,
+  segundosParaDespregar: 6,
+  /** Perto da toca: ate esta distancia (as maos). */
+  alcanceDaToca: 2.2,
+  /** Cacador a esta distancia de uma toca fica sabendo dela. */
+  alcanceParaVerToca: 6,
+} as const;
+
+/** Velocidade maxima de corrida, em m/s, que a tela limita (antes dos multiplicadores de `velocidadeDoCacador`). */
+export const CORRIDA = { cacador: 7.2, coisaFantasiada: 6.2 } as const;
+/** A luz do lampiao de sinal ofusca a Coisa fantasiada, venha ela de que tipo vier. */
+export const OFUSCADA = { multiplicador: 0.3 } as const;
+/** Pernas bambas do uivo: multiplicador de velocidade. */
+export const BAMBO = { multiplicador: 0.5 } as const;
+
+/** O golpe da Coisa: acerta o cacador mais perto dentro do cone (graus), com a mesma regra do susto da cacada comum. */
+export const GOLPE = { alcance: 1.6, cone: 100, recarga: 3 } as const;
+
+/** Espantar morador, trancar e arrombar a casa. */
+export const ESPANTAR = { segundos: 4, alcance: 2.2 } as const;
+export const TRANCA = { segundosParaTrancar: 2, segundosParaArrombar: 6, alcanceDaPorta: 3 } as const;
+
+export type Poder = 'apagao' | 'uivo' | 'tunel';
+/** Recargas separadas (segundos) e o que cada poder faz. */
+export const PODERES = {
+  apagao: { recarga: 45, dura: 15, raio: 30 },
+  uivo: { recarga: 30, raioBambo: 15, segundosBambo: 4, raioMoradores: 20 },
+  tunel: { recarga: 40, alcance: 2.5 },
+} as const;
+/** Cacador usando o alcapao (sem recarga): tempo segurando e alcance. */
+export const DESCER = { segundos: 3, alcance: 2.5 } as const;
+
+/** Sabotagem sem fantasia: conferir um posto de perto. */
+export const CONFERIR = { segundos: 1, alcance: 2.2 } as const;
+
+/** Pistas: pegadas da fantasia andando. */
+export const PEGADAS = { distancia: 1.5, duram: 25, velocidadeMinima: 0.6 } as const;
+
+/** A reuniao no sino da estacao. */
+export const REUNIAO = { prazo: 30, alcanceDoSino: 4, segundosAmarrado: 60 } as const;
+
+export interface Pista {
+  /** Do que o retalho foi arrancado. */
+  de: 'lenco' | 'chapeu';
+  /** O indice do lenco ou do chapeu do Traidor (`Cacador.aparencia`). */
+  valor: number;
+}
+
+export interface Salto {
+  /** Cresce a cada uso: a tela teleporta quando ve um n novo. */
+  n: number;
+  x: number;
+  z: number;
+}
+
+/** Tudo o que e do Traidor. `caca.coisa` e a fantasia: vestida, copia a pose dele a cada `avancar`. */
+export interface Traidor {
+  /** Id do jogador. */
+  id: string;
+  fantasiado: boolean;
+  /** De 0 a 1. */
+  calor: number;
+  /** Ultimo salto de tunel (para a tela dele). */
+  salto: Salto | null;
+  /** Segundo da partida em que cada poder (e o golpe) fica pronto. */
+  prontoEm: Record<Poder | 'golpe', number>;
+  proximoOfego: number;
+  /** Onde deixou a ultima pegada. */
+  ultimaPegada: { x: number; z: number } | null;
+  /** O primeiro acerto de sal ja soltou o retalho. */
+  pistaDada: boolean;
+}
+
+/** Um bau da fantasia. */
+export interface Toca {
+  id: string;
+  x: number;
+  z: number;
+  /** Pregada com tabuas: nao serve para vestir nem despir ate a Coisa despregar. */
+  pregada: boolean;
+}
+
+export interface Pegada {
+  x: number;
+  z: number;
+  /** Segundo da partida. */
+  t: number;
+}
+
+/** Luzes apagadas em volta do ponto em que o apagao foi usado, ate `ate`. */
+export interface Apagao {
+  x: number;
+  z: number;
+  ate: number;
+}
+
+export interface Reuniao {
+  /** Quem tocou o sino. */
+  por: string;
+  /** Prazo para votar (segundo da partida). O relogio do trem para: `duracao` cresce enquanto ela dura. */
+  ate: number;
+  /** Quem votou em quem (id ou 'ninguem'). */
+  votos: Record<string, string>;
+  /** Numero da reuniao (cresce a cada uma): a tela leva o jogador a plataforma quando ve um novo. */
+  chamados: number;
+  /** O Traidor, se estava fantasiado: ausente, nao vota (e uma pista). */
+  ausente: string | null;
+}
+
+/** Algo que se faz segurando o E (ou o botao) por um tempo: usa `Cacador.ocupado` e `progresso`. */
+export type Tarefa =
+  | { qual: 'vestir' | 'despir' | 'pregar' | 'despregar'; toca: string }
+  | { qual: 'espantar'; npc: string }
+  | { qual: 'trancar' | 'destrancar' | 'arrombar'; lugar: LugarId }
+  | { qual: 'conferir'; id: string }
+  | { qual: 'descer'; de: string; para: string };
+
+/** Quanto cada tarefa leva, segurando. */
+export const SEGUNDOS_DA_TAREFA: Record<Tarefa['qual'], number> = {
+  vestir: FANTASIA.segundosParaVestir,
+  despir: FANTASIA.segundosParaDespir,
+  pregar: FANTASIA.segundosParaPregar,
+  despregar: FANTASIA.segundosParaDespregar,
+  espantar: ESPANTAR.segundos,
+  trancar: TRANCA.segundosParaTrancar,
+  destrancar: TRANCA.segundosParaTrancar,
+  arrombar: TRANCA.segundosParaArrombar,
+  conferir: CONFERIR.segundos,
+  descer: DESCER.segundos,
+};
+
+/** Os pedidos do modo Traidor (fazem parte de `Acao`). */
+export type AcaoDeTraidor =
+  | { t: 'vestir' | 'despir' | 'pregar' | 'despregar'; toca: string }
+  | { t: 'golpear' }
+  | { t: 'espantar'; npc: string }
+  | { t: 'trancar' | 'destrancar' | 'arrombar'; lugar: LugarId }
+  | { t: 'poder'; qual: 'apagao' | 'uivo' }
+  | { t: 'poder'; qual: 'tunel'; de: string; para: string }
+  | { t: 'descer'; de: string; para: string }
+  | { t: 'conferir'; id: string }
+  | { t: 'tocarSino' }
+  | { t: 'votar'; quem: string };

@@ -3,6 +3,7 @@
 // cair, for preso ou desmaiar. Tambem aqui: o desmaio que acaba.
 
 import { ALCANCE_DAS_MAOS, POSTO_DO_ITEM, SEGUNDOS_PARA_DESMASCARAR, SEGUNDOS_PARA_MONTAR, SEGUNDOS_PARA_REANIMAR, type Ambiente, type Caca, type Cacador } from './tipos.ts';
+import { frouxar, passoDaTarefa } from './traidor.ts';
 import { cacadorDe, desmaiado, distancia, emitir, fora, novoId, podeDesmascarar } from './base.ts';
 
 /** Mais rapido que isto (m/s) o cacador nao esta "parado": o que fazia com as maos se perde. */
@@ -46,9 +47,14 @@ export function passoDasMaos(caca: Caca, dt: number, amb: Ambiente): void {
       continue;
     }
 
+    if (o.com === 'tarefa') {
+      passoDaTarefa(caca, h, o.tarefa, dt, amb);
+      continue;
+    }
+
     if (o.com === 'montar') {
       const item = h.itens[o.indice];
-      if (item === undefined) {
+      if (item === undefined || item === 'tabuas') {
         cancelar(h);
         continue;
       }
@@ -56,6 +62,7 @@ export function passoDasMaos(caca: Caca, dt: number, amb: Ambiente): void {
       if (h.progresso >= SEGUNDOS_PARA_MONTAR) {
         h.itens.splice(o.indice, 1);
         caca.postos.push({ id: novoId(caca, 'posto'), tipo: POSTO_DO_ITEM[item], x: o.x, z: o.z, dono: h.id, desde: t, gasto: false });
+        if (o.frouxo) frouxar(caca, h);
         h.montou += 1;
         emitir(caca, 'montou', o.x, o.z, h.id, POSTO_DO_ITEM[item]);
         cancelar(h);
