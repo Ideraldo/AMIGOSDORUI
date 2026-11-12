@@ -2,8 +2,9 @@
 
 import type { LugarId } from '../mundo/planta.ts';
 import { cenaDe, descobriuARegra, entrar, escolher, escolhasDisponiveis, novaPartida, passarRodada, regraDe, type OpcoesDePartida } from './partida.ts';
-import { escolher as sortear, embaralhar, type ComRng } from './rng.ts';
-import type { Biblioteca, Estado } from './tipos.ts';
+import { escolher as sortear, embaralhar, proximo, type ComRng } from './rng.ts';
+import { SEGUNDOS_POR_RODADA, type Biblioteca, type Estado } from './tipos.ts';
+import { cruzarARua, rondar } from './coisa.ts';
 
 export type Jeito =
   /** Anda junto, entra em lugares ao acaso e escolhe ao acaso. */
@@ -60,10 +61,17 @@ export function jogar(bib: Biblioteca, semente: number, jogadores: number, jeito
         const abrigo = regra.alvo.abrigos.find((a) => e.abertos.includes(a));
         if (abrigo) roteiro = [...roteiro.filter((l) => l !== abrigo).slice(0, visitas - 1), abrigo];
       }
+      let visita = 0;
       for (const lugar of roteiro) {
         if (e.fim || !e.abertos.includes(lugar)) break;
         const presentes = grupo.filter((id) => e.personagens.find((p) => p.id === id)!.vivo);
         if (presentes.length === 0) break;
+        // Entre um lugar e outro ha a rua, e na rua anda a Coisa. Os bots nao se escondem.
+        // A ronda tambem e refeita, como o relogio faria, para o simulador passar por ela.
+        e = rondar(e, bib, SEGUNDOS_POR_RODADA * (1 - (visita + 0.5) / roteiro.length));
+        visita += 1;
+        const sorte = proximo(dado);
+        if (jeito !== 'sabe-a-regra') e = cruzarARua(e, bib, presentes, sorte);
         e = entrar(e, bib, presentes, lugar);
         resolver(presentes[0]!);
       }

@@ -107,6 +107,8 @@ export function ligarSalas(http: Server): void {
         // antes de a noite comecar.
         const pose = limparPose(m);
         if (!pose) return;
+        // A sala guarda onde cada um esta: a ronda da Coisa e o encontro com ela usam isso.
+        mesa.sala.posicionar(id, pose.x, pose.z);
         for (const [outro, w] of mesa.ligados) if (outro !== id) mandar(w, { t: 'pos', de: id, ...pose });
         return;
       }

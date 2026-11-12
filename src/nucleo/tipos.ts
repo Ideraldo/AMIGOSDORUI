@@ -213,6 +213,9 @@ export interface Personagem {
   relacoes: Record<string, number>;
   /** O que o personagem carrega para usar depois. */
   bolsa: { atadura: number; tonico: number };
+  /** Ha quantos trechos da ronda da Coisa o personagem esta no mesmo lugar, e que lugar e esse (src/nucleo/coisa.ts). */
+  parado?: number;
+  ondeEstava?: LugarId | null;
 }
 
 export interface Cena {
@@ -225,7 +228,9 @@ export interface Cena {
 
 export interface Registro {
   rodada: number;
-  tipo: 'gancho' | 'cena' | 'escolha' | 'pista' | 'pressagio' | 'ameaca' | 'lugar' | 'carta' | 'cofre' | 'favor' | 'fim';
+  tipo: 'gancho' | 'cena' | 'escolha' | 'pista' | 'pressagio' | 'ameaca' | 'lugar' | 'carta' | 'cofre' | 'favor' | 'fim'
+    /** A Coisa que anda alcancou alguem no meio da hora, ou cercou um lugar (src/nucleo/coisa.ts). */
+    | 'encontro';
   texto: string;
   quem?: string[];
   lugar?: LugarId;
@@ -363,6 +368,28 @@ export interface Estado extends ComRng {
   cofre: Cofre | null;
   /** null: ninguem do elenco tem favor a pedir nesta noite. */
   favor: Favor | null;
+  /** Por onde a Coisa anda neste trecho da hora. Quem preenche e `rondar` (src/nucleo/coisa.ts). */
+  coisa?: Coisa;
   diario: Registro[];
   fim: Fim | null;
+}
+
+/**
+ * A ronda da Coisa. A posicao dela sai daqui e do relogio da hora (`posicaoDaCoisa`), para todos
+ * os jogadores de uma sala a verem no mesmo lugar. A rota e refeita a cada trecho da hora.
+ */
+export interface Coisa {
+  rodada: number;
+  /** Qual trecho da hora esta rota cobre. */
+  trecho: number;
+  /** Por onde ela anda, x e z alternados. O primeiro ponto e onde ela estava quando o trecho comecou. */
+  rota: number[];
+  /** Segundo da hora em que ela comeca a andar pela rota. */
+  desde: number;
+  /** Fora de cena (some da rua) quando false. */
+  ativa: boolean;
+  /** O lugar que ela esta cercando, se alguem se entocou la sem entender a regra. */
+  cerco: LugarId | null;
+  /** Ha quantos trechos seguidos ela cerca esse lugar. */
+  cercando: number;
 }

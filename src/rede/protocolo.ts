@@ -27,6 +27,13 @@ export interface Pose {
   gesto: Gesto | null;
   /** Espiando pelo canto: -1 inclinado para a esquerda, 1 para a direita. */
   espia: number;
+  /**
+   * So de quem a Coisa esta perseguindo: onde ela esta agora, fora da ronda. Os outros a mostram
+   * ali, em vez de na ronda, enquanto a perseguicao durar. `cv` diz se ela esta vendo o jogador.
+   */
+  cx?: number;
+  cz?: number;
+  cv?: boolean;
 }
 
 /** Do jogo para o servidor. */
@@ -54,6 +61,8 @@ export type Intencao =
   | { t: 'alavanca' }
   /** Entrega a caixa do favor ao dono. */
   | { t: 'entregar' }
+  /** A Coisa alcancou este jogador (quem ve isso e a tela dele). O servidor confere antes de valer. */
+  | { t: 'apanhado' }
   /** So o dono: passa a hora sem esperar o relogio. */
   | { t: 'virar' }
   /** So o dono, depois do fim: outra noite com o mesmo grupo. */

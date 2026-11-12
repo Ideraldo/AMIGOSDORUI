@@ -564,7 +564,7 @@ export function contar(estado: Estado, bib: Biblioteca, quem: string, pista: str
 
 /** Chance de a ameaca agir na virada desta rodada: so pressagio no ato 1, e cada vez mais depois. */
 function chanceDeAtaque(rodada: number): number {
-  return [0, 0.35, 0.7][atoDaRodada(rodada) - 1]!;
+  return [0, 0.2, 0.5][atoDaRodada(rodada) - 1]!;
 }
 
 /** Quem a regra secreta alcanca agora. */
@@ -743,7 +743,11 @@ export function passarRodada(estado: Estado, bib: Biblioteca): { estado: Estado;
       e.diario.push({ rodada: e.rodada, tipo: 'ameaca', texto: regra.ataque, quem: vitimas.map((p) => p.id) });
     }
   } else {
-    e.diario.push({ rodada: e.rodada, tipo: 'pressagio', texto: regra.pressagios[(e.rodada - 1) % regra.pressagios.length]! });
+    // Nunca o mesmo pressagio duas vezes na noite, enquanto a regra tiver outro. Cada noite comeca num diferente.
+    const ditos = new Set(e.diario.filter((r) => r.tipo === 'pressagio').map((r) => r.texto));
+    const n = regra.pressagios.length;
+    const ordem = regra.pressagios.map((_, i) => regra.pressagios[(i + (e.semente >>> 0) + e.rodada - 1) % n]!);
+    e.diario.push({ rodada: e.rodada, tipo: 'pressagio', texto: ordem.find((t) => !ditos.has(t)) ?? ordem[0]! });
   }
 
   for (const lugar of e.aFechar) {
