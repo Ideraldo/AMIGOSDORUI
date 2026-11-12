@@ -256,7 +256,7 @@ function recuar(caca: Caca, ox: number, oz: number, dt: number, amb: Ambiente): 
 // ---------- ser alcancado ----------
 
 /** Larga no chao, perto de (x, z), o que o cacador levava nas maos. O revolver fica com ele. */
-function largarOQueLevava(caca: Caca, h: Cacador, x: number, z: number, amb: Ambiente): void {
+export function largarOQueLevava(caca: Caca, h: Cacador, x: number, z: number, amb: Ambiente): void {
   for (const item of h.itens) {
     let px = x;
     let pz = z;

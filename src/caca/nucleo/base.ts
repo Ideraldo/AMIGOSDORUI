@@ -30,8 +30,9 @@ export function cacadorDe(caca: Caca, id: string): Cacador | undefined {
 export const desmaiado = (c: Cacador, t: number): boolean => c.desmaiadoAte > t;
 export const preso = (c: Cacador, t: number): boolean => c.presoAte > t;
 export const caido = (c: Cacador, t: number): boolean => c.caidoAte > t;
-/** Desmaiado, preso num laco ou caido num tropeco: nao faz nada ate passar. */
-export const fora = (c: Cacador, t: number): boolean => desmaiado(c, t) || preso(c, t) || caido(c, t);
+export const amarrado = (c: Cacador, t: number): boolean => c.amarradoAte > t;
+/** Desmaiado, preso num laco, caido num tropeco ou amarrado no banco da estacao (Traidor): nao faz nada ate passar. */
+export const fora = (c: Cacador, t: number): boolean => desmaiado(c, t) || preso(c, t) || caido(c, t) || amarrado(c, t);
 
 export function poseDe(amb: Ambiente, id: string): Pose | undefined {
   return amb.poses[id];
@@ -55,9 +56,15 @@ export interface ResumoDoCacador {
   montou: number;
   atirou: number;
   acertou: number;
+  /** So no modo Traidor: o papel e os numeros novos. */
+  papel?: 'traidor' | 'cacador';
+  espantou?: number;
+  sabotou?: number;
+  golpes?: number;
+  votosCertos?: number;
 }
 
 /** Para o placar do fim: o que cada um fez. */
 export function resumoDoFim(caca: Caca): ResumoDoCacador[] {
-  return caca.cacadores.map((c) => ({ id: c.id, nome: c.nome, sustos: c.sustos, montou: c.montou, atirou: c.atirou, acertou: c.acertou }));
+  return caca.cacadores.map((c) => ({ id: c.id, nome: c.nome, sustos: c.sustos, montou: c.montou, atirou: c.atirou, acertou: c.acertou, ...(caca.traidor ? { papel: caca.traidor.id === c.id ? ('traidor' as const) : ('cacador' as const), espantou: c.espantou, sabotou: c.sabotou, golpes: c.golpes, votosCertos: c.votosCertos } : {}) }));
 }

@@ -5,6 +5,8 @@
 import { LIMITES } from '../../mundo/planta.ts';
 import { cacadorDe, distancia, emitir, fora, novoId, podeDesmascarar } from './base.ts';
 import { atender, mandarParaCasa } from './moradores.ts';
+import { agirTraidor } from './pedidos.ts';
+import { acertouATraidor } from './traidor.ts';
 import {
   ALCANCE_DAS_MAOS,
   ALCANCE_DO_TIRO,
@@ -16,7 +18,7 @@ import {
   type Ambiente,
   type Caca,
   type Cacador,
-  type Item,
+  type ItemDeCacada,
   type Pose,
   type TipoDePosto,
 } from './tipos.ts';
@@ -30,7 +32,7 @@ export const RAIO_DO_CORPO = 0.7;
 export const ALTURA_DO_CORPO = 2.1;
 
 /** O item de que cada posto e feito, para recolher. */
-const ITEM_DO_POSTO: Record<TipoDePosto, Exclude<Item, 'revolver'>> = { laco: 'corda', piche: 'piche', latas: 'latas', sino: 'sino', sinal: 'sinal' };
+const ITEM_DO_POSTO: Record<TipoDePosto, Exclude<ItemDeCacada, 'revolver'>> = { laco: 'corda', piche: 'piche', latas: 'latas', sino: 'sino', sinal: 'sinal' };
 
 const finito = (...n: number[]) => n.every(Number.isFinite);
 
@@ -83,12 +85,14 @@ export function agir(caca: Caca, quem: string, acao: Acao, amb: Ambiente): void 
   if (!eu) return;
   const { h, p } = eu;
   const t = caca.tempo;
+  if (agirTraidor(caca, h, p, acao, amb)) return;
 
   switch (acao.t) {
     case 'pegar': {
       const i = caca.soltos.findIndex((s) => s.id === acao.id);
       if (i < 0) return;
       const s = caca.soltos[i]!;
+      if (s.item === 'retalho') return;
       if (s.item === 'revolver' ? h.revolver : h.itens.length >= MAOS) return;
       // Em cima de um movel de um lugar: so quem esta dentro dele. No chao: so quem esta perto.
       if (s.lugar !== undefined) {
@@ -232,6 +236,7 @@ function atirar(caca: Caca, h: Cacador, p: Pose, a: Extract<Acao, { t: 'atirar' 
   h.acertou += 1;
   c.tiros += 1;
   emitir(caca, 'acerto', c.x, c.z, 'coisa', h.id);
+  acertouATraidor(caca);
   if (c.tiros >= TIROS_PARA_DERRUBAR) {
     c.modo = 'derrubada';
     c.alvo = null;

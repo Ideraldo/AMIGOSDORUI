@@ -18,7 +18,7 @@ export function passoDosSinos(caca: Caca, antes: number): void {
 
 /** O posto esta no caminho de quem esta em (x, z)? */
 function pisa(s: Posto, x: number, z: number, raio: number): boolean {
-  return !s.gasto && distancia(s.x, s.z, x, z) < raio;
+  return !s.gasto && !s.frouxo && distancia(s.x, s.z, x, z) < raio;
 }
 
 const noChao = (modo: string) => modo === 'presa' || modo === 'derrubada' || modo === 'caida';
@@ -61,7 +61,8 @@ export function passoDasArmadilhas(caca: Caca, amb: Ambiente): void {
 
   for (const h of caca.cacadores) {
     const p = amb.poses[h.id];
-    if (!p || p.noAr) continue;
+    // Vestido, o Traidor e a Coisa (acima), nao um cacador que pisa.
+    if (!p || p.noAr || (caca.traidor?.id === h.id && caca.traidor.fantasiado)) continue;
     pisarComoCacador(caca, h, p.x, p.z);
   }
 }
