@@ -75,6 +75,10 @@ export const PORTA = { largura: 1.6, altura: 2.4 };
 export const ALPENDRE = 2.6;
 /** Espessura das paredes dos predios. */
 export const PAREDE = 0.25;
+/** Z, no referencial do predio, das janelas laterais (as duas paredes tem as mesmas). */
+export function zDasJanelasLaterais(profundidade: number): number[] {
+  return profundidade >= 10 ? [-profundidade / 3, (-2 * profundidade) / 3] : [-profundidade / 2];
+}
 export const NASCIMENTO = { x: 0, z: -53 };
 export const LUGARES_ABERTOS_POR_NOITE = 9;
 

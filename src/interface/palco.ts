@@ -10,7 +10,7 @@ import * as THREE from 'three';
 import type { Jogador } from '../jogador/jogador.ts';
 import { criarAdereco, descartar, type Peca } from '../mundo/aderecos.ts';
 import { criarCaixa, criarCofreDeFerro, criarTabua, type CofreDeFerro } from '../mundo/cofreDeFerro.ts';
-import { LUGARES, pegada, type LugarId } from '../mundo/planta.ts';
+import { LUGARES, PAREDE, direcao, pegada, zDasJanelasLaterais, type LugarId } from '../mundo/planta.ts';
 import { pontoDaHora, type Ponto } from '../mundo/pontos.ts';
 import { cenasNoMundo, type CenaNoMundo } from '../nucleo/gestos.ts';
 import { cenaDe } from '../nucleo/partida.ts';
@@ -20,7 +20,11 @@ import type { PartidaNaTela } from './partidaNaTela.ts';
 
 /** Quanto tempo o gesto espera depois da escolha, e quanto dura, em segundos. */
 const ESPERA_DO_GESTO = 0.3;
-const DURACAO: Partial<Record<Gesto, number>> = { virar: 1.3, bater: 1.7, cobrir: 1.5, beber: 2.2, rasgar: 1.3, jogar: 1.1, apagar: 1.8 };
+const DURACAO: Partial<Record<Gesto, number>> = {
+  virar: 1.3, bater: 1.7, cobrir: 1.8, beber: 2.2, rasgar: 1.3, jogar: 1.1, apagar: 1.8,
+  arrastar: 2.2, afagar: 2, espantar: 1.8, arrancar: 2, olhar: 2.2, esperar: 2.4, acertar: 2.2, servir: 1.4, enfaixar: 1.8,
+  derrubar: 1.6, comer: 2.4, descobrir: 1.8, fincar: 1.8, afastar: 1.8, estourar: 1.4, correr: 1.6, abrir: 1.7, fechar: 1.7, erguer: 1.7,
+};
 /** A camera mira um pouco abaixo do adereco, para ele ficar acima do painel da cena. */
 const BAIXAR_A_MIRA = 0.15;
 /** Altura do caixote que segura o adereco onde nao ha movel. */
@@ -41,7 +45,25 @@ const SOM_DO_GESTO: Record<Gesto, [NomeDeSom, number, number[]]> = {
   ler: ['investigar', 1.15, [0]],
   rasgar: ['investigar', 1.7, [0, 0.2]],
   beber: ['investigar', 0.9, [0.2]],
+  arrastar: ['passo-madeira-2', 0.4, [0, 0.35, 0.7, 1.05, 1.4]],
+  afagar: ['investigar', 0.7, [0]],
+  espantar: ['passo-madeira-1', 0.45, [0.55, 0.75, 0.95]],
+  arrancar: ['passo-madeira-1', 0.8, [0.15]],
+  olhar: ['investigar', 1, [0]],
+  esperar: ['investigar', 0.6, [0]],
+  acertar: ['lampiao', 1.6, [0, 0.35, 0.7, 1.05, 1.4]],
+  servir: ['investigar', 0.9, [0.2]],
+  enfaixar: ['investigar', 1.4, [0]],
+  derrubar: ['passo-madeira-2', 0.5, [1.1]],
+  comer: ['lampiao', 1.3, [0.3, 1.1, 1.9]],
+  descobrir: ['investigar', 0.75, [0]],
+  fincar: ['passo-terra-1', 0.5, [1.1]],
+  afastar: ['investigar', 0.8, [0.1]],
+  estourar: ['lampiao', 1.9, [0.55]],
+  correr: ['passo-madeira-2', 0.4, [0.6]],
 };
+/** Lugares a ceu aberto, sem parede nem janela. */
+const SEM_PAREDE: readonly LugarId[] = ['cemiterio', 'mina'];
 
 export interface Arredores {
   cena: THREE.Scene;
@@ -54,6 +76,8 @@ export interface Arredores {
   /** Ha chao livre em (x, z)? */
   livre(x: number, z: number): boolean;
   tocar(nome: NomeDeSom, op?: Opcoes): void;
+  /** O tranco do susto, na hora em que o adereco assusta. */
+  susto(): void;
   /** A figura de um NPC, se ele esta visivel na cidade agora. */
   npc(id: string): THREE.Object3D | null;
 }
@@ -67,6 +91,11 @@ interface EmCena {
   /** De 0 a 1: o adereco aparecendo quando a cena abre. */
   surgiu: number;
   luz: number;
+  /** O gesto esta sendo visto acontecer (e nao so mostrado como ficou), e ja deu o susto dele. */
+  aoVivo: boolean;
+  sustou: boolean;
+  /** Adereco de janela: onde ficar de pe para ve-lo de frente. */
+  deFrente: [number, number] | null;
 }
 
 export class Palco {
@@ -89,6 +118,8 @@ export class Palco {
   private anotando = new Set<number>();
   /** Para onde a camera esta sendo levada, e por quanto tempo ainda. */
   private mira: { x: number; y: number; z: number; resta: number } | null = null;
+  /** Para onde o jogador esta sendo levado (a frente da janela da cena), e por quanto tempo ainda. */
+  private passo: { x: number; z: number; resta: number } | null = null;
   /** A camera ainda esta virando para o adereco ou para o cofre. */
   mirando = false;
   /** Da para por as maos no cofre agora (perto e na mira). */
@@ -154,10 +185,10 @@ export class Palco {
    * aparecer na frente de quem investiga, e nao debaixo dos pes. Sai so do lugar e da colisao:
    * e o mesmo para todos os jogadores.
    */
-  private chaoPerto(ponto: Ponto): [number, number] {
+  private chaoPerto(ponto: Ponto, distancia = 1.3): [number, number] {
     const r = pegada(LUGARES.find((l) => l.id === ponto.lugar)!);
     const base = Math.atan2(ponto.pe[0] - ponto.x, ponto.pe[1] - ponto.z);
-    for (const d of [1.3, 1.05, 1.6]) {
+    for (const d of [distancia, distancia - 0.3, distancia + 0.4, 1.3, 1.05]) {
       for (const a of [0, 0.6, -0.6, 1.2, -1.2, 1.9, -1.9, Math.PI]) {
         const x = ponto.pe[0] + Math.sin(base + a) * d;
         const z = ponto.pe[1] + Math.cos(base + a) * d;
@@ -165,6 +196,40 @@ export class Palco {
       }
     }
     return ponto.pe;
+  }
+
+  /**
+   * Uma janela lateral do lugar para os aderecos de janela: a mais perto de quem investiga,
+   * de preferencia com chao livre na frente. Devolve o pe da parede e para onde a janela olha.
+   */
+  private janelaPerto(ponto: Ponto): { x: number; z: number; giro: number; deFrente: [number, number] | null } | null {
+    const l = LUGARES.find((x) => x.id === ponto.lugar)!;
+    if (SEM_PAREDE.includes(l.id)) return null;
+    const { dx, dz } = direcao(l.frente);
+    let melhor: { x: number; z: number; giro: number; deFrente: [number, number] | null } | null = null;
+    let menor = Infinity;
+    for (const lado of [-1, 1]) {
+      for (const lz of zDasJanelasLaterais(l.profundidade)) {
+        // Do referencial do predio (porta na origem, corpo em -Z) para o mundo.
+        const noMundo = (lx: number): [number, number] => [l.x + lx * dz + lz * dx, l.z - lx * dx + lz * dz];
+        const [x, z] = noMundo(lado * (l.largura / 2 - PAREDE - 0.07));
+        // Onde ficar de pe para ver a janela de frente: a dois passos dela, se houver chao livre.
+        const deFrente = [2.1, 1.7, 2.6].map((recuo) => noMundo(lado * (l.largura / 2 - PAREDE - recuo))).find(([fx, fz]) => this.m.livre(fx, fz)) ?? null;
+        const d = Math.hypot(x - ponto.pe[0], z - ponto.pe[1]) + (deFrente ? 0 : 100);
+        if (d < menor) {
+          menor = d;
+          melhor = { x, z, giro: Math.atan2(-lado * dz, lado * dx), deFrente };
+        }
+      }
+    }
+    return melhor;
+  }
+
+  /** Para onde olhar num adereco: ele mesmo ou, se o gesto e na parte do chao, ela. */
+  private foco(c: EmCena): { x: number; y: number; z: number } {
+    const noChao = c.peca.extra && c.peca.noExtra(c.vista.gesto);
+    const p = (noChao ? c.peca.extra! : c.peca.grupo).position;
+    return { x: p.x, y: p.y + (noChao ? 0.3 : c.peca.centro), z: p.z };
   }
 
   // ---------- o laco ----------
@@ -189,13 +254,22 @@ export class Palco {
       const lugar = cena?.lugar ?? partida.dentro;
       const alvo = lugar ? [...this.emCena.values()].find((c) => c.vista.lugar === lugar) : undefined;
       if (alvo && ((modo === 'cena' && cena) || (modo === 'resultado' && this.modoAntes === 'cena'))) {
-        const p = alvo.peca.grupo.position;
-        this.mira = { x: p.x, y: p.y + alvo.peca.centro, z: p.z, resta: 2.5 };
+        this.mira = { ...this.foco(alvo), resta: 2.5 };
+        // A cena e numa janela: quem investiga vai ate a frente dela.
+        if (modo === 'cena' && alvo.deFrente) this.passo = { x: alvo.deFrente[0], z: alvo.deFrente[1], resta: 0.9 };
       } else if (modo === 'cofre' && this.cofre) {
         const p = this.cofre.grupo.position;
         this.mira = { x: p.x, y: p.y + 0.3, z: p.z, resta: 2.5 };
       }
       this.modoAntes = modo;
+    }
+    if (this.passo && this.passo.resta > 0 && jogador.congelado) {
+      const p = jogador.posicao;
+      const k = Math.min(1, 6 * dt);
+      jogador.teleportar(p.x + (this.passo.x - p.x) * k, p.y, p.z + (this.passo.z - p.z) * k);
+      this.passo.resta -= dt;
+    } else {
+      this.passo = null;
     }
     if (this.mira && this.mira.resta > 0 && jogador.congelado) {
       const dx = this.mira.x - camera.position.x;
@@ -208,7 +282,7 @@ export class Palco {
       jogador.inclinacao += (inclinacao - jogador.inclinacao) * k;
       this.mira.resta -= dt;
       // Chegou: dai em diante o mouse e do jogador de novo.
-      if (Math.abs(falta) < 0.015 && Math.abs(inclinacao - jogador.inclinacao) < 0.015) this.mira = null;
+      if (!this.passo && Math.abs(falta) < 0.015 && Math.abs(inclinacao - jogador.inclinacao) < 0.015) this.mira = null;
     } else {
       this.mira = null;
     }
@@ -218,12 +292,18 @@ export class Palco {
   }
 
   private limpar(): void {
-    for (const c of this.emCena.values()) descartar(c.peca.grupo);
+    for (const c of this.emCena.values()) this.tirar(c);
     this.emCena.clear();
     for (const g of this.tabuas.values()) descartar(g);
     this.tabuas.clear();
     this.anotando.clear();
     this.mira = null;
+    this.passo = null;
+  }
+
+  private tirar(c: EmCena): void {
+    descartar(c.peca.grupo);
+    if (c.peca.extra) descartar(c.peca.extra);
   }
 
   private perto(x: number, z: number, raio: number): boolean {
@@ -254,15 +334,34 @@ export class Palco {
       let c = this.emCena.get(chave);
       if (!c) {
         const f = this.m.bib.fragmentos.find((x) => x.id === vista.fragmento)!;
-        const peca = criarAdereco(vista.adereco, f.escolhas.flatMap((esc) => (esc.gesto ? [esc.gesto] : [])));
-        // Em cima do movel, virado para quem esta olhando (ou para onde se fica de pe).
         const alto = ponto.solto ? CAIXOTE : ponto.y - 0.32;
-        const chao = peca.noChao ? this.chaoPerto(ponto) : null;
-        if (chao) peca.grupo.position.set(chao[0], 0, chao[1]);
-        else peca.grupo.position.set(ponto.x, alto, ponto.z);
-        const de = chao ? (chao === ponto.pe ? [2 * ponto.pe[0] - ponto.x, 2 * ponto.pe[1] - ponto.z] : ponto.pe) : this.perto(ponto.x, ponto.z, 5) ? [jogador.posicao.x, jogador.posicao.z] : ponto.pe;
-        peca.grupo.rotation.y = Math.atan2(de[0]! - peca.grupo.position.x, de[1]! - peca.grupo.position.z);
-        if (ponto.solto && !peca.noChao) {
+        const peca = criarAdereco(vista.adereco, f.escolhas.flatMap((esc) => (esc.gesto ? [esc.gesto] : [])), alto);
+        // Os de janela vao para uma janela do lugar. Sem janela (ceu aberto), ficam de pe no chao.
+        const janela = peca.onde === 'janela' ? this.janelaPerto(ponto) : null;
+        // No chao: um passo adiante de quem investiga, virado para ele.
+        const noChao = (grupo: THREE.Group): void => {
+          const chao = this.chaoPerto(ponto, peca.distancia);
+          // Dentro das casas o assoalho fica 4 cm acima do chao de terra.
+          grupo.position.set(chao[0], SEM_PAREDE.includes(ponto.lugar) ? 0 : 0.04, chao[1]);
+          const de = chao === ponto.pe ? [2 * ponto.pe[0] - ponto.x, 2 * ponto.pe[1] - ponto.z] : ponto.pe;
+          grupo.rotation.y = Math.atan2(de[0]! - chao[0], de[1]! - chao[1]);
+        };
+        if (janela) {
+          peca.grupo.position.set(janela.x, 0, janela.z);
+          peca.grupo.rotation.y = janela.giro;
+        } else if (peca.onde !== 'movel') {
+          noChao(peca.grupo);
+        } else {
+          // Em cima do movel, virado para quem esta olhando (ou para onde se fica de pe).
+          peca.grupo.position.set(ponto.x, alto, ponto.z);
+          const de = this.perto(ponto.x, ponto.z, 5) ? [jogador.posicao.x, jogador.posicao.z] : ponto.pe;
+          peca.grupo.rotation.y = Math.atan2(de[0]! - ponto.x, de[1]! - ponto.z);
+        }
+        if (peca.extra) {
+          noChao(peca.extra);
+          this.m.cena.add(peca.extra);
+        }
+        if (ponto.solto && peca.onde === 'movel') {
           // Sem movel no lugar, um caixote segura o adereco.
           const caixote = new THREE.Mesh(new THREE.BoxGeometry(0.6, CAIXOTE, 0.6), new THREE.MeshStandardMaterial({ color: 0x4a3622, roughness: 0.95 }));
           caixote.position.y = -CAIXOTE / 2 - 0.001;
@@ -270,7 +369,7 @@ export class Palco {
         }
         this.m.cena.add(peca.grupo);
         // Cena que abriu agora aparece crescendo. A que ja estava la quando se chegou, nao.
-        c = { vista, peca, gesto: null, k: 1, surgiu: outraNoite || vista.gesto ? 1 : 0, luz: 0 };
+        c = { vista, peca, gesto: null, k: 1, surgiu: outraNoite || vista.gesto ? 1 : 0, luz: 0, aoVivo: false, sustou: false, deFrente: janela?.deFrente ?? null };
         this.emCena.set(chave, c);
       }
       c.vista = vista;
@@ -280,6 +379,8 @@ export class Palco {
         const novo = !outraNoite && vista.registro >= this.diarioVisto;
         const duracao = DURACAO[vista.gesto!] ?? 1.5;
         c.k = novo ? -ESPERA_DO_GESTO / duracao : 1;
+        c.aoVivo = novo;
+        c.sustou = false;
         if (novo && vista.gesto && this.perto(c.peca.grupo.position.x, c.peca.grupo.position.z, 14)) {
           const [som, tom, atrasos] = SOM_DO_GESTO[vista.gesto];
           for (const atraso of atrasos) this.m.tocar(som, { volume: 0.5, tom, atraso: ESPERA_DO_GESTO + atraso });
@@ -287,12 +388,20 @@ export class Palco {
       }
       if (c.gesto) c.k = Math.min(1, c.k + dt / (DURACAO[c.gesto] ?? 1.5));
       c.surgiu = Math.min(1, c.surgiu + dt / 0.3);
-      c.peca.grupo.scale.setScalar(0.4 + 0.6 * c.surgiu * (2 - c.surgiu));
+      const tamanho = 0.4 + 0.6 * c.surgiu * (2 - c.surgiu);
+      // O que fica no chao ou na janela nao cresce: aparece no tamanho certo.
+      if (c.peca.onde === 'movel') c.peca.grupo.scale.setScalar(tamanho);
       c.luz = c.peca.posar(c.gesto, Math.max(0, c.k), t);
+      // O susto vem junto com o movimento (o gato que salta), e so para quem esta vendo.
+      const susto = c.gesto ? c.peca.susto(c.gesto) : undefined;
+      if (c.aoVivo && !c.sustou && susto !== undefined && c.k >= susto) {
+        c.sustou = true;
+        if (this.perto(c.peca.grupo.position.x, c.peca.grupo.position.z, 8)) this.m.susto();
+      }
     }
     for (const [chave, c] of this.emCena) {
       if (vivas.has(chave)) continue;
-      descartar(c.peca.grupo);
+      this.tirar(c);
       this.emCena.delete(chave);
     }
     // A luz vai para o adereco mais perto: forte para quem esta na cena, fraca para quem passa.
@@ -306,9 +415,9 @@ export class Palco {
       }
     }
     if (perto) {
-      const p = perto.peca.grupo.position;
+      const p = this.foco(perto);
       const frente = perto.peca.grupo.rotation.y;
-      this.luz.position.set(p.x + Math.sin(frente) * 0.4, p.y + perto.peca.centro + 0.45, p.z + Math.cos(frente) * 0.4);
+      this.luz.position.set(p.x + Math.sin(frente) * 0.5, p.y + 0.45, p.z + Math.cos(frente) * 0.5);
       const emFoco = partida.modo === 'cena' || partida.modo === 'resultado';
       this.luz.intensity = (emFoco ? 0.7 : 0.3) + perto.luz * 3 * (1 + Math.sin(t * 13) * 0.06);
     } else {
@@ -407,7 +516,7 @@ export class Palco {
   /** Para os scripts de conferencia. */
   depurar(): {
     /** `tela` e onde o meio do adereco cai na tela, em pontos (null: atras da camera). */
-    cenas: { lugar: LugarId; fragmento: string; adereco: string; gesto: string | null; k: number; x: number; y: number; z: number; tela: [number, number] | null }[];
+    cenas: { lugar: LugarId; fragmento: string; adereco: string; onde: string; gesto: string | null; k: number; x: number; y: number; z: number; tela: [number, number] | null }[];
     cofre: { lugar: LugarId; x: number; y: number; z: number; pe: [number, number]; solto: boolean; aoAlcance: boolean; abertura: number } | null;
     tabuas: { numero: number; lugar: LugarId; x: number; y: number; z: number; pe: [number, number]; solto: boolean }[];
     caixaEntregue: boolean;
@@ -418,9 +527,10 @@ export class Palco {
     return {
       cenas: [...this.emCena.values()].map((x) => {
         const g = x.peca.grupo.position;
-        this.aux.set(g.x, g.y + x.peca.centro, g.z).project(this.m.camera);
+        const foco = this.foco(x);
+        this.aux.set(foco.x, foco.y, foco.z).project(this.m.camera);
         const tela: [number, number] | null = this.aux.z > 1 ? null : [(this.aux.x * 0.5 + 0.5) * window.innerWidth, (-this.aux.y * 0.5 + 0.5) * window.innerHeight];
-        return { lugar: x.vista.lugar, fragmento: x.vista.fragmento, adereco: x.vista.adereco, gesto: x.gesto, k: x.k, x: g.x, y: g.y, z: g.z, tela };
+        return { lugar: x.vista.lugar, fragmento: x.vista.fragmento, adereco: x.vista.adereco, onde: x.peca.onde, gesto: x.gesto, k: x.k, x: g.x, y: g.y, z: g.z, tela };
       }),
       cofre: c && p && this.cofre ? { lugar: c.lugar, x: p.x, y: this.cofre.grupo.position.y, z: p.z, pe: p.pe, solto: !!p.solto, aoAlcance: this.cofreAoAlcance, abertura: this.abertura } : null,
       tabuas: (c?.numeros ?? []).flatMap((n, i) => {

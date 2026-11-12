@@ -10,8 +10,11 @@ import { createServer } from 'vite';
 import { EXEMPLO } from '../src/nucleo/historias/exemplo.ts';
 
 const CHROME = process.env.CHROME ?? '/usr/bin/google-chrome';
-const PORTA = 5194;
+// PORTA=5294 npm run gestos: para quando a porta de sempre esta ocupada (outro script rodando).
+const PORTA = Number(process.env.PORTA) || 5194;
 const filtros = process.argv.slice(2);
+/** Gestos em que o principal acontece no meio (o salto, o coice, a porta que bate): ganham uma captura a mais. */
+const NO_MEIO = ['erguer', 'espantar', 'arrancar', 'correr', 'arrastar', 'derrubar', 'estourar', 'abrir'];
 
 const servidor = await createServer({ server: { port: PORTA, strictPort: true }, logLevel: 'error' });
 await servidor.listen();
@@ -22,7 +25,7 @@ const conferir = (ok: boolean, texto: string) => {
   console.log(`${ok ? 'ok  ' : 'FALHA'} ${texto}`);
   if (!ok) falhas += 1;
 };
-const espera = { timeout: 90000 };
+const espera = { timeout: 300000 };
 const pausa = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 try {
@@ -31,9 +34,12 @@ try {
   await pagina.setViewport({ width: 1280, height: 720 });
   const erros: string[] = [];
   pagina.on('pageerror', (e) => erros.push(String(e)));
-  await pagina.goto(`http://localhost:${PORTA}/?seed=3&som=0&abertura=0`, { waitUntil: 'load' });
-  await pagina.waitForFunction(() => window.__pronto === true, { timeout: 180000 });
-  await pagina.addStyleTag({ content: '#entrada{display:none!important}' });
+  const carregar = async (): Promise<void> => {
+    await pagina.goto(`http://localhost:${PORTA}/?seed=3&som=0&abertura=0`, { waitUntil: 'load' });
+    await pagina.waitForFunction(() => window.__pronto === true, { timeout: 180000 });
+    await pagina.addStyleTag({ content: '#entrada{display:none!important}' });
+  };
+  await carregar();
 
   const partida = () => pagina.evaluate(() => window.__depurar!.partida());
   const palco = () => pagina.evaluate(() => window.__depurar!.palco());
@@ -168,12 +174,37 @@ try {
   await irOlhando(palcoDasCenas.pe, palcoDasCenas.pe[0] + 1, palcoDasCenas.pe[1] + 1, 0);
   await noLugar(palcoDasCenas.lugar);
 
-  const cenas = EXEMPLO.fragmentos.filter((f) => f.adereco && (filtros.length === 0 || filtros.some((x) => f.id.includes(x) || f.adereco === x)));
-  conferir(filtros.length > 0 || cenas.length >= 18, `${cenas.length} cenas da biblioteca tem adereco`);
+  const cenas = EXEMPLO.fragmentos.filter((f) => f.adereco && (filtros.length === 0 || filtros.includes('cenas') || filtros.some((x) => f.id.includes(x) || f.adereco === x)));
+  conferir(filtros.length > 0 || cenas.length === EXEMPLO.fragmentos.length, `${cenas.length} cenas da biblioteca tem adereco`);
+  /** Onde a cena e encenada: no proprio lugar dela, se estiver aberto nesta noite. Senao, no lugar de sempre. */
+  let ondeEstou = palcoDasCenas.lugar;
+  const irPara = async (lugar: string): Promise<void> => {
+    if (lugar === ondeEstou) return;
+    await pausa(300);
+    const ponto = await pagina.evaluate((l) => window.__depurar!.pontoDaCena(l as never), lugar);
+    if (!ponto) return;
+    await irOlhando(ponto.pe, ponto.pe[0] + 1, ponto.pe[1] + 1, 0);
+    await noLugar(lugar);
+    ondeEstou = lugar;
+  };
   for (const f of cenas) {
+    const proprio = f.lugares === 'qualquer' ? undefined : f.lugares.find((l) => estado.abertos.includes(l) && (f.lugares.length < 5 || l === 'igreja'));
+    // As cenas ferem e assustam de verdade: antes que o personagem morra, a noite recomeca (a mesma, pela semente).
+    const eu = (await partida()).estado.personagens[0]!;
+    if (eu.ferimento >= 1 || eu.medo >= 4) {
+      await carregar();
+      ondeEstou = '';
+    }
+    await irPara(proprio && f.lugares.length < 5 ? proprio : palcoDasCenas.lugar);
     for (const [indice, escolha] of f.escolhas.entries()) {
       if (!escolha.gesto) continue;
       const nome = `${f.id}-${indice + 1}-${escolha.gesto}`;
+      // Escolha que pede um NPC so aparece na noite em que ele esta no elenco.
+      const falta = escolha.requer?.npcs?.find((n) => !estado.elenco.includes(n));
+      if (falta) {
+        console.log(`--   ${f.id}: "${escolha.texto}" nao conferida (${falta} fora do elenco desta noite)`);
+        continue;
+      }
       conferir(await pagina.evaluate((id) => window.__depurar!.encenar(id), f.id), `${f.id}: a cena abre`);
       await modo('cena');
       // O adereco existe antes da decisao, e a camera vira para ele.
@@ -195,9 +226,10 @@ try {
       }
       await pagina.keyboard.press(`Digit${tecla}` as 'Digit1');
       await modo('resultado');
-      if (f.adereco === 'retrato') {
-        // O retrato no meio da volta.
-        await pagina.waitForFunction((id) => (window.__depurar!.palco().cenas.find((c) => c.fragmento === id)?.k ?? 0) > 0.55, espera, f.id);
+      if (f.adereco === 'retrato' || NO_MEIO.includes(escolha.gesto)) {
+        // O retrato no meio da volta, o gato no meio do salto: o que so se ve enquanto acontece.
+        await pagina.waitForFunction((id) => (window.__depurar!.palco().cenas.find((c) => c.fragmento === id)?.k ?? 0) > 0.42, espera, f.id);
+        await pausa(250);
         await foto(`${nome}-meio`);
       }
       await pagina.waitForFunction((id, gesto) => window.__depurar!.palco().cenas.some((c) => c.fragmento === id && c.gesto === gesto && c.k >= 1), espera, f.id, escolha.gesto);

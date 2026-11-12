@@ -33,13 +33,25 @@ test('a biblioteca de exemplo tem gestos validos, e a cena do retrato vira o ret
 
 test('a validacao reprova gesto sem adereco e gesto que o adereco nao sabe fazer', () => {
   const ruim: Biblioteca = structuredClone(EXEMPLO);
-  const semAdereco = ruim.fragmentos.find((f) => !f.adereco)!;
+  const semAdereco = ruim.fragmentos.find((f) => f.id === 'vela-acesa')!;
+  delete semAdereco.adereco;
   semAdereco.escolhas[0]!.gesto = 'abrir';
   const retrato = ruim.fragmentos.find((f) => f.id === 'retrato-virado')!;
   retrato.escolhas[0]!.gesto = 'beber';
+  delete retrato.escolhas[1]!.gesto;
   const erros = validarBiblioteca(ruim).join('\n');
   assert.match(erros, /gesto abrir sem adereco/);
   assert.match(erros, /retrato nao sabe beber/);
+  // Toda cena mostra do que fala e toda escolha faz alguma coisa a vista.
+  assert.match(erros, /fragmento vela-acesa: sem adereco/);
+  assert.match(erros, /fragmento retrato-virado, escolha 2: sem gesto/);
+});
+
+test('todas as cenas tem adereco e todas as escolhas tem gesto', () => {
+  for (const f of EXEMPLO.fragmentos) {
+    assert.ok(f.adereco, `${f.id} sem adereco`);
+    for (const esc of f.escolhas) assert.ok(esc.gesto, `${f.id}: "${esc.texto}" sem gesto`);
+  }
 });
 
 test('o adereco aparece com a cena aberta e o gesto sai do diario, igual para todos', () => {

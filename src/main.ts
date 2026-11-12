@@ -388,6 +388,7 @@ const palco = new Palco({
   pontos: (lugar) => pontosPorLugar.get(lugar),
   livre: (x, z) => !!cidade && livre(x, z, 0, cidade.solidos, 0.75),
   tocar: (nome, op) => som.tocar(nome, op),
+  susto: () => efeitos.sinal('susto'),
   npc: (id) => (gente.get(id)?.visible ? gente.get(id)! : null),
 });
 
