@@ -400,3 +400,57 @@ export function arvoreSeca(g: THREE.Object3D, x: number, z: number, seed: number
     tronco.add(galho);
   }
 }
+
+/**
+ * Bau de fantasia: grande, escuro, de tampa entreaberta, com um pedaco de pano saindo pela fresta.
+ * E onde se veste e se tira a fantasia (ver `TOCAS` em planta.ts). A frente (o fecho) olha para +Z.
+ * Solido: da para pular nele (menos de 0,9 m).
+ */
+export function bauDeFantasia(g: THREE.Object3D, x: number, z: number, ry = 0): void {
+  const b = movel(g, x, z, ry);
+  const escuro = madeira(0x2b1d16);
+  const ferro = metal(0x17181c);
+  const ouro = metal(0x8a7440);
+  caixa(b, 1.3, 0.62, 0.72, escuro, 0, 0.31, 0, { solido: true });
+  // Tampa presa por tras, um dedo aberta.
+  const tampa = movel(b, 0, -0.36, 0, 0.62);
+  tampa.rotation.x = -0.13;
+  caixa(tampa, 1.34, 0.12, 0.76, escuro, 0, 0.06, 0.38, { sombra: false });
+  caixa(tampa, 1.28, 0.1, 0.6, escuro, 0, 0.16, 0.38, { sombra: false });
+  for (const dx of [-0.42, 0.42]) {
+    caixa(b, 0.07, 0.64, 0.75, ferro, dx, 0.32, 0, { sombra: false });
+    caixa(tampa, 0.07, 0.3, 0.79, ferro, dx, 0.11, 0.38, { sombra: false });
+  }
+  caixa(b, 0.14, 0.2, 0.04, ouro, 0, 0.55, 0.37, { sombra: false });
+  for (const dx of [-0.6, 0.6]) for (const dz of [-0.3, 0.3]) caixa(b, 0.07, 0.07, 0.07, ferro, dx, 0.58, dz, { sombra: false });
+  // O pano: um bolo na fresta e uma ponta caida sobre a frente, com uma fita clara.
+  const pano = fosco(0x7a2a4a);
+  caixa(b, 0.46, 0.1, 0.34, pano, 0.3, 0.7, 0.18, { ry: 0.5, rx: -0.15, sombra: false });
+  caixa(b, 0.3, 0.46, 0.03, pano, 0.3, 0.45, 0.375, { rx: 0.14, sombra: false });
+  caixa(b, 0.07, 0.4, 0.04, fosco(0xb8a672), 0.34, 0.46, 0.39, { rx: 0.14, sombra: false });
+  caixa(b, 0.16, 0.12, 0.12, fosco(0x3a2a5a), -0.34, 0.72, 0.1, { ry: -0.4, sombra: false });
+}
+
+/** Alcapao de madeira no chao: tampa de tabuas com argola. Fica rente ao piso (nao bloqueia). */
+export function alcapao(g: THREE.Object3D, x: number, z: number, ry = 0, y = 0): void {
+  const a = movel(g, x, z, ry, y);
+  const escuro = madeira(COR.madeiraEscura);
+  const ferro = metal(COR.ferro);
+  caixa(a, 1.16, 0.05, 1.16, escuro, 0, 0.025, 0, { sombra: false });
+  caixa(a, 1.0, 0.07, 1.0, madeira(0x6a4a30, 3), 0, 0.085, 0, { sombra: false });
+  for (const dz of [-0.3, 0.3]) caixa(a, 1.04, 0.04, 0.1, escuro, 0, 0.14, dz, { sombra: false });
+  for (const dx of [-0.3, 0.3]) caixa(a, 0.12, 0.03, 0.09, ferro, dx, 0.17, -0.5, { sombra: false });
+  anel(a, 0.1, 0.018, ferro, 0, 0.19, 0.32, { rx: Math.PI / 2 - 0.5, sombra: false });
+  caixa(a, 0.08, 0.04, 0.08, ferro, 0, 0.165, 0.38, { sombra: false });
+}
+
+/**
+ * Escada de mao encostada numa parede: dois montantes e degraus a cada 30 cm. Esta no plano XY,
+ * com a parede em -Z (os montantes ficam a 6 cm dela). Nao e solida: so serve de marca.
+ */
+export function escadaDeMao(g: THREE.Object3D, x: number, z: number, altura: number, ry = 0, y = 0): void {
+  const e = movel(g, x, z, ry, y);
+  const mat = madeira(COR.madeira);
+  for (const dx of [-0.24, 0.24]) caixa(e, 0.06, altura, 0.06, mat, dx, altura / 2, 0.06, { sombra: false });
+  for (let h = 0.25; h < altura; h += 0.3) caixa(e, 0.5, 0.04, 0.04, mat, 0, h, 0.06, { sombra: false });
+}

@@ -4,7 +4,28 @@
 
 import puppeteer from 'puppeteer-core';
 import { createServer } from 'vite';
-import { FIGURANTES, LIMITES, LUGARES, NASCIMENTO, PISO_DE_CIMA, PRACA, direcao, lugarPorId, rotacaoY, type Construcao, type LugarId } from '../src/mundo/planta.ts';
+import {
+  ALCAPOES,
+  CAIXA_DAGUA,
+  FIGURANTES,
+  FIM_DO_RAMO,
+  LIMITES,
+  LUGARES,
+  NASCIMENTO,
+  PISO_DAS_GALERIAS,
+  PISO_DE_CIMA,
+  PRACA,
+  RODA_DO_SINO,
+  SINO_DA_ESTACAO,
+  TOCAS,
+  direcao,
+  lugarPorId,
+  rotacaoY,
+  tocaLocal,
+  type Construcao,
+  type LugarId,
+} from '../src/mundo/planta.ts';
+import { pontosDePiso } from '../src/mundo/galeriasGrade.ts';
 
 const CHROME = process.env.CHROME ?? '/usr/bin/google-chrome';
 const PORTA = Number(process.env.PORTA) || 5198;
@@ -35,6 +56,21 @@ const PASSEIOS: [LugarId, string, [number, number][]][] = [
   ['casarao', 'escritorio', [[0, -1.2], [5.2, -2.2], [9.0, -2.2], [9.0, -9.35], [4.9, -9.35], [4.9, -6]]],
   ['casarao', 'banho', [[0, -1.2], [5.2, -2.2], [9.0, -2.2], [9.0, -9.35], [6.4, -9.35], [6.4, -12]]],
 ];
+
+/**
+ * Os baus de fantasia: a caminhada ate o ponto onde se fica de pe diante de cada um, no referencial do
+ * predio (porta na origem, interior em -Z). Os sobrados sobem pela escada e passam pelo corredor.
+ */
+const CAMINHOS_ATE_AS_TOCAS: Record<string, [number, number][]> = {
+  'bar-2': [[0, -1.5], [-8.1, -0.75], [-8.1, -7.85], [0, -7.85], [0, -5], [-0.45, -2.9]],
+  'bar-4': [[0, -1.5], [-8.1, -0.75], [-8.1, -7.85], [-5.9, -7.85], [-5.9, -10.5], [-4.6, -12.3]],
+  'bar-6': [[0, -1.5], [-8.1, -0.75], [-8.1, -7.85], [5.8, -7.85], [5.8, -11.0], [7.5, -12.3]],
+  'pensao-2': [[0, -1.5], [3.0, -0.8], [4.1, -0.8], [4.1, -7.2], [2.3, -7.25], [2.3, -3.85], [0.6, -3.85], [-0.8, -3.7]],
+  'casarao-esquerdo': [[0, -1.2], [5.2, -2.2], [9.0, -2.2], [9.0, -9.35], [-6.5, -9.35], [-6.5, -12], [-8.2, -14.3]],
+  'casarao-meio': [[0, -1.2], [5.2, -2.2], [9.0, -2.2], [9.0, -9.35], [0, -9.35], [0, -12], [2.2, -14.3]],
+  'celeiro-palheiro': [[0, -1.5], [5.1, -2.4], [5.1, -10], [4.4, -12]],
+  'mina-fundo': [[1.2, -2], [1.2, -10.5], [0, -12.6], [0, -14.5], [0.1, -15.3]],
+};
 
 /** O palheiro do celeiro fica a 2,6 m: sobe pela escada da direita. */
 const PALHEIRO: [number, number][] = [[0, -1.5], [5.1, -2.4], [5.1, -10], [0, -11.5]];
@@ -156,6 +192,72 @@ try {
     const [x0, z0] = noMundo(c, 0, 3);
     const r = await pagina.evaluate((inicio, pontos) => window.__depurar!.caminhar(inicio, pontos), [x0, 0, z0] as [number, number, number], PALHEIRO.map(([x, z]) => noMundo(c, x, z)));
     conferir(r.chegou && Math.abs(r.y - 2.6) < 0.02, `Celeiro: sobe no palheiro (y ${r.y.toFixed(2)}, ponto ${r.alcancados})`);
+  }
+
+
+  // ---------- patio da estacao ----------
+  conferir((await bloqueados([NASCIMENTO.x, NASCIMENTO.z, RODA_DO_SINO.x, RODA_DO_SINO.z])) === 0, 'caminho livre: da chegada ate a roda do sino');
+  {
+    // Seis bonecos em roda diante do sino: todos os pontos da roda se alcancam a pe.
+    const roda: [number, number][] = [];
+    for (let i = 0; i < 6; i++) roda.push([RODA_DO_SINO.x + Math.cos((i * Math.PI) / 3) * RODA_DO_SINO.raio, RODA_DO_SINO.z + Math.sin((i * Math.PI) / 3) * RODA_DO_SINO.raio]);
+    const andando = await alcancePulando([...roda, [SINO_DA_ESTACAO.x, SINO_DA_ESTACAO.z + 1.3]], { pulo: 0, passo: 0.2 });
+    conferir(andando.alturas.every((a) => a !== null && a < 0.35), `patio: a roda de seis diante do sino se alcanca a pe (y ${andando.alturas.map((a) => a?.toFixed(2)).join(' ')})`);
+    // Caixa-d'agua: o piso do mirante se alcanca ANDANDO (escada de verdade), nao so pulando.
+    // O ponto mais alto que se alcanca a pe no vale inteiro e o mirante (a escada passa dos andares de cima e do palheiro).
+    const subida = await alcancePulando([[CAIXA_DAGUA.x, CAIXA_DAGUA.z]], { pulo: 0, passo: 0.2 });
+    const alto = subida.maisAlto;
+    conferir(Math.abs(alto.y - CAIXA_DAGUA.mirante.y) < 0.05 && Math.abs(alto.x - CAIXA_DAGUA.x) < CAIXA_DAGUA.mirante.lado / 2 && Math.abs(alto.z - CAIXA_DAGUA.z) < CAIXA_DAGUA.mirante.lado / 2, `caixa-d'agua: o mirante se alcanca andando pela escada (ponto mais alto a pe: y ${alto.y.toFixed(2)} em x ${alto.x.toFixed(1)}, z ${alto.z.toFixed(1)})`);
+    // Vagoes: a gondola abre por degraus (andando); o carro de plataforma so por cima das pilhas (pulando).
+    const gondola = await alcancePulando([[17, -71.5], [15, -71.5], [19, -71.5]], { pulo: 0, passo: 0.2 });
+    conferir(gondola.alturas.every((a) => a !== null && Math.abs(a - 1.1) < 0.05), `patio: o vagao de carga aberto se entra andando, pelos degraus (y ${gondola.alturas.map((a) => a?.toFixed(2)).join(' ')})`);
+    const plataforma = await alcancePulando([[36, -71.5], [34, -71.5]], { pulo: 0, passo: 0.2 });
+    const plataformaPulando = await alcancePulando([[36, -71.5], [34, -71.5]]);
+    conferir(plataforma.alturas.every((a) => a === null) && plataformaPulando.alturas.every((a) => a !== null && Math.abs(a - 1.1) < 0.1), `patio: o carro de plataforma so se alcanca pulando pelas caixas (andando: ${plataforma.alturas.join(' ')}, pulando: ${plataformaPulando.alturas.map((a) => a?.toFixed(2)).join(' ')})`);
+    const pilha = await alcancePulando([[34.2, -68.2]]);
+    conferir(pilha.alturas[0] !== null && Math.abs(pilha.alturas[0]! - 2.4) < 0.1, `patio: a pilha de caixotes se sobe pulando ate o topo (y ${pilha.alturas[0]?.toFixed(2)})`);
+  }
+
+  // ---------- galerias da mina ----------
+  {
+    const ponta = ALCAPOES.map((a) => [a.baixo.x, a.baixo.z] as [number, number]);
+    for (const a of ALCAPOES) {
+      conferir(await pagina.evaluate((x, z, y) => window.__depurar!.livre(x, z, y), a.baixo.x, a.baixo.z, a.baixo.y), `galerias: o pe da escada de baixo (${a.id}) tem lugar para um corpo`);
+      conferir(await pagina.evaluate((x, z) => window.__depurar!.livre(x, z, 0), a.cima.x, a.cima.z), `galerias: o alcapao de cima (${a.id}) esta livre na superficie`);
+    }
+    for (const a of ALCAPOES) {
+      const de = a.baixo;
+      const outros = ALCAPOES.filter((o) => o.id !== a.id).map((o) => [o.baixo.x, o.baixo.z] as [number, number]);
+      const sobre = (op: { pulo?: number; altura?: number; passo?: number }) =>
+        pagina.evaluate((i, p, c, o) => window.__depurar!.alcancePulando(i, p, c, o), [de.x, de.z] as [number, number], outros, AREA, { y: PISO_DAS_GALERIAS, ...op });
+      const andando = await sobre({ pulo: 0, passo: 0.25 });
+      conferir(!andando.fugiu && andando.alturas.every((x) => x !== null && Math.abs(x - PISO_DAS_GALERIAS) < 0.05), `galerias: do pe da escada do ${a.id} se anda ate as outras duas, sobre o piso (y ${andando.alturas.map((x) => x?.toFixed(2)).join(' ')})`);
+      const pulando = await sobre({});
+      conferir(!pulando.fugiu && pulando.maisAlto.y < PISO_DAS_GALERIAS + 1.5, `galerias: pulando, de la nao se chega a superficie nem se fura o teto (ponto mais alto y ${pulando.maisAlto.y.toFixed(2)}, a superficie e y 0)`);
+      const agachado = await sobre(AGACHADO);
+      conferir(!agachado.fugiu && agachado.maisAlto.y < PISO_DAS_GALERIAS + 1.5, `galerias: agachado, de la nao se escapa (ponto mais alto y ${agachado.maisAlto.y.toFixed(2)})`);
+    }
+    // O ramo sem saida chega ate a pedra caida e nao passa dela.
+    const bar = ALCAPOES[0]!.baixo;
+    const ramo = await pagina.evaluate((i, p, c, o) => window.__depurar!.alcancePulando(i, p, c, o), [bar.x, bar.z] as [number, number], [[FIM_DO_RAMO.x - 4, FIM_DO_RAMO.z], [FIM_DO_RAMO.x + 0.6, FIM_DO_RAMO.z]] as [number, number][], AREA, { y: PISO_DAS_GALERIAS, pulo: 0, passo: 0.25 });
+    conferir(ramo.alturas[0] !== null && ramo.alturas[1] === null, 'galerias: o ramo sem saida chega ate a pedra caida e nao passa dela');
+    // Na superficie, ninguem cai nas galerias: onde se pisa por cima delas o chao e y = 0 (ou prediais, mais alto).
+    const sobre = pontosDePiso().filter((_, i) => i % 3 === 0).map((p) => [p.x, p.z] as [number, number]);
+    const cima = await alcancePulando(sobre);
+    const caiu = cima.alturas.filter((a) => a !== null && a < -0.1).length;
+    conferir(caiu === 0, `galerias: na superficie ninguem cai nelas (${sobre.length} pontos conferidos, ${caiu} com o chao abaixo de zero)`);
+  }
+
+  // ---------- tocas: os baus de fantasia ----------
+  for (const t of TOCAS) {
+    const c = lugarPorId(t.lugar)!;
+    const [x0, z0] = noMundo(c, 0, 3);
+    const caminho = CAMINHOS_ATE_AS_TOCAS[t.id]!;
+    const r = await pagina.evaluate((inicio, pontos) => window.__depurar!.caminhar(inicio, pontos), [x0, 0, z0] as [number, number, number], caminho.map(([x, z]) => noMundo(c, x, z)));
+    const ok = r.chegou && Math.abs(r.y - t.y) < 0.03 && Math.hypot(r.x - t.x, r.z - t.z) < 0.25;
+    conferir(ok, `toca ${t.id}: da porta se chega de pe diante do bau, no piso certo (${r.chegou ? '' : `parou no ponto ${r.alcancados} `}x ${r.x.toFixed(2)}, y ${r.y.toFixed(2)}, z ${r.z.toFixed(2)})`);
+    const local = tocaLocal(t.id);
+    conferir(Math.hypot(local.bau.x - local.pe.x, local.bau.z - local.pe.z) < 1.2, `toca ${t.id}: o bau fica ao alcance de quem esta de pe diante dele`);
   }
 
   await abrir('');

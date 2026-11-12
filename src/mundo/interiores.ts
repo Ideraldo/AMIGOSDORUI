@@ -5,7 +5,7 @@
 // senao o jogador nao consegue entrar. O script de colisao confere isso.
 
 import * as THREE from 'three';
-import { PAREDE, PISO_DE_CIMA, alturaDoTeto, type Construcao } from './planta.ts';
+import { PAREDE, PISO_DE_CIMA, alturaDoTeto, tocaLocal, type Construcao } from './planta.ts';
 import {
   COR,
   anel,
@@ -24,10 +24,12 @@ import {
 } from './base.ts';
 import {
   COR_FENO,
+  alcapao,
   bancoComprido,
   banqueta,
   barril,
   bau,
+  bauDeFantasia,
   cadeira,
   cadeiraDeBalanco,
   caixao,
@@ -186,6 +188,34 @@ function grade(g: THREE.Object3D, x1: number, x2: number, z: number, altura: num
   if (base === 0) barreira(g, x2 - x1, altura, 0.15, (x1 + x2) / 2, altura / 2, z);
 }
 
+
+/** Armario alto de duas portas, encostado numa parede (frente para +Z; use `ry` como nos outros moveis). */
+function armario(g: THREE.Object3D, x: number, z: number, ry = 0, largura = 1.1): void {
+  const a = movel(g, x, z, ry);
+  const escura = madeira(COR.madeiraEscura);
+  caixa(a, largura, 2.1, 0.55, madeira(COR.madeira, 2), 0, 1.05, 0, { solido: true });
+  caixa(a, largura + 0.1, 0.1, 0.62, escura, 0, 2.15, 0, { sombra: false });
+  caixa(a, 0.03, 1.9, 0.02, escura, 0, 1.05, 0.285, { sombra: false });
+  for (const dx of [-0.1, 0.1]) caixa(a, 0.03, 0.12, 0.03, metal(COR.ouro), dx, 1.0, 0.3, { sombra: false });
+}
+
+/** Movel velho coberto por um lencol, com os pes de fora: cara de deposito. */
+function movelCoberto(g: THREE.Object3D, x: number, z: number, w: number, d: number, h: number, ry = 0): void {
+  const m = movel(g, x, z, ry);
+  const lencol = fosco(0xb2aa98);
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) caixa(m, 0.07, 0.3, 0.07, madeira(COR.madeiraEscura), sx * (w / 2 - 0.1), 0.15, sz * (d / 2 - 0.1), { sombra: false });
+  caixa(m, w, h - 0.3, d, lencol, 0, 0.3 + (h - 0.3) / 2, 0, { sombra: false });
+  caixa(m, w + 0.1, 0.1, d + 0.1, fosco(0xa29a88), 0, h - 0.05, 0, { sombra: false });
+  caixa(m, 0.3, 0.45, d + 0.06, fosco(0xa29a88), w / 2 + 0.03, h * 0.55, 0, { rz: -0.25, sombra: false });
+  barreira(m, w, h, d, 0, h / 2, 0);
+}
+
+/** O bau de fantasia de uma toca (posicao em planta.ts), dentro do grupo do andar em que ele esta. */
+function bauDaToca(g: THREE.Object3D, id: string): void {
+  const t = tocaLocal(id).bau;
+  bauDeFantasia(g, t.x, t.z, t.ry);
+}
+
 // ---------- Lugares da rua principal ----------
 
 function bar(sala: Sala): void {
@@ -241,18 +271,20 @@ function bar(sala: Sala): void {
   for (const lado of [-1, 1]) cilindro(boi, 0.01, 0.045, 0.55, fosco(0xd8d2c4), lado * 0.36, 0.14, 0, { rz: lado * -1.05, sombra: false, lados: 5 });
   const fiado = materialTexto(['FIADO', 'SÓ AMANHÃ'], { fundo: '#5e4630', tinta: '#e8d9b0', altura: 256, moldura: '#2b1d10' });
   quadro(g, -0.6, 2.1, F + 0.03, 1.3, 0.6, 0, fiado);
+  // O alcapao do porao, nos fundos: a boca das galerias da mina (ALCAPOES em planta.ts).
+  alcapao(g, 1.8, -11.5, 0);
   quartosDoBar(sala);
 }
 
-/** Andar de cima do bar: corredor atravessado e seis quartos, tres deles trancados. */
+/** Andar de cima do bar: corredor atravessado e seis quartos. Os 2, 4 e 6 eram trancados e agora sao esconderijos, cada um com um bau de fantasia. */
 function quartosDoBar({ g, L, R, F, aberto, luzes, corParede, alturaDeCima: A, poco }: Sala): void {
   if (!poco || !aberto) return;
   const c = movel(g, 0, 0, 0, PISO_DE_CIMA);
   const zc = poco.z1;
   const zf = zc - 1.3;
   const meio = (zc + zf) / 2;
-  divisoria(c, poco.xDentro, zc, R, zc, A, corParede, [{ em: -4.4, numero: '1' }, { em: 0, fechada: true, numero: '2' }, { em: 5.3, numero: '3' }], -1);
-  divisoria(c, L, zf, R, zf, A, corParede, [{ em: -5.9, fechada: true, numero: '4' }, { em: 0, numero: '5' }, { em: 5.8, fechada: true, numero: '6' }], 1);
+  divisoria(c, poco.xDentro, zc, R, zc, A, corParede, [{ em: -4.4, numero: '1' }, { em: 0, numero: '2' }, { em: 5.3, numero: '3' }], -1);
+  divisoria(c, L, zf, R, zf, A, corParede, [{ em: -5.9, numero: '4' }, { em: 0, numero: '5' }, { em: 5.8, numero: '6' }], 1);
   divisoria(c, -1.8, -PAREDE, -1.8, zc, A, corParede);
   divisoria(c, 1.8, -PAREDE, 1.8, zc, A, corParede);
   divisoria(c, -3, zf, -3, F, A, corParede);
@@ -287,6 +319,37 @@ function quartosDoBar({ g, L, R, F, aberto, luzes, corParede, alturaDeCima: A, p
   cadeiraDeBalanco(c, 1.6, F + 1.1, PI);
   lavatorio(c, 2.5, -10.6, -PI / 2);
   tapete(c, 0, -11.2, 2.4, 1.8, 0x4a3a2a);
+
+  // Quarto 2: esconderijo do meio, com a janela da frente. Cama, armario, caixotes e o bau de fantasia.
+  cama(c, 0.75, -1.6, -PI / 2, 0x4a3a3a);
+  criadoMudo(c, 1.45, -0.7, false);
+  armario(c, -1.5, -5.6, PI / 2);
+  bauDaToca(c, 'bar-2');
+  caixote(c, -1.35, -0.75, 0.7);
+  caixote(c, -1.35, -0.75, 0.5, 0.7);
+  tapete(c, 0.1, -4.4, 2.0, 1.5, 0x3a2a2a);
+
+  // Quarto 4: hospede que nao voltou. Cama junto da janela, armario e o bau no fundo.
+  cama(c, -7.7, -11.0, PI / 2, 0x3a4a3a);
+  criadoMudo(c, -7.9, -9.7, true);
+  armario(c, -3.4, -10.8, -PI / 2);
+  bauDaToca(c, 'bar-4');
+  tapete(c, -5.9, -10.8, 2.6, 1.8, 0x4a3a2a);
+  cadeira(c, -4.3, -9.4, PI);
+  caixa(c, 0.7, 0.3, 0.45, fosco(0x4a2f22), -6.6, 0.15, -13.2, { ry: 0.4 });
+
+  // Quarto 6: o deposito. Barris, sacos, estante de latas, um movel velho sob lencol e uma cama de lona.
+  cama(c, 7.7, -10.2, -PI / 2, 0x4a4a3a);
+  estante(c, 3.1, -11.7, 2.4, 2.3, PI / 2, 'latas');
+  barril(c, 3.7, -9.5);
+  barril(c, 4.4, -9.9);
+  saco(c, 3.4, -13.1);
+  saco(c, 4.1, -13.3, 0, 0x7a6a4a);
+  caixote(c, 4.9, -13.2, 0.8);
+  caixote(c, 4.9, -13.2, 0.6, 0.8);
+  movelCoberto(c, 5.0, -11.8, 1.4, 0.9, 0.9, 0.2);
+  bauDaToca(c, 'bar-6');
+  caixote(c, 8.3, -12.9, 0.7);
 }
 
 function armazem({ g, W, D, L, F, aberto }: Sala): void {
@@ -551,7 +614,7 @@ function casarao(sala: Sala): void {
   andarDeCimaDoCasarao(sala);
 }
 
-/** Andar de cima do casarao: suite, quarto de crianca, escritorio e banho. Dois quartos trancados. */
+/** Andar de cima do casarao: suite, quarto de crianca, escritorio e banho, e dois quartos que eram trancados (hospedes e deposito), agora esconderijos com bau de fantasia. */
 function andarDeCimaDoCasarao({ g, L, R, F, aberto, luzes, corParede, alturaDeCima: A, poco }: Sala): void {
   if (!poco || !aberto) return;
   const c = movel(g, 0, 0, 0, PISO_DE_CIMA);
@@ -560,7 +623,7 @@ function andarDeCimaDoCasarao({ g, L, R, F, aberto, luzes, corParede, alturaDeCi
   const zf = zc - 1.2;
   const meio = (zc + zf) / 2;
   divisoria(c, L, zc, poco.xDentro, zc, A, corParede, [{ em: -5.9 }, { em: 0 }, { em: 4.9 }], -1);
-  divisoria(c, L, zf, R, zf, A, corParede, [{ em: -6.5, fechada: true }, { em: 0, fechada: true }, { em: 6.4 }], 1);
+  divisoria(c, L, zf, R, zf, A, corParede, [{ em: -6.5 }, { em: 0 }, { em: 6.4 }], 1);
   divisoria(c, -2, -PAREDE, -2, zc, A, corParede);
   divisoria(c, 2, -PAREDE, 2, zc, A, corParede);
   divisoria(c, -3.2, zf, -3.2, F, A, corParede);
@@ -619,6 +682,27 @@ function andarDeCimaDoCasarao({ g, L, R, F, aberto, luzes, corParede, alturaDeCi
   banqueta(c, 7.9, -11.3);
   caixa(c, 0.34, 0.03, 0.3, fosco(COR.osso), 7.9, 0.5, -11.3, { sombra: false });
   caixa(c, 0.03, 0.7, 0.03, escura, 3.6, 1.5, F + 0.1, { sombra: false });
+
+  // Quarto dos hospedes (fundo, a esquerda): cama de casal, armario, poltrona e o bau de fantasia.
+  cama(c, -8.7, -12.6, PI / 2, 0x3a3a4a);
+  cama(c, -8.7, -11.65, PI / 2, 0x3a3a4a);
+  criadoMudo(c, -9.4, -13.9, true);
+  armario(c, -3.55, -13.0, -PI / 2, 1.3);
+  cadeiraDeBalanco(c, -5.4, -11.7, -PI / 2 - 0.3);
+  tapete(c, -6.2, -12.8, 3.0, 2.4, 0x3a2a3a);
+  bauDaToca(c, 'casarao-esquerdo');
+
+  // Quarto do meio: o deposito da casa. Caixotes, barris, movel sob lencol, estante vazia e o bau de fantasia.
+  armario(c, -2.9, -11.4, PI / 2);
+  estante(c, -1.2, F + 0.2, 2.4, 2.2, 0, 'latas');
+  caixote(c, 2.7, -11.2, 0.8);
+  caixote(c, 2.7, -12.2, 0.7);
+  caixote(c, 2.7, -12.2, 0.5, 0.7);
+  barril(c, -2.7, -14.6);
+  barril(c, -2.5, -13.6);
+  movelCoberto(c, -1.9, -12.5, 1.6, 1.1, 0.9, 0.2);
+  cilindro(c, 0.18, 0.18, 1.5, fosco(0x5a2a2a), 1.0, 0.18, -10.9, { rz: PI / 2, ry: 0.2, lados: 10, sombra: false });
+  bauDaToca(c, 'casarao-meio');
 }
 
 function estacao({ g, W, D, R, F, teto, aberto }: Sala): void {
@@ -818,13 +902,13 @@ function pensao(sala: Sala): void {
   quartosDaPensao(sala);
 }
 
-/** Andar de cima da pensao: corredor ao lado da escada e tres quartos, o do meio trancado. */
+/** Andar de cima da pensao: corredor ao lado da escada e tres quartos. O do meio era trancado e agora guarda um bau de fantasia. */
 function quartosDaPensao({ g, L, F, aberto, luzes, corParede, alturaDeCima: A, poco }: Sala): void {
   if (!poco || !aberto) return;
   const c = movel(g, 0, 0, 0, PISO_DE_CIMA);
   const xc = poco.xDentro - 1.25;
   const meio = (xc + poco.xDentro) / 2;
-  divisoria(c, xc, -PAREDE, xc, F, A, corParede, [{ em: -6.3, numero: '1' }, { em: -3.85, fechada: true, numero: '2' }, { em: -1.45, numero: '3' }], 1);
+  divisoria(c, xc, -PAREDE, xc, F, A, corParede, [{ em: -6.3, numero: '1' }, { em: -3.85, numero: '2' }, { em: -1.45, numero: '3' }], 1);
   divisoria(c, L, -5.05, xc, -5.05, A, corParede);
   divisoria(c, L, -2.65, xc, -2.65, A, corParede);
   tapete(c, meio, -3.6, 0.7, 5.6, 0x4a2a2a);
@@ -847,6 +931,14 @@ function quartosDaPensao({ g, L, F, aberto, luzes, corParede, alturaDeCima: A, p
   livro(c, 0.8, 0.82, -0.7, 0x3a2c4a, 0.3);
   vela(c, 1.15, 0.82, -0.7, true);
   tapete(c, -1.2, -1.4, 2.0, 1.4, 0x4a3a2a);
+
+  // Quarto 2: o do meio, apertado. Cama, armario, caixotes e o bau de fantasia.
+  cama(c, -3.7, -3.85, PI / 2, 0x3a3a4a);
+  armario(c, -1.9, -3.0, PI);
+  bauDaToca(c, 'pensao-2');
+  caixote(c, 1.2, -4.7, 0.6);
+  caixote(c, 1.2, -4.7, 0.4, 0.6);
+  tapete(c, -1.4, -3.9, 2.0, 1.2, 0x4a3a2a);
 }
 
 function estabulo({ g, L, R, F, aberto }: Sala): void {
@@ -1140,6 +1232,8 @@ function celeiro({ g, L, R, F, aberto, luzes }: Sala): void {
   esfera(cima, 1.2, fosco(COR_FENO), 0.8, 0.1, F + 1.3, { sy: 0.45, sz: 0.9 });
   caixote(cima, 3.0, F + 0.8, 0.7);
   lampiaoDeMesa(cima, 3.0, 0.7, F + 0.8, aberto);
+  // O bau de fantasia, no canto do palheiro, perto da escada.
+  bauDaToca(cima, 'celeiro-palheiro');
   if (aberto) luzDeLampiao(cima, luzes, 2.4, 1.6, F + 2.2, 10, 10);
   // Uma cama de palha: alguem andou dormindo aqui em cima.
   caixa(cima, 0.9, 0.12, 1.9, fosco(0x6a5628), -1.2, 0.06, borda - 1.6, { ry: 0.3, sombra: false });
