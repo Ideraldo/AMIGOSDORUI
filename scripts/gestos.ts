@@ -15,7 +15,7 @@ const filtros = process.argv.slice(2);
 
 const servidor = await createServer({ server: { port: PORTA, strictPort: true }, logLevel: 'error' });
 await servidor.listen();
-const navegador = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ['--no-sandbox', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
+const navegador = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ['--no-sandbox', ...(process.env.SEM_PLACA ? ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] : process.platform === 'win32' ? ['--use-angle=d3d11', '--enable-gpu'] : ['--enable-gpu']), '--ignore-gpu-blocklist'] });
 
 let falhas = 0;
 const conferir = (ok: boolean, texto: string) => {

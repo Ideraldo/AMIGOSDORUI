@@ -499,7 +499,8 @@ export class PartidaNaTela {
         const dica = certo ? npc.falas?.find((f) => f.regras?.includes(novo.regra))?.texto : undefined;
         this.mundo.falar(npc.id, dica ? [texto, dica] : texto);
         this.dizer(`${npc.nome}: “${texto}”`);
-        if (dica) this.dizer(`${npc.nome}: “${dica}”`);
+        // A dica entra logo atras da confissao, sem passar na frente dela.
+        if (dica) this.legendas.splice(1, 0, { texto: `${npc.nome}: “${dica}”`, classe: 'fala' });
         if (!certo) {
           const restam = chancesRestantes(novo, this.eu);
           this.avisar(restam > 0 ? 'Não foi essa pessoa. Resta uma chance de mostrar a carta.' : 'Não foi essa pessoa. Sua chance de mostrar a carta acabou.', 6000);

@@ -11,7 +11,7 @@ const PORTA = 5196;
 
 const servidor = await createServer({ server: { port: PORTA, strictPort: true }, logLevel: 'error' });
 await servidor.listen();
-const navegador = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ['--no-sandbox', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--autoplay-policy=no-user-gesture-required'] });
+const navegador = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ['--no-sandbox', ...(process.env.SEM_PLACA ? ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] : process.platform === 'win32' ? ['--use-angle=d3d11', '--enable-gpu'] : ['--enable-gpu']), '--ignore-gpu-blocklist', '--autoplay-policy=no-user-gesture-required'] });
 
 let falhas = 0;
 const conferir = (ok: boolean, texto: string) => {
@@ -91,8 +91,25 @@ try {
   await pagina.waitForFunction(() => document.querySelectorAll('.suspeitos li.fora').length === 1, espera);
   conferir(true, 'depois de lida, um suspeito aparece riscado');
 
-  // Mostrar a carta a quem escreveu: a pessoa confessa e o objetivo se cumpre.
+  // Com uma prova so ainda e cedo para mostrar a carta: a tela diz quantas faltam, e nada acontece.
   const autor = await pagina.evaluate(() => window.__depurar!.partida().estado.carta.autor);
+  conferir(/o grupo precisa de mais 1 prova/.test(await corpo()), 'com uma prova so, a tela diz que falta outra para mostrar a carta');
+  await pagina.evaluate((npc) => window.__depurar!.mostrarCarta(npc), autor);
+  conferir((await pagina.evaluate(() => window.__depurar!.partida().estado.carta.mostradas.length)) === 0, 'sem duas provas a carta nao sai do bolso');
+  const outra = (await pagina.evaluate(() => window.__depurar!.achados())).find((c) => c.tipo === 'prova' && c.pe && !c.pego)!;
+  await pagina.evaluate((pe) => window.__depurar!.teleportar(pe[0], 0, pe[1]), outra.pe!);
+  await pagina.waitForFunction(() => document.querySelector('#agir')!.textContent!.includes('prova'), { timeout: 20000 });
+  // Em velocidade real o E pode chegar um quadro antes de o jogo aceitar: tenta de novo ate o painel abrir.
+  for (let vez = 0; vez < 5; vez++) {
+    await pagina.keyboard.press('KeyE');
+    const abriu = await pagina.waitForFunction(() => window.__depurar!.partida().modo !== 'andando', { timeout: 2500 }).then(() => true, () => false);
+    if (abriu) break;
+  }
+  await pagina.waitForFunction(() => document.body.innerText.includes('Uma prova'), espera);
+  await pagina.keyboard.press('Space');
+  await pagina.waitForFunction(() => document.querySelectorAll('.suspeitos li.fora').length === 2, espera);
+
+  // Mostrar a carta a quem escreveu: a pessoa confessa e o objetivo se cumpre.
   await pagina.evaluate((npc) => window.__depurar!.mostrarCarta(npc), autor);
   await pagina.waitForFunction(() => document.querySelector('#legenda')!.textContent!.includes('Fui eu'), espera);
   await pagina.waitForFunction(() => document.querySelectorAll('.suspeitos li.feito').length === 1, espera);
