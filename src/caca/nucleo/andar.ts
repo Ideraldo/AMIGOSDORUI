@@ -17,6 +17,9 @@ export interface Andarilho {
   travada: number;
 }
 
+/** Os desvios do rumo, em radianos, do menor para o maior (cada um de um lado e do outro). */
+const DESVIOS = [0.35, 0.7, 1.05, 1.4, 1.75, 2.1, 2.5] as const;
+
 /** A que distancia do destino, perto e com linha de visao, ela deixa a rota e vai reto. */
 export const PERTO_PARA_IR_RETO = 14;
 /** Chegou a um no da rota (ou ao destino) quando esta a menos disto. */
@@ -33,8 +36,12 @@ export function ruas(): Grafo {
 }
 
 /**
- * Um passo reto na direcao de (tx, tz). Se o passo inteiro nao e livre, tenta deslizar so em x ou so
- * em z. Devolve quanto andou. Atualiza `rumo` e `travada`.
+ * Um passo reto na direcao de (tx, tz). Se o passo inteiro nao e livre, desvia o rumo aos poucos, para um
+ * lado e para o outro (ate andar de lado, rente a parede), e por fim tenta deslizar so em x ou so em z.
+ * Devolve quanto andou. Atualiza `rumo` e `travada`.
+ *
+ * Os desvios existem por um defeito achado jogando: encostada no banco da diagonal da praca, a Coisa
+ * ficava presa para sempre, porque nem o passo reto nem o deslize por um eixo cabiam (ver test/caca-andar.test.ts).
  */
 export function darPasso(a: Andarilho, tx: number, tz: number, velocidade: number, dt: number, amb: Ambiente): number {
   const dx = tx - a.x;
@@ -44,26 +51,54 @@ export function darPasso(a: Andarilho, tx: number, tz: number, velocidade: numbe
   const passo = Math.min(d, velocidade * dt);
   const ux = dx / d;
   const uz = dz / d;
-  const tentativas: [number, number][] = [
-    [a.x + ux * passo, a.z + uz * passo],
-    // Deslizando: tenta primeiro o eixo em que ela mais quer andar.
-    Math.abs(ux) >= Math.abs(uz) ? [a.x + ux * passo, a.z] : [a.x, a.z + uz * passo],
-    Math.abs(ux) >= Math.abs(uz) ? [a.x, a.z + uz * passo] : [a.x + ux * passo, a.z],
-  ];
   let andou = 0;
-  for (const [nx, nz] of tentativas) {
-    if (nx === a.x && nz === a.z) continue;
-    if (!amb.livre(nx, nz)) continue;
+  let achou = false;
+  const ir = (nx: number, nz: number): boolean => {
+    if ((nx === a.x && nz === a.z) || !amb.livre(nx, nz)) return false;
     andou = distancia(a.x, a.z, nx, nz);
     a.rumo = Math.atan2(nx - a.x, nz - a.z);
     a.x = nx;
     a.z = nz;
-    break;
+    return true;
+  };
+  // Reto; se nao der, o rumo mais perto do reto que esta livre. O lado em que ja vinha desviando vem
+  // primeiro (e inteiro, ate o desvio maior), senao ela vai e volta junto da parede sem sair do lugar.
+  achou = ir(a.x + ux * passo, a.z + uz * passo);
+  if (!achou) {
+    const quero = Math.atan2(ux, uz);
+    const lado = Math.sin(quero - a.rumo) >= 0 ? 1 : -1;
+    for (let i = 0; i < DESVIOS.length * 2 && !achou; i++) {
+      const g = (i < DESVIOS.length ? lado : -lado) * DESVIOS[i % DESVIOS.length]!;
+      const c = Math.cos(g);
+      const sn = Math.sin(g);
+      achou = ir(a.x + (ux * c - uz * sn) * passo, a.z + (ux * sn + uz * c) * passo);
+    }
   }
+  // Deslizando: tenta primeiro o eixo em que ela mais quer andar.
+  if (!achou) achou = Math.abs(ux) >= Math.abs(uz) ? ir(a.x + ux * passo, a.z) : ir(a.x, a.z + uz * passo);
+  if (!achou) ir(Math.abs(ux) >= Math.abs(uz) ? a.x : a.x + ux * passo, Math.abs(ux) >= Math.abs(uz) ? a.z + uz * passo : a.z);
   if (a.travada < 0) a.travada = Math.min(0, a.travada + dt);
   else if (andou < passo * 0.3) a.travada += dt;
   else a.travada = 0;
   return andou;
+}
+
+/** De quanto em quanto se confere se o corpo cabe, ao longo de uma reta. */
+const PASSO_DA_CONFERENCIA = 0.4;
+
+/**
+ * Da para ir de (ax, az) a (bx, bz) em linha reta, com o corpo? Confere o chao de ponta a ponta.
+ * `visao` nao basta: uma cerca, um balcao ou um banco baixo nao escondem ninguem na altura dos olhos,
+ * mas barram o corpo (defeito achado jogando: o barman rente a uma varanda dava passos na parede para sempre).
+ */
+export function retaLivre(ax: number, az: number, bx: number, bz: number, amb: Ambiente): boolean {
+  const d = distancia(ax, az, bx, bz);
+  const n = Math.ceil(d / PASSO_DA_CONFERENCIA);
+  for (let i = 1; i <= n; i++) {
+    const k = i / n;
+    if (!amb.livre(ax + (bx - ax) * k, az + (bz - az) * k)) return false;
+  }
+  return true;
 }
 
 /** A rota de nos de onde esta ate o no `destino`. Descarta o primeiro no se ela ja passou dele. */
@@ -110,7 +145,7 @@ export function irPara(a: Andarilho, tx: number, tz: number, velocidade: number,
     a.rota = [noMaisPerto(g, a.x, a.z)];
   }
   const recuperando = a.travada < 0;
-  if (!recuperando && d < PERTO_PARA_IR_RETO && amb.visao(a.x, a.z, tx, tz)) {
+  if (!recuperando && d < PERTO_PARA_IR_RETO && amb.visao(a.x, a.z, tx, tz) && retaLivre(a.x, a.z, tx, tz, amb)) {
     a.rota = [];
     darPasso(a, tx, tz, velocidade, dt, amb);
     return false;

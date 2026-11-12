@@ -46,7 +46,12 @@ const DO_SINAL: Partial<Record<Sinal, [NomeDeSom, number, number]>> = {
   amanhecer: ['amanhecer', 0.7, 0.5],
 };
 
+/** Os efeitos que `sintetizar` faz na hora, sem arquivo. */
+export type NomeSintetico = 'tiro' | 'clique' | 'apito' | 'riso' | 'panela' | 'laco' | 'latas' | 'piche' | 'tombo';
+
 export interface Opcoes {
+  /** So para `sintetizar` (o apito): quantos segundos dura. */
+  duracao?: number;
   volume?: number;
   /** Velocidade de reproducao: abaixo de 1 fica mais grave. */
   tom?: number;
@@ -147,6 +152,146 @@ export class Som {
     saida.connect(this.mestre!);
     fonte.start(ctx.currentTime + (op.atraso ?? 0));
     this.tocados.push(nome);
+    if (this.tocados.length > 60) this.tocados.shift();
+  }
+
+  private ruido: AudioBuffer | null = null;
+
+  /** Ruido branco de um segundo, criado uma vez. */
+  private ruidoBranco(): AudioBuffer {
+    if (this.ruido) return this.ruido;
+    const ctx = this.ctx!;
+    const b = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
+    const d = b.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    return (this.ruido = b);
+  }
+
+  /**
+   * Efeitos sintetizados na hora (a cacada), sem arquivo: o que nao ha gravado em public/sons/.
+   * Cada um e curto e barato. `volume`, `tom` (multiplica as frequencias) e `lado` valem como em `tocar`.
+   */
+  sintetizar(nome: NomeSintetico, op: Opcoes = {}): void {
+    const ctx = this.ctx;
+    if (!ctx || !this.mestre) return;
+    const t0 = ctx.currentTime + (op.atraso ?? 0);
+    const tom = op.tom ?? 1;
+    const saida = ctx.createGain();
+    saida.gain.value = op.volume ?? 1;
+    let fim: AudioNode = saida;
+    if (op.lado) {
+      const lado = ctx.createStereoPanner();
+      lado.pan.value = op.lado;
+      saida.connect(lado);
+      fim = lado;
+    }
+    fim.connect(this.mestre);
+
+    /** Um oscilador com envelope de ataque rapido e queda exponencial. */
+    const nota = (tipo: OscillatorType, f0: number, f1: number, ini: number, dur: number, vol: number, filtro?: BiquadFilterNode): void => {
+      const osc = ctx.createOscillator();
+      osc.type = tipo;
+      const g = ctx.createGain();
+      osc.frequency.setValueAtTime(f0 * tom, t0 + ini);
+      if (f1 !== f0) osc.frequency.exponentialRampToValueAtTime(Math.max(1, f1 * tom), t0 + ini + dur);
+      g.gain.setValueAtTime(0.0001, t0 + ini);
+      g.gain.linearRampToValueAtTime(vol, t0 + ini + 0.008);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + ini + dur);
+      if (filtro) osc.connect(filtro).connect(g);
+      else osc.connect(g);
+      g.connect(saida);
+      osc.start(t0 + ini);
+      osc.stop(t0 + ini + dur + 0.05);
+    };
+    /** Um sopro de ruido filtrado. */
+    const sopro = (tipo: BiquadFilterType, f0: number, f1: number, ini: number, dur: number, vol: number, q = 0.7): void => {
+      const fonte = ctx.createBufferSource();
+      fonte.buffer = this.ruidoBranco();
+      fonte.loop = true;
+      const filtro = ctx.createBiquadFilter();
+      filtro.type = tipo;
+      filtro.Q.value = q;
+      filtro.frequency.setValueAtTime(f0 * tom, t0 + ini);
+      filtro.frequency.exponentialRampToValueAtTime(Math.max(20, f1 * tom), t0 + ini + dur);
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, t0 + ini);
+      g.gain.linearRampToValueAtTime(vol, t0 + ini + 0.004);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + ini + dur);
+      fonte.connect(filtro).connect(g).connect(saida);
+      fonte.start(t0 + ini);
+      fonte.stop(t0 + ini + dur + 0.05);
+    };
+
+    switch (nome) {
+      case 'tiro':
+        sopro('lowpass', 7000, 500, 0, 0.32, 1.1);
+        nota('sine', 170, 38, 0, 0.26, 1.2);
+        break;
+      case 'clique':
+        sopro('highpass', 3500, 3500, 0, 0.03, 0.5);
+        sopro('highpass', 2500, 2500, 0.11, 0.03, 0.35);
+        break;
+      case 'apito': {
+        const dur = op.duracao ?? 1.6;
+        for (const [f, v] of [[392, 0.4], [494, 0.34], [588, 0.22]] as const) {
+          const osc = ctx.createOscillator();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(f * tom, t0);
+          const vib = ctx.createOscillator();
+          vib.frequency.value = 5.5;
+          const vibG = ctx.createGain();
+          vibG.gain.value = 5;
+          vib.connect(vibG).connect(osc.frequency);
+          const g = ctx.createGain();
+          g.gain.setValueAtTime(0.0001, t0);
+          g.gain.linearRampToValueAtTime(v, t0 + 0.12);
+          g.gain.setValueAtTime(v, t0 + dur * 0.7);
+          g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+          osc.connect(g).connect(saida);
+          osc.start(t0);
+          vib.start(t0);
+          osc.stop(t0 + dur + 0.05);
+          vib.stop(t0 + dur + 0.05);
+        }
+        sopro('bandpass', 1800, 1800, 0, dur, 0.08, 2);
+        break;
+      }
+      case 'riso': {
+        // Quatro "ha" que descem, roucos.
+        const formante = ctx.createBiquadFilter();
+        formante.type = 'bandpass';
+        formante.frequency.value = 850 * tom;
+        formante.Q.value = 1.6;
+        formante.connect(saida);
+        for (let i = 0; i < 4; i++) nota('sawtooth', 215 - i * 16, 190 - i * 16, i * 0.19, 0.15, 0.55, formante);
+        break;
+      }
+      case 'panela':
+        for (const [i, ini] of [0, 0.14].entries()) for (const [f, v] of [[520, 0.5], [830, 0.4], [1370, 0.25], [2150, 0.14]] as const) nota('sine', f * (1 + i * 0.03), f * (1 + i * 0.03), ini, 0.4, v * 0.6);
+        break;
+      case 'laco':
+        sopro('highpass', 1200, 5000, 0, 0.18, 0.7);
+        sopro('highpass', 4000, 4000, 0.17, 0.05, 0.8);
+        nota('sine', 260, 90, 0.17, 0.12, 0.6);
+        break;
+      case 'latas':
+        for (let i = 0; i < 9; i++) {
+          const ini = i * 0.055 + Math.random() * 0.04;
+          nota('square', 1100 + Math.random() * 1800, 800 + Math.random() * 900, ini, 0.12, 0.2);
+          sopro('bandpass', 2500 + Math.random() * 3000, 2000, ini, 0.08, 0.35, 3);
+        }
+        break;
+      case 'piche':
+        nota('sine', 90, 230, 0, 0.16, 0.7);
+        nota('sine', 80, 200, 0.2, 0.14, 0.5);
+        sopro('lowpass', 500, 150, 0, 0.35, 0.3);
+        break;
+      case 'tombo':
+        nota('sine', 130, 42, 0, 0.3, 1);
+        sopro('lowpass', 900, 120, 0, 0.25, 0.6);
+        break;
+    }
+    this.tocados.push(`~${nome}`);
     if (this.tocados.length > 60) this.tocados.shift();
   }
 

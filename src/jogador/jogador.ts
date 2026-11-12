@@ -55,6 +55,14 @@ export class Jogador {
   seco = false;
   /** Tranco da camera, em radianos. Quem cuida do valor sao os efeitos de tela. */
   tremor = 0;
+  /** Quanto do andar normal vale (a cacada: preso e caido valem 0, piche 0,4). 1 nao muda nada. */
+  multiplicador = 1;
+  /** Piche: o corpo escorrega, a velocidade demora a acompanhar o que se quer. */
+  derrapar = false;
+  /** Inclina a vista de lado, em radianos (a cacada: caido, pendurado de cabeca para baixo). */
+  rolagem = 0;
+  /** Abaixa a vista, em metros (negativo sobe). */
+  baixar = 0;
   /** Camera de cinema (a abertura da noite): enquanto houver, o jogador fica onde esta e a camera vai para esta pose. */
   cinema: { x: number; y: number; z: number; giro: number; inclinacao: number } | null = null;
   /** Avisado a cada passo, pulo e queda, para o som. */
@@ -68,6 +76,8 @@ export class Jogador {
   /** Altura dos pes suavizada, para a camera nao dar tranco a cada degrau. */
   private pesSuave = 0;
   private olhos = ALTURA_DOS_OLHOS;
+  private deslizeX = 0;
+  private deslizeZ = 0;
 
   constructor(
     private readonly camera: THREE.PerspectiveCamera,
@@ -141,6 +151,11 @@ export class Jogador {
     this.posicao.set(x, y, z);
   }
 
+  /** Com os pes fora do chao (pulando ou caindo). */
+  get noAr(): boolean {
+    return !this.corpo.noChao;
+  }
+
   /** A camera esta fora do corpo (terceira pessoa ou gesto)? Entao o personagem precisa aparecer. */
   get vistoDeFora(): boolean {
     // Em cena, no cofre ou com painel aberto (congelado) a camera volta para os olhos: o corpo taparia o que se olha.
@@ -184,7 +199,7 @@ export class Jogador {
 
     // Agachar e segurar C. Soltando, levanta assim que houver espaco para ficar em pe.
     this.agachado = agachar(this.corpo, this.teclas.has('KeyC') && !this.congelado, solidos);
-    if (this.querPular && !this.congelado && !this.agachado && pular(this.corpo)) this.aoPisar?.('pulo');
+    if (this.querPular && !this.congelado && this.multiplicador > 0 && !this.agachado && pular(this.corpo)) this.aoPisar?.('pulo');
     this.querPular = false;
     // Qualquer movimento do corpo acaba com o gesto.
     if (this.gesto && (andar !== 0 || lado !== 0 || this.agachado || !this.corpo.noChao || this.congelado)) this.gesto = null;
@@ -211,12 +226,23 @@ export class Jogador {
       if (this.folego >= FOLEGO_PARA_VOLTAR) this.exausto = false;
     }
     if (andar !== 0 || lado !== 0) {
-      const velocidade = (this.agachado ? VELOCIDADE_AGACHADO : correndo ? VELOCIDADE_CORRENDO : VELOCIDADE) * (espiando ? 0.5 : 1);
+      const velocidade = (this.agachado ? VELOCIDADE_AGACHADO : correndo ? VELOCIDADE_CORRENDO : VELOCIDADE) * (espiando ? 0.5 : 1) * this.multiplicador;
       const v = (velocidade * dt) / Math.hypot(andar, lado);
       const f = this.frente();
       // (-f.z, f.x) e o vetor para a direita de quem olha.
       dx = (f.x * andar - f.z * lado) * v;
       dz = (f.z * andar + f.x * lado) * v;
+    }
+    if (this.derrapar && this.multiplicador > 0 && dt > 0) {
+      // O que se quer andar vira a velocidade aos poucos: o corpo escorrega.
+      const k = Math.min(1, 2.6 * dt);
+      this.deslizeX += (dx / dt - this.deslizeX) * k;
+      this.deslizeZ += (dz / dt - this.deslizeZ) * k;
+      dx = this.deslizeX * dt;
+      dz = this.deslizeZ * dt;
+    } else if (dt > 0) {
+      this.deslizeX = dx / dt;
+      this.deslizeZ = dz / dt;
     }
     const noAr = !this.corpo.noChao;
     const caindo = this.corpo.vy;
@@ -250,7 +276,7 @@ export class Jogador {
     const olho = this.olho;
     const rumo = this.rumo;
     olho.x = this.posicao.x;
-    olho.y = this.pesSuave + this.olhos + balanco;
+    olho.y = this.pesSuave + this.olhos + balanco - this.baixar;
     olho.z = this.posicao.z;
     let rolar = 0;
     const fora = this.vistoDeFora;
@@ -283,7 +309,7 @@ export class Jogador {
       this.distanciaDaCamera = 0;
     }
     this.camera.position.set(olho.x, olho.y, olho.z);
-    this.camera.rotation.set(this.inclinacao + (t ? sorte() : 0), this.giro + (t ? sorte() : 0), rolar + (t ? sorte() * 0.6 : 0));
+    this.camera.rotation.set(this.inclinacao + (t ? sorte() : 0), this.giro + (t ? sorte() : 0), rolar + this.rolagem + (t ? sorte() * 0.6 : 0));
     if (fora) {
       // A luz do lampiao fica com o personagem, nao com a camera que recuou.
       const g = this.giroDoCorpo;

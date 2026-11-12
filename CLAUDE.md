@@ -4,6 +4,24 @@ Jogo de terror e mistério em grupo numa cidade de faroeste sombrio. 3D na web c
 
 A noite da carta (descrita neste guia, salvo onde disser o contrário) é servida em `carta.html` + `src/main.ts`, e os scripts de Chrome abrem `/carta.html?...`. `index.html` é a caçada, o modo novo, com código em `src/caca/` (especificação em `docs/cacadores.md`).
 
+## A caçada (index.html, `src/caca/`)
+
+O modo novo (especificação em `docs/cacadores.md`). A tela de um jogador está pronta e jogável do começo ao fim; a sala em rede é a próxima etapa.
+
+- `src/caca/nucleo/`: as regras, puras (não mexa por gosto; teste em `test/caca*.test.ts`). `src/caca/mundo/`: os modelos 3D (`modelos.ts`, `vestirCoisa.ts`) e `percepcao.ts` (o `livre` e a `visao` que as regras perguntam, numa grade de 6 m, sem alocar por chamada; testado).
+- A tela: `main.ts` (laço, teclas, ganchos), `anfitriao.ts`, `mundoDaCaca.ts`, `reacoes.ts`, `hud.ts`, `entrada.ts`, `cenaFinal.ts`, `textos.ts` (caderno, placar, abertura, piadas) e `icones.ts`. HUD e CSS estão em `index.html`.
+- **Quem hospeda simula.** `Anfitriao` é a interface pequena (`estado`, `agir`, `avancar`, `definirPose`, `ambiente`). `AnfitriaoLocal` roda `avancar` com a pose do jogador e a colisão da cidade; na sala só o dono vai simular e os outros terão um `Anfitriao` que guarda o estado recebido. A tela nunca altera `caca`: só lê e pede `agir`.
+- **Regra de ouro da tela: reagir a eventos, não a teclas.** Todo som, efeito de tela, legenda e voz sai de `caca.eventos` (`Reacoes.processar`, pelo `n` ainda não visto). Nunca toque um som no ponto em que a tecla foi apertada: quem só recebe o estado pela rede não ouviria. O que é estado (preso, caído, desmaiado, a Coisa presa se debatendo, o vigia que vê) a tela desenha lendo o estado a cada quadro. Evento novo: `TipoDeEvento` no núcleo, depois um `case` em `reacoes.ts`.
+- O mundo (`MundoDaCaca`) é derivado do estado: modelos por tipo numa reserva (nada de criar por quadro), e luzes FIXAS (a lanterna de cada morador e uma para o lampião de sinal): acrescentar luz recompila os shaders.
+- Sons: os gravados (`public/sons/`) e, para o que não há arquivo, `Som.sintetizar` (tiro, apito, riso, panela, laço, latas, piche, tombo), feitos na Web Audio na hora. Nada de `npm run sons` ou `npm run vozes` sem pedir. As falas dos moradores (`falaDaCaca`) caem na voz do navegador até serem gravadas.
+- `jogador.ts` ganhou, só por acréscimo, `multiplicador` (preso, caído, montando e piche valem 0 ou 0,4), `derrapar`, `rolagem`, `baixar` e `noAr`; `vulto.ts` ganhou `gesto` ('acenar', 'debater'); `som.ts`, `sintetizar`.
+- Teclas: WASD, Shift, Espaço, C, F, Z/X, P, E (pega o item da mira; no morador abre a rodinha 1 isca, 2 vigia, 3 me siga, 4 pode ir; segurando: máscara, acordar, recolher), 1/2 (mão), Q segurado (monta, com fantasma e barra), G (larga), clique (atira), Tab (caderno), M, H, R (no fim, ou segurado 1 s).
+- URL: `?seed=`, `?tipo=sombra|orelhuda`, `?vilao=`, `?duracao=` (segundos), `?abertura=0`, `?som=0`, `?dia=1`, `?hud=0`, `?cam=x,y,z,giro,inc` (câmera presa, sem jogo).
+- `window.__caca` (só para scripts e capturas; tudo que mexe no estado por fora das regras fica aqui): `estado()`, `jogador()`, `teleportar(x, y, z)`, `olhar(giro, inc)`, `olharPara(x, z, y)`, `agir(acao)`, `tempo(corre)` (a simulação anda sem o mouse preso), `acelerar(fator)`, `porCoisa(x, z, rumo)` (ronda, e acaba a proteção dos 20 s), `furia(s)`, `dar(item)`, `vagaDe(id)`, `paraMorador(npc)`, `pontoDaMira()`, `hud()` (o que está escrito na tela), `tratados()` (eventos já vistos), `som()`, `fps()`, `custoDaSimulacao()`, entre outros. Para o jogador agir de verdade, os scripts apertam as teclas e clicam.
+- `npm run caca` joga a caçada num Chrome sem janela (porta 5192, `PORTA=` muda; `CHROME=` no Windows): laço, sino e laço, o próprio laço, revólver, susto e desmaio, moradores, itens, trem, som, uma partida ao acaso de 3 minutos (FPS), a Coisa e as armadilhas vistas, as vistas (caderno, mapa, abertura). Guarda `capturas/caca-*.png` e sai com código diferente de zero se algum roteiro falhar ou a página der erro no console. `npm run caca -- laco sino` roda só esses. Abra as capturas: é a regra de ouro de sempre.
+- Aprendido jogando: o coice do revólver sobe a mira e ela volta sozinha (senão o terceiro tiro passa por cima); o piche de 2,3 m pega quem o montou (a armadilha pega qualquer um); o laço só pega a Coisa que vem atrás de quem passa por cima quando o jogador pula antes dele (2 m) e a Coisa vem em linha reta; em tela cheia a placa do placar fica à direita e a câmera do fim desvia um pouco para o outro lado.
+
+
 ## Com quem você está trabalhando
 
 - O dono do projeto é o Ideraldo, dev backend (Node e TypeScript). É um projeto paralelo, com pouco tempo por semana.
@@ -26,6 +44,7 @@ npm run sala       # poe dois navegadores na mesma sala e confere o jogo em grup
 npm run abertura   # confere a abertura narrada da noite e a conversa com um NPC
 npm run vilao      # joga os vestigios, a armadilha e o desmascarar, com nome certo e com nome errado
 npm run coisa      # confere a Coisa que anda: ronda, visao, perseguicao, esconderijo, cerco e a mesma posicao para dois numa sala
+npm run caca       # joga a CACADA inteira (index.html) num Chrome sem janela e guarda capturas/caca-*.png (uns 6 minutos)
 npm run gestos     # confere aderecos e gestos das cenas, o cofre de ferro e o favor (uns 12 minutos; aceita filtro: npm run gestos -- retrato cofre)
 npm run dev:rede   # como o dev, mas aberto para quem esta na mesma rede
 npm run planta     # regenera docs/planta.*

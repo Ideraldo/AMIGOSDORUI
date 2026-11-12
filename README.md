@@ -6,6 +6,29 @@ Jogo de terror e mistério para 3 a 6 amigos. Cada partida sorteia uma história
 
 Desde 13/11/2026 a noite da carta descrita aqui abre em `carta.html`, e `index.html` é a caçada, o modo novo (ver `docs/cacadores.md`).
 
+## A caçada (o modo novo, `index.html`)
+
+A turma chega de trem. Uma assombração anda pelas ruas e o trem parte em 12 minutos. Para ganhar, é preciso prendê-la (ou derrubá-la) e arrancar a máscara: por baixo da fantasia está um dos moradores. A tela não diz que assombração veio: a Sombra enxerga no escuro e foge da luz, a Orelhuda é cega e vai atrás de barulho. Descobre-se olhando, e o Tab (segurando) abre o caderno, com o que cada coisa faz.
+
+Reviram as casas (E pega o que está em cima dos móveis), montam armadilhas na rua (laço, poça de piche, arame com latas, sino de vaca, lampião de sinal), pegam o revólver de sal grosso na delegacia e pedem ajuda aos moradores. A armadilha pega qualquer um que pise, inclusive quem montou: pule por cima.
+
+| Tecla | O que faz |
+| --- | --- |
+| WASD, Shift, Espaço, C | andar, correr, pular, agachar |
+| Mouse | olhar. O botão esquerdo atira, se tiver o revólver |
+| E | pega o que está na mira. Perto de um morador, abre a rodinha: 1 isca, 2 vigia, 3 me siga, 4 pode ir. **Segurando** E: arrancar a máscara da Coisa presa ou caída, acordar um amigo desmaiado, recolher uma armadilha |
+| 1, 2 | escolhe o que está na mão |
+| Q (segurando) | monta no chão, um passo à frente (aparece um fantasma de onde vai ficar e uma barra) |
+| G | larga o que está na mão |
+| F | acende ou apaga o lampião (Z e X espiam pelo canto) |
+| Tab (segurando) | caderno |
+| M, P, H | mapa, ver o personagem de fora, estas teclas |
+| R | outra caçada (no fim, ou segurando por 1 s) |
+
+Parâmetros de URL: `?seed=`, `?tipo=sombra` ou `orelhuda`, `?vilao=coveiro`, `?duracao=120` (segundos), `?abertura=0`, `?som=0`, `?dia=1`, `?hud=0`, `?cam=x,y,z,giro,inc` (câmera presa, para capturas). `npm run caca` joga a caçada inteira num Chrome sem janela. Por enquanto a caçada é para um jogador; a sala em rede é a próxima etapa.
+
+A noite da carta, o modo anterior, abre em `carta.html` e é descrita daqui para baixo.
+
 ![Chegada pela rua principal](docs/01-chegada.png)
 
 ![Cena ao entrar no bar](docs/09-cena.png)

@@ -37,6 +37,8 @@ export class Vulto {
   private xAntes = 0;
   private zAntes = 0;
   private garra = 0;
+  /** A cacada: 'acenar' (adeus, no fim do trem) ou 'debater' (presa no laco, os dois bracos para o alto). */
+  gesto: 'acenar' | 'debater' | null = null;
 
   constructor(cena: THREE.Scene) {
     const mat = (cor: number, extra: THREE.MeshStandardMaterialParameters = {}) => {
@@ -228,6 +230,15 @@ export class Vulto {
     this.bracos[1]!.rotation.x = balanco * 0.6 * (1 - this.garra) - 1.35 * this.garra + Math.sin(t * 7) * 0.05 * this.garra;
     this.bracos[0]!.rotation.z = -0.07;
     this.bracos[1]!.rotation.z = 0.07;
+    if (this.gesto === 'acenar') {
+      this.bracos[1]!.rotation.x = 0;
+      this.bracos[1]!.rotation.z = 2.5 + Math.sin(t * 7) * 0.35;
+    } else if (this.gesto === 'debater') {
+      this.bracos[0]!.rotation.x = -2.6 + Math.sin(t * 17) * 0.5;
+      this.bracos[1]!.rotation.x = -2.6 + Math.sin(t * 15 + 1) * 0.5;
+      this.bracos[0]!.rotation.z = -0.5 + Math.sin(t * 13) * 0.3;
+      this.bracos[1]!.rotation.z = 0.5 - Math.sin(t * 14) * 0.3;
+    }
 
     // A capa: cada pano balanca no seu tempo e abre para tras com a velocidade.
     for (const p of this.panos) {

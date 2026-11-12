@@ -24,6 +24,7 @@
     "gestos": "tsx scripts/gestos.ts",
     "vilao": "tsx scripts/vilao.ts",
     "coisa": "tsx scripts/coisa.ts",
+    "caca": "tsx scripts/caca.ts",
     "vitrine": "tsx scripts/vitrine.ts"
   },
   "dependencies": {
