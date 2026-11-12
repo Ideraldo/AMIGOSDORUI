@@ -268,14 +268,14 @@ export class PartidaNaTela {
     const lista = objetivos(this.estado, this.bib, this.eu);
     const entender = lista.find((o) => o.id === 'entender')!;
     const regra = regraDe(this.estado, this.bib);
-    if (this.estado.rodada === RODADAS) return entender.feito ? comoEscapar(regra) : 'Última hora: ache um lugar que pareça seguro antes do sino.';
+    if (this.estado.rodada === RODADAS) return entender.feito ? comoEscapar(regra, this.estado.abertos) : 'Última hora: ache um lugar que pareça seguro antes do sino.';
     // A carta vem primeiro: a parte de cada um, depois juntar tudo.
     if (!achouOAutor(this.estado) && this.estado.carta.autor !== '') {
       const prova = this.estado.achados.find((a) => a.tipo === 'prova' && a.dono === this.eu && !a.pego);
       if (prova) return `Sua parte: achar a prova que está em ${lugarPorId(prova.lugar)!.nome}.`;
       if (this.podeMostrarCarta) return this.estado.personagens.length > 1 ? 'Junte as provas com o grupo e mostre a carta (V) a quem a escreveu.' : 'Mostre a carta (V) ao suspeito que sobrou.';
     }
-    if (entender.feito) return comoEscapar(regra);
+    if (entender.feito) return comoEscapar(regra, this.estado.abertos);
     return 'Procure pistas do que ronda a cidade: investigue o que brilha nos lugares abertos.';
   }
 
@@ -287,6 +287,11 @@ export class PartidaNaTela {
   /** Este jogador ainda tem a chance de mostrar a carta? */
   get podeMostrarCarta(): boolean {
     return podeMostrar(this.estado, this.eu);
+  }
+
+  /** Os suspeitos que este jogador ja sabe que nao escreveram a carta. */
+  get inocentados(): string[] {
+    return inocentados(this.estado, this.eu);
   }
 
   /** Ainda ha chance de mostrar a carta nesta noite, mesmo que agora falte prova? */

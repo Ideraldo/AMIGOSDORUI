@@ -913,7 +913,8 @@ function falarCom(id: string): string {
 
 /** Da para mostrar a carta a esta pessoa agora? */
 function podeMostrarA(id: string): boolean {
-  return partida.temChanceDeMostrar && partida.estado.carta.suspeitos.includes(id);
+  // Nao oferece a carta a quem o jogador ja sabe que nao a escreveu.
+  return partida.temChanceDeMostrar && partida.estado.carta.suspeitos.includes(id) && !partida.inocentados.includes(id);
 }
 
 /** Mostrar a carta e a unica chance do jogador: o primeiro V avisa, o segundo (em 5 segundos) mostra. */
@@ -973,8 +974,15 @@ function planosDaNoite(): Plano[] {
   // Quem ainda esta na cidade: a porta de um deles.
   const gente = EXEMPLO.npcs.filter((n) => e.elenco.includes(n.id) && casas.get(n.id) && e.abertos.includes(casas.get(n.id)!));
   const comCarta = e.carta.autor !== '';
+  // A camera fica na frente da porta de um deles, desde que esse ponto nao caia dentro de outra construcao.
+  const dentroDeAlgo = (x: number, z: number) => [...LUGARES, ...FIGURANTES].some((c) => contem(pegada(c), x, z));
+  const naRua = gente.find((n) => {
+    const c = lugarPorId(casas.get(n.id)!)!;
+    const f = direcao(c.frente);
+    return !dentroDeAlgo(c.x + f.dx * 8, c.z + f.dz * 8) && !dentroDeAlgo(c.x + f.dx * 4.5, c.z + f.dz * 4.5);
+  });
   if (gente.length) {
-    const l = lugarPorId(casas.get(gente[0]!.id)!)!;
+    const l = lugarPorId(casas.get((naRua ?? gente[0]!).id)!)!;
     const d = direcao(l.frente);
     // Reto na frente da porta, que e o unico caminho que a planta garante livre.
     const de: PoseDeCamera = [l.x + d.dx * 8, 1.9, l.z + d.dz * 8, 0, 0.05];
@@ -1064,6 +1072,8 @@ const casas = new Map(EXEMPLO.npcs.map((n) => [n.id, casaDoNpc(EXEMPLO, n.id)] a
 const gente = new Map<string, THREE.Group>();
 /** Quem esta visivel agora, para as guias e para os scripts. */
 let presentes: { id: string; nome: string; papel: string; lugar: LugarId; x: number; z: number }[] = [];
+/** Em que movel cada NPC ficou nesta hora. */
+const ondeFica = new Map<string, { chave: string; ponto: Ponto }>();
 
 function atualizarGente(t: number): void {
   presentes = [];
@@ -1088,7 +1098,18 @@ function atualizarGente(t: number): void {
       gente.set(npc.id, pessoa);
       cena.add(pessoa);
     }
-    const ponto = livres[(partida.estado.rodada + i) % livres.length]!;
+    // O lugar de cada um vale pela hora inteira: se mudasse quando o jogador pega uma coisa
+    // (o movel dela fica livre), a pessoa pulava para cima do jogador.
+    const chave = `${partida.estado.semente}:${partida.estado.rodada}`;
+    const guardado = ondeFica.get(npc.id);
+    let ponto = guardado?.chave === chave && pontos!.includes(guardado.ponto) && !ocupados.has(guardado.ponto) ? guardado.ponto : null;
+    if (!ponto) {
+      // De preferencia a mais de 2,5 m do jogador, para ninguem brotar do lado dele.
+      const afastados = livres.filter((p) => Math.hypot(p.pe[0] - jogador.posicao.x, p.pe[1] - jogador.posicao.z) > 2.5);
+      const opcoes = afastados.length ? afastados : livres;
+      ponto = opcoes[(partida.estado.rodada + i) % opcoes.length]!;
+      ondeFica.set(npc.id, { chave, ponto });
+    }
     pessoa.visible = true;
     pessoa.position.set(ponto.pe[0], 0, ponto.pe[1]);
     // De longe olha para o que esta fazendo. De perto, vira para o jogador. Respira devagar.

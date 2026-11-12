@@ -635,13 +635,18 @@ export function casaDoNpc(bib: Biblioteca, npc: string): LugarId | null {
 }
 
 /** O que fazer para a ameaca nao alcancar ninguem, dito a quem ja entendeu a regra. */
-export function comoEscapar(regra: RegraSecreta): string {
+export function comoEscapar(regra: RegraSecreta, abertos?: readonly LugarId[]): string {
   switch (regra.alvo.tipo) {
     case 'sozinho':
       return 'Não fique sozinho quando o sino bater.';
     case 'fora-de-abrigo': {
-      const nomes = regra.alvo.abrigos.map((id) => LUGARES.find((l) => l.id === id)!.nome);
-      return `Esteja em ${nomes.length > 1 ? `${nomes.slice(0, -1).join(', ')} ou ${nomes.at(-1)}` : nomes[0]} quando o sino bater.`;
+      // So adianta mandar para abrigo aberto nesta hora. Se nenhum estiver, a lista vai inteira.
+      const valem = abertos ? regra.alvo.abrigos.filter((id) => abertos.includes(id)) : regra.alvo.abrigos;
+      const nomes = (valem.length ? valem : regra.alvo.abrigos).map((id) => LUGARES.find((l) => l.id === id)!.nome);
+      const fechados = abertos ? regra.alvo.abrigos.filter((id) => !abertos.includes(id)).map((id) => LUGARES.find((l) => l.id === id)!.nome) : [];
+      const lista = nomes.length > 1 ? `${nomes.slice(0, -1).join(', ')} ou ${nomes.at(-1)}` : nomes[0];
+      const aviso = valem.length && fechados.length ? ` (${fechados.join(' e ')}: de porta fechada esta hora)` : '';
+      return `Abrigo para quando o sino bater: ${lista}${aviso}.`;
     }
     case 'mais-medo':
       return `Chegue ao sino com o medo abaixo de ${regra.alvo.limiar}.`;
@@ -683,7 +688,7 @@ export function objetivos(e: Estado, bib: Biblioteca, quem: string): Objetivo[] 
     },
     {
       id: 'amanhecer',
-      texto: `Ver o sol nascer. ${sabe ? comoEscapar(regra) : 'Ainda não se sabe o que afasta a coisa.'}`,
+      texto: `Ver o sol nascer. ${sabe ? comoEscapar(regra, e.abertos) : 'Ainda não se sabe o que afasta a coisa.'}`,
       feito: e.fim !== null && p.vivo,
       falhou,
     },

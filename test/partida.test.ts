@@ -302,7 +302,9 @@ test('os objetivos acompanham a noite: a carta, entender e ver o sol nascer', ()
   const sabendo = { ...e, pistas: regra.pistas.slice(0, 2) };
   const depois = objetivos(sabendo, EXEMPLO, 'a');
   assert.ok(depois[1]!.feito);
-  assert.ok(depois[2]!.texto.includes(comoEscapar(regra)));
+  assert.ok(depois[2]!.texto.includes('Abrigo para quando o sino bater'));
+  assert.ok(!comoEscapar(regra, ['cemiterio', 'bar']).startsWith('Abrigo para quando o sino bater: Igreja'));
+  assert.ok(comoEscapar(regra, ['cemiterio', 'bar']).includes('Igreja: de porta fechada'));
   assert.ok(comoEscapar(regra).includes('Igreja') && comoEscapar(regra).includes('Cemitério'));
   for (const o of depois) assert.ok(!o.texto.includes('—'));
 });
