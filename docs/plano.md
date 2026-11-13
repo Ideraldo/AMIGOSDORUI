@@ -1,5 +1,42 @@
 # Plano do jogo
 
+## Onde paramos em 13/11/2026 (leia isto primeiro)
+
+O rumo mudou. Depois do teste de 12/11 (`docs/teste-2026-11-12.md`) o Ideraldo trocou o fundo do jogo. A noite da carta, descrita no resto deste arquivo, foi para `carta.html` e não é mais o que se evolui.
+
+**O que existe agora, na `main`:**
+
+- **A caçada** (`index.html`, `docs/cacadores.md`): partida de 12 minutos, armadilhas montadas em qualquer lugar, revólver de sal, moradores que andam e aceitam pedidos. Sozinho ou em sala de até 6.
+- **O Traidor** (`docs/traidor.md`), o modo principal: com 3 ou mais na sala um amigo é a Coisa em segredo. O Ideraldo joga com 3 a 6 pessoas.
+- **Mapa ampliado:** pátio da estação, galerias da mina por alçapões, baús de fantasia nos quartos.
+- **Jogar pela internet:** `npm run online` monta o jogo e abre um túnel cloudflared (gratuito, sem conta). O Ideraldo não consegue juntar todos em casa, então é assim que o grupo joga.
+
+**O que foi conferido e o que não foi:**
+
+- `npm run conferir` (254 testes), `npm run caca`, `npm run caca:sala` e `npm run caca:traidor` passam. O `caca:traidor` só testa 3 navegadores na mesma máquina.
+- Pelo túnel, só se conferiu que a página abre e a sala se cria. Nenhuma partida inteira foi jogada pela internet.
+- Ninguém jogou o Traidor com gente de verdade. Todos os números são chute: fantasia de 90 s, voto de 30 s, espantar 3 de 4 moradores, recargas dos poderes, alcances.
+- A revisão por três agentes (jogador de teste, design, código) da leva do Traidor NÃO foi feita. O Ideraldo reclamou da demora da sessão, e o teste dele com os amigos vem primeiro.
+
+**Próximos passos, na ordem:**
+
+1. O Ideraldo joga com os amigos pelo `npm run online` e conta o que achou. Calibrar pelos comentários dele.
+2. Rodar a revisão dos três agentes junto com o que ele trouxer, e a rodada de consertos.
+3. Pontos frágeis já conhecidos:
+   - Aba do dono em segundo plano congela a partida de todos; não há reconexão.
+   - O estado inteiro vai umas 10 vezes por segundo (10 a 20 KB); não medido com atraso de internet. Pulo por cima do laço pode ser lido errado no convidado.
+   - Traidor fantasiado não entra na reunião nem pode ser votado.
+   - Espantar morador mede a distância até a porta: quem espanta fica na soleira.
+   - Sons sintetizados (tiro, uivo, martelo, alçapão e outros) nunca ouvidos; falas dos moradores na voz do navegador (gravar com `npm run vozes`, vendo o custo com `-- conta` antes).
+   - A Sombra diante de lampião aceso quase só recua; só o caderno ensina a apagar.
+   - Não testado: 4 a 6 jogadores, dono caindo no meio da reunião, reunião durante o apagão.
+4. Se jogar online virar hábito: hospedagem de verdade (hoje a sala só roda dentro do Vite, e o túnel sem conta não tem garantia).
+5. Fica para depois: rio, ponte e moinho; chaves; mais armadilhas; terceiro tipo de assombração; o caçador saltar entre alçapões.
+
+Há worktrees antigos de agentes em `.claude/worktrees/`, já juntados: podem ser apagados.
+
+## O plano antigo (noite da carta)
+
 Escrito em 10/11/2026, depois do primeiro teste do Ideraldo. Diz onde o jogo está, o que falta e como chegar ao multiplayer. Atualize quando uma etapa fechar.
 
 ## Onde o jogo está
